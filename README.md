@@ -4,6 +4,9 @@
 
 CoreAmp is a "Zero-Config" audio player built for macOS and Linux. It adheres to the **KISS (Keep It Simple, Stupid)** philosophy: a minimalist interface, robust performance, and total local ownership of your data.
 
+![CoreAmp Screenshot 1](screenshots/screenshot1.png)
+![CoreAmp Screenshot 2](screenshots/screenshot2.png)
+
 [![CI](https://github.com/velkymx/CoreAmp/actions/workflows/ci.yml/badge.svg)](https://github.com/velkymx/CoreAmp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Polyform--Noncommercial--1.0.0-blue.svg)](LICENSE)
 
