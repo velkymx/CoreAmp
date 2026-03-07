@@ -5,9 +5,6 @@
 /coreamp-daemon/target
 /coreamp-app/gen/
 
-# Tauri
-/coreamp-app/dist
-
 # OS Junk
 .DS_Store
 Thumbs.db
