@@ -117,5 +117,5 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: target/packages/macos/*
+          files: target/packages/macos/*.zip
           draft: true

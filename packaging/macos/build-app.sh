@@ -22,6 +22,7 @@ if [ ! -d "${APP_BUNDLE}" ]; then
   exit 1
 fi
 
-tar -C "${APP_DIR}" -czf "${OUTPUT_DIR}/CoreAmp.app.tar.gz" CoreAmp.app
+rm -f "${OUTPUT_DIR}/CoreAmp.app.zip"
+(cd "${APP_DIR}" && zip -r -y "${OUTPUT_DIR}/CoreAmp.app.zip" CoreAmp.app)
 
 echo "macOS bundle artifacts written to ${OUTPUT_DIR}"
