@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CoreAmp",
+  "version": "0.1.0",
+  "identifier": "com.coreamp.desktop",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "frontendDist": "dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "CoreAmp",
+        "width": 1024,
+        "height": 700,
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"]
+  }
+}
