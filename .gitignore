@@ -1,0 +1,24 @@
+# Rust
+/target
+/coreamp-app/target
+/coreamp-common/target
+/coreamp-daemon/target
+/coreamp-app/gen/
+
+# Tauri
+/coreamp-app/dist
+
+# OS Junk
+.DS_Store
+Thumbs.db
+*.DS_Store
+*.swp
+*~
+
+# Logs
+*.log
+
+# Misc
+.env
+.env.*
+node_modules/
