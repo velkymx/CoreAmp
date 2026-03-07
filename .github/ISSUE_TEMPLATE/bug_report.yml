@@ -1,0 +1,54 @@
+name: Bug Report
+description: Report a bug to help us improve CoreAmp.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the issue...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: Explain how we can reproduce the bug.
+      placeholder: |
+        1. Open CoreAmp
+        2. Drag an .mp3 file...
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS
+        - Linux (Ubuntu/Debian)
+        - Linux (Fedora/RHEL)
+        - Linux (Arch)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Info
+      description: Please provide your `coreamp --version` and any relevant system details (e.g., DE/WM on Linux).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: If applicable, add any logs or error messages from the terminal.
