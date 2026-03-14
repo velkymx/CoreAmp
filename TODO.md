@@ -55,12 +55,21 @@
 - [x] Upgrade the native audio path so effects and playback behavior match web output more closely.
 - [x] Build a modular DSP chain for EQ, bass boost, preamp, limiter, crossfeed, and future effects.
 - [x] Add `Play next`, `Queue next`, `Play from here`, `Stop after current`, and `Clear played`.
-
+- [x] Add the ability to LIKE a song and then have it show up on the Liked Playlist
+- [x] Filter Library by Genre
+- [x] De-dup playlist, have a clean up button that removes duplicate tracks
+- [ ] Unknown title should show up in the U section
+- [ ] Add a new tab to explore your most loved artists and recently played songs.
+- [ ] Add Create Playlist from search results for quick playlist creation
+- [x] Metadata should be clickable and take to the search - eg. if you click the album name you should get the album tracks. or you click the Artist name, etc etc
+- [ ] Track info sidebar, shows album art, year released, tracklist and lyrics
 ### P1 - Library and Album Listening
 - [ ] Expand metadata support for `album artist`, `track number`, `disc number`, `composer`, and `genre`.
 - [ ] Add album-centric browsing views for `Albums`, `Artists`, and `Genres`.
 - [ ] Group library playback around album order, not just track search.
 - [ ] Add folder art / album art coverage improvements where embedded art is missing.
+- [ ] Search sort by Genre
+- [ ] Add https://github.com/hvianna/audioMotion-analyzer to replace the EQ visualizer
 
 ### P2 - Loudness, Queue, and Listening Controls
 - [ ] Add ReplayGain support with `track gain` and `album gain` modes.

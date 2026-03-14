@@ -14,6 +14,7 @@ pub struct TrackMetadata {
     pub album: Option<String>,
     pub title: Option<String>,
     pub year: Option<String>,
+    pub genre: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -134,6 +135,9 @@ fn fill_missing_metadata(metadata: &mut TrackMetadata, tag: &Tag) {
     if !is_present(&metadata.year) {
         metadata.year = tag.date().map(|date| date.year.to_string());
     }
+    if !is_present(&metadata.genre) {
+        metadata.genre = normalize(tag.genre());
+    }
 }
 
 fn artwork_from_tag(tag: &Tag) -> Option<EmbeddedArtwork> {
@@ -165,6 +169,7 @@ pub fn read_track_metadata(path: &Path) -> TrackMetadata {
             && is_present(&metadata.album)
             && is_present(&metadata.title)
             && is_present(&metadata.year)
+            && is_present(&metadata.genre)
         {
             break;
         }
@@ -245,6 +250,12 @@ pub fn write_missing_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool,
             tag.set_date(timestamp);
             changed = true;
         }
+        if is_missing(tag.genre())
+            && let Some(genre) = metadata.genre.clone()
+        {
+            tag.set_genre(genre);
+            changed = true;
+        }
     }
 
     if changed {
@@ -267,6 +278,7 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
     let album = normalize_owned(metadata.album.clone());
     let title = normalize_owned(metadata.title.clone());
     let year = parse_year_timestamp(&normalize_owned(metadata.year.clone()));
+    let genre = normalize_owned(metadata.genre.clone());
 
     let mut changed = false;
     if let Some(tag) = tagged_file.primary_tag_mut() {
@@ -293,6 +305,12 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
             && let Some(timestamp) = year
         {
             tag.set_date(timestamp);
+            changed = true;
+        }
+
+        let current_genre = normalize(tag.genre());
+        if current_genre != genre {
+            tag.set_genre(genre.clone().unwrap_or_default());
             changed = true;
         }
     }

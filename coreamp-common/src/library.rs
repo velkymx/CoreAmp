@@ -18,10 +18,17 @@ pub struct ScannedFile {
     pub album: Option<String>,
     pub title: Option<String>,
     pub year: Option<String>,
+    pub genre: Option<String>,
     pub metadata_hash: String,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
+pub struct PreScannedFile {
+    pub path: PathBuf,
+    pub metadata_hash: String,
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize)]
 pub struct ScanSummary {
     pub roots_scanned: usize,
     pub files_discovered: usize,
@@ -79,11 +86,7 @@ fn compute_metadata_hash(path: &Path, metadata: &fs::Metadata) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn to_scanned_file(path: &Path) -> Option<ScannedFile> {
-    if !is_supported_media_file(path) {
-        return None;
-    }
-    let metadata = fs::metadata(path).ok()?;
+fn to_scanned_file(path: &Path, metadata_hash: String) -> Option<ScannedFile> {
     let filename = path.file_name()?.to_string_lossy().to_string();
     let file_metadata = metadata::read_track_metadata(path);
     let default_title = path
@@ -96,11 +99,12 @@ fn to_scanned_file(path: &Path) -> Option<ScannedFile> {
         album: file_metadata.album,
         title: file_metadata.title.or(default_title),
         year: file_metadata.year,
-        metadata_hash: compute_metadata_hash(path, &metadata),
+        genre: file_metadata.genre,
+        metadata_hash,
     })
 }
 
-fn collect_media_dir(root: &Path, results: &mut Vec<ScannedFile>) {
+fn collect_media_dir(root: &Path, results: &mut Vec<PreScannedFile>) {
     let mut stack = vec![root.to_path_buf()];
     while let Some(current_dir) = stack.pop() {
         let entries = match fs::read_dir(&current_dir) {
@@ -114,14 +118,20 @@ fn collect_media_dir(root: &Path, results: &mut Vec<ScannedFile>) {
                 stack.push(path);
                 continue;
             }
-            if let Some(file) = to_scanned_file(&path) {
-                results.push(file);
+            if !is_supported_media_file(&path) {
+                continue;
+            }
+            if let Ok(metadata) = fs::metadata(&path) {
+                results.push(PreScannedFile {
+                    metadata_hash: compute_metadata_hash(&path, &metadata),
+                    path,
+                });
             }
         }
     }
 }
 
-fn collect_media_path(path: &Path, results: &mut Vec<ScannedFile>) {
+fn collect_media_path(path: &Path, results: &mut Vec<PreScannedFile>) {
     if !path.exists() {
         return;
     }
@@ -129,12 +139,18 @@ fn collect_media_path(path: &Path, results: &mut Vec<ScannedFile>) {
         collect_media_dir(path, results);
         return;
     }
-    if let Some(file) = to_scanned_file(path) {
-        results.push(file);
+    if !is_supported_media_file(path) {
+        return;
+    }
+    if let Ok(metadata) = fs::metadata(path) {
+        results.push(PreScannedFile {
+            metadata_hash: compute_metadata_hash(path, &metadata),
+            path: path.to_path_buf(),
+        });
     }
 }
 
-pub fn scan_library_files(roots: &[PathBuf]) -> Vec<ScannedFile> {
+pub fn scan_library_files(roots: &[PathBuf]) -> Vec<PreScannedFile> {
     let mut files = Vec::new();
     for root in roots {
         collect_media_path(root, &mut files);
@@ -142,7 +158,7 @@ pub fn scan_library_files(roots: &[PathBuf]) -> Vec<ScannedFile> {
     files
 }
 
-pub fn scan_explicit_paths(paths: &[PathBuf]) -> Vec<ScannedFile> {
+pub fn scan_explicit_paths(paths: &[PathBuf]) -> Vec<PreScannedFile> {
     let mut files = Vec::new();
     for path in paths {
         collect_media_path(path, &mut files);
@@ -152,12 +168,15 @@ pub fn scan_explicit_paths(paths: &[PathBuf]) -> Vec<ScannedFile> {
 
 pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
     let files = scan_library_files(roots);
+    let cached_hashes = db::get_all_metadata_hashes()?;
     let mut changed_files = Vec::new();
-    for file in files.iter().cloned() {
-        let cached_hash = db::metadata_hash_for_path(&file.path)?;
-        let is_unchanged = matches!(cached_hash, Some(hash) if hash == file.metadata_hash);
+    for file in files.iter() {
+        let path_str = file.path.to_string_lossy().to_string();
+        let is_unchanged = matches!(cached_hashes.get(&path_str), Some(hash) if hash == &file.metadata_hash);
         if !is_unchanged {
-            changed_files.push(file);
+            if let Some(scanned) = to_scanned_file(&file.path, file.metadata_hash.clone()) {
+                changed_files.push(scanned);
+            }
         }
     }
     let files_upserted = db::upsert_scanned_files(&changed_files)?;
@@ -175,12 +194,15 @@ pub fn index_configured_library() -> Result<ScanSummary, String> {
 
 pub fn index_explicit_paths(paths: &[PathBuf]) -> Result<ScanSummary, String> {
     let files = scan_explicit_paths(paths);
+    let cached_hashes = db::get_all_metadata_hashes()?;
     let mut changed_files = Vec::new();
-    for file in files.iter().cloned() {
-        let cached_hash = db::metadata_hash_for_path(&file.path)?;
-        let is_unchanged = matches!(cached_hash, Some(hash) if hash == file.metadata_hash);
+    for file in files.iter() {
+        let path_str = file.path.to_string_lossy().to_string();
+        let is_unchanged = matches!(cached_hashes.get(&path_str), Some(hash) if hash == &file.metadata_hash);
         if !is_unchanged {
-            changed_files.push(file);
+            if let Some(scanned) = to_scanned_file(&file.path, file.metadata_hash.clone()) {
+                changed_files.push(scanned);
+            }
         }
     }
     let files_upserted = db::upsert_scanned_files(&changed_files)?;
@@ -247,7 +269,7 @@ mod tests {
         fs::write(nested.join("notes.txt"), b"skip").expect("write txt");
 
         let files = scan_library_files(std::slice::from_ref(&root));
-        let names: Vec<_> = files.into_iter().map(|f| f.filename).collect();
+        let names: Vec<_> = files.into_iter().map(|f| f.path.file_name().unwrap().to_string_lossy().to_string()).collect();
         assert!(names.iter().any(|name| name == "track1.mp3"));
         assert!(names.iter().any(|name| name == "track2.ogg"));
         assert!(!names.iter().any(|name| name == "notes.txt"));
@@ -263,7 +285,7 @@ mod tests {
 
         let files = scan_explicit_paths(std::slice::from_ref(&file));
         assert_eq!(files.len(), 1);
-        assert_eq!(files[0].filename, "single.mp3");
+        assert_eq!(files[0].path.file_name().unwrap().to_string_lossy().to_string(), "single.mp3");
 
         fs::remove_dir_all(root).expect("cleanup");
     }
