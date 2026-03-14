@@ -70,6 +70,7 @@
 - [ ] Add folder art / album art coverage improvements where embedded art is missing.
 - [ ] Search sort by Genre
 - [ ] Add https://github.com/hvianna/audioMotion-analyzer to replace the EQ visualizer
+- [ ] Investigate https://tympanus.net/codrops/2025/06/18/coding-a-3d-audio-visualizer-with-three-js-gsap-web-audio-api/ for an audio visualizer
 
 ### P2 - Loudness, Queue, and Listening Controls
 - [ ] Add ReplayGain support with `track gain` and `album gain` modes.

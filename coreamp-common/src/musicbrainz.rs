@@ -83,7 +83,7 @@ pub fn lookup_recording(query: &str, proxy: Option<&str>) -> Result<Option<Track
 
     let mut builder = Client::builder()
         .timeout(Duration::from_secs(10))
-        .user_agent("CoreAmp/0.1 (https://example.com/coreamp)");
+        .user_agent("CoreAmp/0.2.0 (https://github.com/yourusername/coreamp)");
     if let Some(proxy_url) = proxy.map(str::trim).filter(|value| !value.is_empty()) {
         let reqwest_proxy = reqwest::Proxy::all(proxy_url).map_err(|err| err.to_string())?;
         builder = builder.proxy(reqwest_proxy);

@@ -2,24 +2,25 @@ use crate::library::ScannedFile;
 use crate::metadata::TrackMetadata;
 use crate::metadata_db_path;
 use rusqlite::{Connection, OptionalExtension, params};
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
-static DB_CONN: OnceLock<Mutex<Connection>> = OnceLock::new();
+static DB_CONN: OnceLock<Result<Mutex<Connection>, String>> = OnceLock::new();
 
 fn get_db() -> Result<&'static Mutex<Connection>, String> {
-    if let Some(mutex) = DB_CONN.get() {
-        return Ok(mutex);
-    }
-
-    let conn = Connection::open(metadata_db_path()).map_err(|err| err.to_string())?;
-    apply_schema(&conn).map_err(|err| err.to_string())?;
-
-    let mutex = Mutex::new(conn);
-    let _ = DB_CONN.set(mutex);
-
-    Ok(DB_CONN.get().expect("Should be initialized"))
+    DB_CONN
+        .get_or_init(|| {
+            Connection::open(metadata_db_path())
+                .map_err(|e| e.to_string())
+                .and_then(|conn| {
+                    apply_schema(&conn).map_err(|e| e.to_string())?;
+                    Ok(Mutex::new(conn))
+                })
+        })
+        .as_ref()
+        .map_err(Clone::clone)
 }
 
 #[derive(Debug, Clone)]
@@ -413,23 +414,19 @@ pub fn list_all_albums() -> Result<Vec<AlbumSummary>, String> {
 
 pub fn record_play(path: &str) -> Result<(), String> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
-
-    connection
-        .execute(
-            "UPDATE files SET play_count = play_count + 1, last_played_at = unixepoch() WHERE path = ?1",
-            params![path],
-        )
-        .map_err(|err| err.to_string())?;
-
-    connection
-        .execute(
-            "INSERT INTO history (path, played_at) VALUES (?1, unixepoch())",
-            params![path],
-        )
-        .map_err(|err| err.to_string())?;
-
-    Ok(())
+    let mut connection = mutex.lock().map_err(|err| err.to_string())?;
+    let tx = connection.transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "UPDATE files SET play_count = play_count + 1, last_played_at = unixepoch() WHERE path = ?1",
+        params![path],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT INTO history (path, played_at) VALUES (?1, unixepoch())",
+        params![path],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())
 }
 
 pub fn list_recently_played(limit: usize) -> Result<Vec<LibraryRow>, String> {
@@ -439,10 +436,10 @@ pub fn list_recently_played(limit: usize) -> Result<Vec<LibraryRow>, String> {
     let mut stmt = connection
         .prepare(
             r#"
-            SELECT DISTINCT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked
-            FROM history h
-            JOIN files f ON h.path = f.path
-            ORDER BY h.played_at DESC
+            SELECT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked
+            FROM files f
+            JOIN (SELECT path, MAX(played_at) AS last_played FROM history GROUP BY path) h ON h.path = f.path
+            ORDER BY h.last_played DESC
             LIMIT ?1
             "#,
         )
@@ -507,16 +504,15 @@ pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
 pub fn clear_history() -> Result<(), String> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let tx = connection.unchecked_transaction().map_err(|err| err.to_string())?;
 
-    connection
-        .execute("DELETE FROM history", [])
+    tx.execute("DELETE FROM history", [])
         .map_err(|err| err.to_string())?;
 
-    connection
-        .execute("UPDATE files SET play_count = 0, last_played_at = NULL", [])
+    tx.execute("UPDATE files SET play_count = 0, last_played_at = NULL", [])
         .map_err(|err| err.to_string())?;
 
-    Ok(())
+    tx.commit().map_err(|err| err.to_string())
 }
 
 pub fn library_count() -> Result<u64, String> {
@@ -557,8 +553,6 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
         .map_err(|err| err.to_string())?;
     Ok(row)
 }
-
-use std::collections::HashMap;
 
 pub fn get_all_metadata_hashes() -> Result<HashMap<String, String>, String> {
     let mutex = get_db()?;
@@ -684,6 +678,7 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
                 album = ?3,
                 title = ?4,
                 year = ?5,
+                genre = ?6,
                 updated_at = unixepoch()
             WHERE path = ?1
             "#,
@@ -692,7 +687,8 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
                 &metadata.artist,
                 &metadata.album,
                 &metadata.title,
-                &metadata.year
+                &metadata.year,
+                &metadata.genre
             ],
         )
         .map_err(|err| err.to_string())?;

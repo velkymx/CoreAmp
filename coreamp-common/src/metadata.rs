@@ -301,11 +301,14 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
         }
 
         let current_year = tag.date();
-        if current_year != year
-            && let Some(timestamp) = year
-        {
-            tag.set_date(timestamp);
-            changed = true;
+        if current_year != year {
+            if let Some(timestamp) = year {
+                tag.set_date(timestamp);
+                changed = true;
+            } else if current_year.is_some() {
+                tag.remove_date();
+                changed = true;
+            }
         }
 
         let current_genre = normalize(tag.genre());

@@ -1092,7 +1092,12 @@ fn path_format_label(path: &Path) -> String {
 }
 
 fn parse_wav_bit_depth(path: &Path) -> Option<u16> {
-    let bytes = std::fs::read(path).ok()?;
+    use std::io::{BufReader, Read};
+    let file = std::fs::File::open(path).ok()?;
+    let mut reader = BufReader::new(file);
+    let mut buf = [0u8; 512];
+    let n = reader.read(&mut buf).ok()?;
+    let bytes = &buf[..n];
     if bytes.len() < 44 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
         return None;
     }

@@ -1,10 +1,8 @@
 use crate::db;
 use crate::metadata;
 use crate::musicbrainz;
-use std::collections::hash_map::DefaultHasher;
 use std::env;
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
@@ -74,16 +72,13 @@ fn is_supported_media_file(path: &Path) -> bool {
 }
 
 fn compute_metadata_hash(path: &Path, metadata: &fs::Metadata) -> String {
-    let mut hasher = DefaultHasher::new();
-    path.to_string_lossy().hash(&mut hasher);
-    metadata.len().hash(&mut hasher);
-    if let Ok(modified) = metadata.modified()
-        && let Ok(duration) = modified.duration_since(UNIX_EPOCH)
-    {
-        duration.as_secs().hash(&mut hasher);
-        duration.subsec_nanos().hash(&mut hasher);
-    }
-    format!("{:016x}", hasher.finish())
+    let mtime_nanos = metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{}\0{}\0{}", path.to_string_lossy(), metadata.len(), mtime_nanos)
 }
 
 fn to_scanned_file(path: &Path, metadata_hash: String) -> Option<ScannedFile> {

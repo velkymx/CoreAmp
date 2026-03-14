@@ -449,7 +449,7 @@ dependencies = [
 
 [[package]]
 name = "coreamp-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "coreamp-common",
@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "coreamp-common"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "image",
  "lofty",
@@ -475,7 +475,7 @@ dependencies = [
 
 [[package]]
 name = "coreamp-daemon"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "coreamp-common",
 ]

@@ -16,7 +16,7 @@
       --text-secondary: #48505c;
       --text-tertiary: #7a8391;
       --accent: #007aff;
-      --accent-strong: #007aff;
+      --accent-strong: #0062cc;
       --accent-soft: rgba(0, 122, 255, 0.12);
       --danger: #ff4f5e;
       --success: #20a35b;
@@ -41,7 +41,7 @@
         --text-secondary: #c6ccd6;
         --text-tertiary: #9098a5;
         --accent: #0a84ff;
-        --accent-strong: #0a84ff;
+        --accent-strong: #409cff;
         --accent-soft: rgba(10, 132, 255, 0.18);
         --success: #63d297;
       }
@@ -57,7 +57,7 @@
       --text-secondary: #48505c;
       --text-tertiary: #7a8391;
       --accent: #007aff;
-      --accent-strong: #007aff;
+      --accent-strong: #0062cc;
       --accent-soft: rgba(0, 122, 255, 0.12);
       --success: #20a35b;
     }
@@ -72,17 +72,24 @@
       --text-secondary: #c6ccd6;
       --text-tertiary: #9098a5;
       --accent: #0a84ff;
-      --accent-strong: #0a84ff;
+      --accent-strong: #409cff;
       --accent-soft: rgba(10, 132, 255, 0.18);
       --success: #63d297;
     }
     * {
       box-sizing: border-box;
     }
+    html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+    }
     body {
       margin: 0;
-      min-height: 100vh;
-      padding: 14px 20px 24px;
+      height: 100%;
+      padding: 6px 20px 12px;
+      overflow: hidden;
       background:
         radial-gradient(1100px 520px at 50% -10%, rgba(255, 255, 255, 0.28), transparent 68%),
         linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 28%),
@@ -102,11 +109,14 @@
     main {
       width: min(1560px, 100%);
       max-width: 1560px;
+      height: 100%;
       margin: 0 auto;
-      display: grid;
-      gap: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       position: relative;
       z-index: 1;
+      overflow: hidden;
     }
     .panel {
       background: var(--surface);
@@ -133,6 +143,8 @@
       letter-spacing: -0.01em;
       color: var(--text);
     }
+    h3 { font-size: 0.95rem; font-weight: 650; color: var(--text); margin: 0 0 12px; }
+    #resetHistoryBtn { font-size: 0.8rem; padding: 6px 12px; min-height: 32px; }
     p {
       margin: 7px 0 0;
       color: var(--text-secondary);
@@ -161,6 +173,12 @@
     }
     #libraryPanel {
       order: 2;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: none;
     }
     .header-row {
       display: flex;
@@ -173,7 +191,7 @@
       align-items: flex-end;
       gap: 14px;
       padding: 0 2px 8px 0;
-      border-bottom: 1px solid rgba(103, 123, 138, 0.14);
+      border-bottom: 1px solid var(--line-soft);
     }
     .queue-head-copy {
       min-width: 0;
@@ -238,8 +256,9 @@
       transform: translateY(1px) scale(0.996);
     }
     button:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.22);
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      box-shadow: none;
     }
     button.secondary {
       background: var(--surface-strong);
@@ -263,15 +282,16 @@
       background: var(--surface-strong);
       color: var(--text);
       padding: 0 12px;
-      outline: none;
     }
     input::placeholder {
       color: var(--text-tertiary);
     }
-    input:focus,
-    select:focus {
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      box-shadow: none;
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.18);
     }
     .status {
       font-size: 0.9rem;
@@ -295,7 +315,7 @@
     .spinner {
       width: 14px;
       height: 14px;
-      border: 2px solid rgba(0, 229, 255, 0.22);
+      border: 2px solid var(--line);
       border-top-color: var(--accent);
       border-radius: 999px;
       animation: spin 700ms linear infinite;
@@ -340,7 +360,7 @@
       margin-top: 14px;
       display: grid;
       gap: 18px;
-      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
+      grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.95fr);
       align-items: start;
     }
     .library-setup,
@@ -406,11 +426,19 @@
     }
     .library-tabs {
       margin-top: 14px;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      gap: 4px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .library-tabs::-webkit-scrollbar {
+      display: none;
     }
     .library-tab {
+      flex: 0 0 auto;
+      white-space: nowrap;
       min-height: 48px;
       font-size: 0.9rem;
     }
@@ -421,10 +449,11 @@
       box-shadow: none;
     }
     .library-panels {
-      margin-top: 18px;
-      display: grid;
-      gap: 0;
+      margin-top: 12px;
+      flex: 1;
       min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
     .library-panel {
       display: grid;
@@ -500,7 +529,7 @@
       gap: 10px;
       align-items: center;
       padding: 14px 0;
-      border-bottom: 1px solid rgba(103, 123, 138, 0.14);
+      border-bottom: 1px solid var(--line-soft);
       cursor: pointer;
     }
     .playlist-item.active {
@@ -610,7 +639,7 @@
     .playlist-studio {
       margin-top: 22px;
       padding-top: 18px;
-      border-top: 1px solid rgba(103, 123, 138, 0.14);
+      border-top: 1px solid var(--line-soft);
       display: grid;
       gap: 14px;
     }
@@ -623,7 +652,7 @@
     .audio-studio {
       margin-top: 22px;
       padding-top: 18px;
-      border-top: 1px solid rgba(103, 123, 138, 0.14);
+      border-top: 1px solid var(--line-soft);
       display: grid;
       gap: 18px;
     }
@@ -645,7 +674,8 @@
       font-size: 0.84rem;
       line-height: 1.4;
       min-height: 1.4em;
-      min-width: 220px;
+      min-width: 0;
+      flex-shrink: 1;
       text-align: right;
       padding-top: 4px;
     }
@@ -666,7 +696,7 @@
     }
     .eq-bands-card {
       padding-left: 28px;
-      border-left: 1px solid rgba(103, 123, 138, 0.14);
+      border-left: 1px solid var(--line-soft);
     }
     .audio-module {
       display: grid;
@@ -849,7 +879,7 @@
       display: grid;
       gap: 12px;
       padding: 16px 0;
-      border-top: 1px solid rgba(103, 123, 138, 0.14);
+      border-top: 1px solid var(--line-soft);
     }
     .eq-band-card:first-child {
       border-top: 0;
@@ -916,40 +946,33 @@
       align-content: start;
     }
     .library-group + .library-group {
-      margin-top: 14px;
+      margin-top: 8px;
     }
     .library-group-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: start;
-      gap: 10px;
-      padding: 0 0 6px;
-      flex-wrap: wrap;
+      padding: 12px 4px 4px;
     }
     .library-group-heading {
-      display: grid;
-      gap: 3px;
+      display: contents;
     }
     .library-group-title {
-      color: var(--text);
-      font-size: 0.88rem;
-      font-weight: 680;
-      letter-spacing: -0.01em;
+      color: var(--text-tertiary);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
     .library-group-subtitle {
-      color: var(--text-secondary);
-      font-size: 0.78rem;
+      display: none;
     }
     .library-group-meta {
-      color: var(--text-tertiary);
-      font-size: 0.76rem;
+      display: none;
     }
     .track-card {
       display: grid;
-      gap: 16px;
-      grid-template-columns: minmax(200px, 1fr) auto;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
-      padding: 12px 4px;
+      padding: 9px 4px;
       border: 0;
       border-bottom: 1px solid var(--line-soft);
       border-radius: 0;
@@ -958,12 +981,12 @@
       cursor: pointer;
     }
     .track-card:hover {
-      border-bottom-color: rgba(0, 229, 255, 0.24);
+      border-bottom-color: rgba(0, 122, 255, 0.35);
       background: transparent;
       box-shadow: none;
     }
     .track-card.in-queue {
-      border-bottom-color: rgba(0, 229, 255, 0.34);
+      border-bottom-color: rgba(0, 122, 255, 0.5);
       box-shadow: none;
     }
     .track-meta {
@@ -990,7 +1013,6 @@
     .track-tertiary {
       color: var(--text-tertiary);
       font-size: 0.8rem;
-      opacity: 0.9;
       letter-spacing: 0.01em;
       white-space: nowrap;
       overflow: hidden;
@@ -1065,9 +1087,8 @@
       border: 1px solid var(--line);
       border-radius: var(--control-radius);
       color: var(--text);
-      font-size: 13px;
+      font-size: 0.81rem;
       padding: 6px 10px;
-      outline: none;
       max-width: 140px;
     }
     .genre-select:focus {
@@ -1123,6 +1144,7 @@
       box-shadow: 0 24px 72px rgba(0, 0, 0, 0.22);
       max-width: min(520px, calc(100vw - 32px));
       width: 100%;
+      animation: panel-in 0.18s ease;
     }
     dialog::backdrop {
       background: rgba(6, 12, 18, 0.38);
@@ -1169,9 +1191,9 @@
     .player-wrap {
       display: grid;
       gap: 16px;
-      padding: 12px 20px 18px;
+      padding: 12px 20px 14px;
       background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
-      height: 640px;
+      flex-shrink: 0;
     }
     .player-wrap.visualizer-expanded {
       padding: 12px;
@@ -1213,8 +1235,8 @@
     .queue-column {
       padding-top: 2px;
       gap: 8px;
-      align-content: stretch;
-      grid-template-rows: auto minmax(0, 1fr);
+      display: flex;
+      flex-direction: column;
       min-height: 0;
     }
     .player-wrap.visualizer-expanded .queue-column {
@@ -1506,7 +1528,6 @@
       flex-wrap: wrap;
       padding: 10px 0 0;
       justify-content: center;
-      opacity: 0.88;
     }
     .player-title {
       color: var(--text);
@@ -1538,42 +1559,38 @@
     }
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 20px;
-      padding: 10px 0;
+      gap: 0;
+      padding: 2px 0;
+      align-content: start;
     }
     .summary-card {
-      background: var(--surface);
-      border-radius: var(--radius-medium);
-      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 4px;
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid var(--line-soft);
+      border-radius: 0;
+      box-shadow: none;
       cursor: pointer;
-      transition: background 0.16s ease, transform 0.16s ease;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      border: 1px solid var(--line-soft);
+      transition: background 0.12s;
     }
     .summary-card:hover {
-      background: var(--surface-strong);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px var(--line-soft);
+      background: var(--accent-soft);
+      transform: none;
+      box-shadow: none;
     }
     .summary-card:active {
-      transform: scale(0.98);
+      transform: none;
+      background: var(--accent-soft);
     }
     .summary-art-placeholder {
-      aspect-ratio: 1;
-      background: linear-gradient(135deg, var(--accent-soft), var(--line-soft));
-      border-radius: var(--radius-small);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--accent);
+      display: none;
     }
     .summary-art-placeholder svg {
-      width: 40px;
-      height: 40px;
-      opacity: 0.6;
+      display: none;
     }
     .summary-art-image {
       position: absolute;
@@ -1597,18 +1614,28 @@
       display: flex;
       flex-direction: column;
       gap: 2px;
+      min-width: 0;
     }
     .summary-title {
       font-weight: 600;
-      font-size: 14px;
+      font-size: 0.92rem;
       color: var(--text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .summary-subtitle {
-      font-size: 12px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .summary-count {
+      font-size: 0.78rem;
       color: var(--text-tertiary);
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .player-signal-details {
       color: var(--text-tertiary);
@@ -1644,6 +1671,7 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      position: relative;
     }
     .icon-button svg {
       width: 21px;
@@ -1658,6 +1686,10 @@
       background: var(--accent-soft);
       color: var(--accent);
       box-shadow: none;
+    }
+    #muteBtn.active {
+      background: rgba(255, 159, 10, 0.15);
+      color: #ff9f0a;
     }
     .primary-play {
       min-width: 54px;
@@ -1690,7 +1722,6 @@
       height: 6px;
       border-radius: 999px;
       background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 0%, rgba(103, 123, 138, 0.2) 0%);
-      outline: none;
       cursor: pointer;
     }
     .range-slider::-webkit-slider-thumb {
@@ -1710,6 +1741,11 @@
       border: 1px solid rgba(0, 0, 0, 0.14);
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
     }
+    input[type=range]:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: var(--radius-small);
+    }
     .queue-tools {
       display: flex;
       gap: 6px;
@@ -1718,8 +1754,8 @@
       justify-content: flex-end;
     }
     .queue-scroll-shell {
-      min-height: 0;
-      height: 440px;
+      flex: 1;
+      min-height: 200px;
       overflow-y: auto;
       border-radius: 16px;
       background: color-mix(in srgb, var(--surface-strong) 64%, transparent);
@@ -1737,7 +1773,7 @@
     .queue-item {
       min-height: 72px;
       border: 0;
-      border-bottom: 1px solid rgba(103, 123, 138, 0.14);
+      border-bottom: 1px solid var(--line-soft);
       border-radius: 0;
       background: transparent;
       padding: 8px 10px;
@@ -1933,7 +1969,7 @@
         border-left: 0;
       }
       .library-tabs {
-        grid-template-columns: 1fr;
+        gap: 4px;
       }
       .library-browse-head {
         align-items: start;
@@ -2005,6 +2041,10 @@
         transition: none !important;
         animation: none !important;
       }
+      .spinner {
+        border-top-color: var(--accent);
+        opacity: 1;
+      }
     }
     @keyframes spin {
       from { transform: rotate(0deg); }
@@ -2030,7 +2070,7 @@
   </svg>
   <main>
     <section class="panel player-wrap" id="playerPanel">
-      <div hidden aria-live="polite">
+      <div class="sr-only" aria-live="polite">
         <div id="status" class="status">Ready.</div>
         <div id="themeStatus" class="status">Following system appearance</div>
         <div id="loadingState" class="loading hidden">
@@ -2094,7 +2134,7 @@
           <div class="player-meta">
             <div class="player-copy-row">
               <div id="playerTitle" class="player-title">Nothing loaded</div>
-              <button id="playerLikeBtn" class="heart-btn" type="button" aria-label="Like this track">
+              <button id="playerLikeBtn" class="heart-btn" type="button" aria-label="Like this track" aria-pressed="false">
                 <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
               </button>
             </div>
@@ -2165,57 +2205,43 @@
     <section class="panel" id="libraryPanel">
       <div class="library-head">
         <div><h2>Library</h2></div>
-        <button id="resetHistoryBtn" class="secondary" type="button" style="font-size: 11px; padding: 4px 8px;">Reset History</button>
+        <button id="resetHistoryBtn" class="secondary" type="button">Reset History</button>
       </div>
       <div class="library-tabs" role="tablist" aria-label="Library sections">
-        <button id="libraryDashboardTab" class="secondary library-tab active" type="button" role="tab" aria-selected="true">Home</button>
+        <button id="libraryDashboardTab" class="secondary library-tab active" type="button" role="tab" aria-selected="true" aria-controls="libraryDashboardPanel">Home</button>
         <button id="libraryBrowseTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryBrowsePanel">Tracks</button>
-        <button id="libraryArtistsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false">Artists</button>
-        <button id="libraryAlbumsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false">Albums</button>
-        <button id="libraryGenresTab" class="secondary library-tab" type="button" role="tab" aria-selected="false">Genres</button>
-        <button id="libraryLikedTab" class="secondary library-tab" type="button" role="tab" aria-selected="false">Liked</button>
+        <button id="libraryArtistsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryArtistsPanel">Artists</button>
+        <button id="libraryAlbumsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryAlbumsPanel">Albums</button>
+        <button id="libraryGenresTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryGenresPanel">Genres</button>
+        <button id="libraryLikedTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryBrowsePanel">Liked</button>
         <button id="libraryImportTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryImportPanel">Import</button>
         <button id="libraryPlaylistsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryPlaylistsPanel">Playlists</button>
         <button id="libraryAudioTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryAudioPanel">Audio</button>
+        <button id="librarySettingsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="librarySettingsPanel">Settings</button>
       </div>
       <div class="library-panels">
         <section id="libraryDashboardPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryDashboardTab">
-          <div class="library-browse-head">
-            <div><h2>Home</h2></div>
-          </div>
           <div class="table-wrap">
             <div id="dashboardContainer"></div>
           </div>
         </section>
         <section id="libraryArtistsPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryArtistsTab" hidden>
-          <div class="library-browse-head">
-            <div><h2>Artists</h2></div>
-          </div>
           <div class="table-wrap">
-            <div id="artistsGrid" class="summary-grid"></div>
+            <div id="artistsGrid"></div>
           </div>
         </section>
         <section id="libraryAlbumsPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryAlbumsTab" hidden>
-          <div class="library-browse-head">
-            <div><h2>Albums</h2></div>
-          </div>
           <div class="table-wrap">
-            <div id="albumsGrid" class="summary-grid"></div>
+            <div id="albumsGrid"></div>
           </div>
         </section>
         <section id="libraryGenresPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryGenresTab" hidden>
-          <div class="library-browse-head">
-            <div><h2>Genres</h2></div>
-          </div>
           <div class="table-wrap">
-            <div id="genresGrid" class="summary-grid"></div>
+            <div id="genresGrid"></div>
           </div>
         </section>
-        <section id="libraryBrowsePanel" class="library-panel" role="tabpanel" aria-labelledby="libraryBrowseTab" hidden>
+        <section id="libraryBrowsePanel" class="library-panel" role="tabpanel" aria-labelledby="libraryBrowseTab libraryLikedTab" hidden>
           <div class="library-browse-head">
-            <div>
-              <h2>Tracks</h2>
-            </div>
             <div id="visibleCount" class="count-chip">0 shown</div>
           </div>
           <div class="library-toolbar">
@@ -2415,6 +2441,27 @@
             <div id="eqBandRows" class="eq-band-grid"></div>
           </section>
         </section>
+        <section id="librarySettingsPanel" class="library-panel" role="tabpanel" aria-labelledby="librarySettingsTab" hidden>
+          <div class="audio-panel-head">
+            <div>
+              <h2>Settings</h2>
+              <p class="audio-panel-copy">Configure library scanning and metadata enrichment.</p>
+            </div>
+          </div>
+          <div class="audio-module" style="max-width: 480px;">
+            <div class="metadata-field" style="margin-bottom: 16px;">
+              <label for="scanIntervalInput">Scan interval (seconds)</label>
+              <input id="scanIntervalInput" type="number" min="1" step="1" value="300" autocomplete="off">
+            </div>
+            <div class="metadata-field" style="margin-bottom: 16px;">
+              <label for="apiProxyInput">MusicBrainz API proxy URL</label>
+              <input id="apiProxyInput" type="url" autocomplete="off" placeholder="https://proxy.example.com">
+            </div>
+            <div class="metadata-actions">
+              <button id="saveSettingsBtn" type="button">Save settings</button>
+            </div>
+          </div>
+        </section>
       </div>
     </section>
   </main>
@@ -2440,7 +2487,11 @@
         </div>
         <div class="metadata-field">
           <label for="metadataYearInput">Year</label>
-          <input id="metadataYearInput" type="text" inputmode="numeric" autocomplete="off">
+          <input id="metadataYearInput" type="text" inputmode="numeric" autocomplete="off" pattern="\d{4}" placeholder="e.g. 2024">
+        </div>
+        <div class="metadata-field">
+          <label for="metadataGenreInput">Genre</label>
+          <input id="metadataGenreInput" type="text" autocomplete="off">
         </div>
       </div>
       <div class="metadata-actions">
@@ -2518,6 +2569,7 @@
     const libraryImportTabBtn = document.getElementById("libraryImportTab");
     const libraryPlaylistsTabBtn = document.getElementById("libraryPlaylistsTab");
     const libraryAudioTabBtn = document.getElementById("libraryAudioTab");
+    const librarySettingsTabBtn = document.getElementById("librarySettingsTab");
     const libraryDashboardPanelEl = document.getElementById("libraryDashboardPanel");
     const libraryArtistsPanelEl = document.getElementById("libraryArtistsPanel");
     const libraryAlbumsPanelEl = document.getElementById("libraryAlbumsPanel");
@@ -2526,6 +2578,10 @@
     const libraryImportPanelEl = document.getElementById("libraryImportPanel");
     const libraryPlaylistsPanelEl = document.getElementById("libraryPlaylistsPanel");
     const libraryAudioPanelEl = document.getElementById("libraryAudioPanel");
+    const librarySettingsPanelEl = document.getElementById("librarySettingsPanel");
+    const scanIntervalInput = document.getElementById("scanIntervalInput");
+    const apiProxyInput = document.getElementById("apiProxyInput");
+    const saveSettingsBtn = document.getElementById("saveSettingsBtn");
 
     const dashboardContainerEl = document.getElementById("dashboardContainer");
     const artistsGridEl = document.getElementById("artistsGrid");
@@ -2604,6 +2660,7 @@
     const metadataArtistInputEl = document.getElementById("metadataArtistInput");
     const metadataAlbumInputEl = document.getElementById("metadataAlbumInput");
     const metadataYearInputEl = document.getElementById("metadataYearInput");
+    const metadataGenreInputEl = document.getElementById("metadataGenreInput");
     const metadataCancelBtn = document.getElementById("metadataCancelBtn");
     const metadataSaveBtn = document.getElementById("metadataSaveBtn");
     const trackPlaylistDialogEl = document.getElementById("trackPlaylistDialog");
@@ -2625,7 +2682,7 @@
     let currentGenre = "";
     let likedOnly = false;
     let currentSortOrder = "title-asc";
-    let activeLibraryTab = "browse";
+    let activeLibraryTab = "dashboard";
     let appearanceMode = "system";
     let playlists = [];
     let activePlaylistPath = null;
@@ -2987,10 +3044,12 @@
         preampDb = Math.max(-12, Math.min(12, Number(window.localStorage.getItem("coreamp.preampDb") || 0)));
         limiterEnabled = window.localStorage.getItem("coreamp.limiter") === "1";
         crossfeedEnabled = window.localStorage.getItem("coreamp.crossfeed") === "1";
+        boostLevel = Math.min(2, Math.max(0, Number(window.localStorage.getItem("coreamp.boost") || 0)));
       } catch (_error) {
         preampDb = 0;
         limiterEnabled = false;
         crossfeedEnabled = false;
+        boostLevel = 0;
       }
     }
 
@@ -2999,6 +3058,7 @@
         window.localStorage.setItem("coreamp.preampDb", String(preampDb));
         window.localStorage.setItem("coreamp.limiter", limiterEnabled ? "1" : "0");
         window.localStorage.setItem("coreamp.crossfeed", crossfeedEnabled ? "1" : "0");
+        window.localStorage.setItem("coreamp.boost", String(boostLevel));
       } catch (_error) {
       }
     }
@@ -3106,7 +3166,7 @@
     }
 
     function setLibraryTab(tab) {
-      activeLibraryTab = ["dashboard", "import", "playlists", "audio", "liked", "artists", "albums", "genres"].includes(tab) ? tab : "dashboard";
+      activeLibraryTab = ["dashboard", "browse", "import", "playlists", "audio", "liked", "artists", "albums", "genres", "settings"].includes(tab) ? tab : "dashboard";
       const isDashboard = activeLibraryTab === "dashboard";
       const isBrowse = activeLibraryTab === "browse";
       const isArtists = activeLibraryTab === "artists";
@@ -3116,6 +3176,7 @@
       const isImport = activeLibraryTab === "import";
       const isPlaylists = activeLibraryTab === "playlists";
       const isAudio = activeLibraryTab === "audio";
+      const isSettings = activeLibraryTab === "settings";
 
       libraryDashboardTabBtn.setAttribute("aria-selected", String(isDashboard));
       libraryBrowseTabBtn.setAttribute("aria-selected", String(isBrowse));
@@ -3126,6 +3187,7 @@
       libraryImportTabBtn.setAttribute("aria-selected", String(isImport));
       libraryPlaylistsTabBtn.setAttribute("aria-selected", String(isPlaylists));
       libraryAudioTabBtn.setAttribute("aria-selected", String(isAudio));
+      librarySettingsTabBtn.setAttribute("aria-selected", String(isSettings));
 
       libraryDashboardTabBtn.classList.toggle("active", isDashboard);
       libraryBrowseTabBtn.classList.toggle("active", isBrowse);
@@ -3136,6 +3198,7 @@
       libraryImportTabBtn.classList.toggle("active", isImport);
       libraryPlaylistsTabBtn.classList.toggle("active", isPlaylists);
       libraryAudioTabBtn.classList.toggle("active", isAudio);
+      librarySettingsTabBtn.classList.toggle("active", isSettings);
 
       libraryDashboardPanelEl.hidden = !isDashboard;
       libraryArtistsPanelEl.hidden = !isArtists;
@@ -3145,11 +3208,14 @@
       libraryImportPanelEl.hidden = !isImport;
       libraryPlaylistsPanelEl.hidden = !isPlaylists;
       libraryAudioPanelEl.hidden = !isAudio;
+      librarySettingsPanelEl.hidden = !isSettings;
 
       if (isDashboard) loadDashboard();
       else if (isArtists) loadArtists();
       else if (isAlbums) loadAlbums();
       else if (isGenres) loadGenreSummaries();
+      else if (isPlaylists) refreshPlaylists();
+      else if (isSettings) loadSettings();
       else if (likedOnly !== isLiked) {
         likedOnly = isLiked;
         refreshLibrary();
@@ -3327,6 +3393,7 @@
       metadataArtistInputEl.value = track.artist || "";
       metadataAlbumInputEl.value = track.album || "";
       metadataYearInputEl.value = track.year || "";
+      metadataGenreInputEl.value = track.genre || "";
       metadataDialogEl.showModal();
       metadataTitleInputEl.focus();
       metadataTitleInputEl.select();
@@ -3443,7 +3510,7 @@
         element.removeAttribute("src");
         element.load();
       }
-      syncAudioElementState(safePercent);
+      syncAudioElementState();
     }
 
     function setSignalDetailsCopy(value) {
@@ -3617,6 +3684,24 @@
       setButtonState(shuffleBtn, shuffleEnabled, shuffleEnabled ? "Turn shuffle off" : "Turn shuffle on");
       setButtonState(repeatBtn, repeatMode !== "off", repeatMode === "off" ? "Turn repeat on" : `Change repeat mode (${repeatLabel.toLowerCase()})`);
       repeatBtn.dataset.repeatMode = repeatMode;
+      // Manage repeat-one "1" badge
+      const existingBadge = repeatBtn.querySelector(".repeat-one-badge");
+      if (repeatMode === "track") {
+        repeatBtn.title = "Repeat: one track";
+        repeatBtn.setAttribute("aria-label", "Repeat: one track");
+        if (!existingBadge) {
+          const badge = document.createElement("span");
+          badge.className = "repeat-one-badge";
+          badge.setAttribute("aria-hidden", "true");
+          badge.style.cssText = "font-size:9px;line-height:1;position:absolute;top:3px;right:3px;font-weight:700;pointer-events:none;";
+          badge.textContent = "1";
+          repeatBtn.appendChild(badge);
+        }
+      } else {
+        if (existingBadge) {
+          existingBadge.remove();
+        }
+      }
       setControlsDisabled([prevBtn, expandedPrevBtn, toggleBtn, expandedToggleBtn, nextBtn, expandedNextBtn, shuffleBtn, repeatBtn], !hasQueue);
     }
 
@@ -4044,8 +4129,10 @@
       if (isCurrent) {
         if (track.liked) {
           playerLikeBtn.classList.add("is-liked");
+          playerLikeBtn.setAttribute("aria-pressed", "true");
         } else {
           playerLikeBtn.classList.remove("is-liked");
+          playerLikeBtn.setAttribute("aria-pressed", "false");
         }
       }
     }
@@ -4056,6 +4143,7 @@
         loadTrackSignalDetails(null);
         clearArtwork();
         playerLikeBtn.classList.remove("is-liked");
+        playerLikeBtn.setAttribute("aria-pressed", "false");
         return;
       }
       const title = trackDisplayTitle(track);
@@ -4907,7 +4995,7 @@
         return bridge.convertFileSrc(path, "asset");
       }
       // Tauri v2 standard asset protocol URL
-      return `asset://localhost/${encodeURIComponent(path)}`;
+      return `asset://localhost/${path.split("/").map(encodeURIComponent).join("/")}`;
     }
 
     async function prepareGaplessNextTrack() {
@@ -4959,6 +5047,7 @@
       gaplessPreparedIndex = -1;
       gaplessPreparingPath = "";
       try {
+        recordPlay(currentTrack());
         currentQueueIndex = nextIndex;
         if (!shuffleHistory.includes(nextIndex)) {
           shuffleHistory.push(nextIndex);
@@ -5080,6 +5169,7 @@
           return;
         }
         if (status.finished) {
+          recordPlay(currentTrack());
           await nextTrack();
           return;
         }
@@ -5122,8 +5212,13 @@
           return;
         } catch (error) {
           preferNativePlayback = false;
-          updateNativeModeButton(false);
-          setStatus(`Native playback unavailable (${String(error)}). Falling back to web output.`);
+          const errMsg = String(error).toLowerCase();
+          if (errMsg.includes("unavailable") || errMsg.includes("no device") || errMsg.includes("no output")) {
+            updateNativeModeButton(false);
+          } else {
+            updateOutputModeUI();
+          }
+          setStatus(`Native playback failed (${String(error)}). Falling back to web output.`);
         }
       }
 
@@ -5347,6 +5442,17 @@
       }
     }
 
+    function setQueue(tracks) {
+      queue = tracks;
+      currentQueueIndex = tracks.length ? 0 : -1;
+      resetShuffleState();
+      renderQueue();
+    }
+
+    async function playNext() {
+      if (currentQueueIndex >= 0) await playQueueIndex(currentQueueIndex);
+    }
+
     async function loadLikedSongs() {
       try {
         setBusy(true, "Loading liked songs...");
@@ -5482,7 +5588,7 @@
         renderQueue();
         renderPlaylists();
         if (tracks.length) {
-          updateNowPlayingMeta(tracks[0]);
+          await playNext();
         }
         setStatus(`Loaded playlist ${playlist.name}`, true);
       } catch (error) {
@@ -5987,11 +6093,6 @@
         for (const artist of topArtists) {
           const card = createSummaryCard(artist, "artists");
           grid.appendChild(card);
-          if (artist.representative_path) {
-            const art = card.querySelector(".summary-art-placeholder");
-            const img = card.querySelector(".summary-art-image");
-            populateSummaryArtwork(artist.representative_path, art, img);
-          }
         }
         artistsSection.appendChild(grid);
         dashboard.appendChild(artistsSection);
@@ -6056,37 +6157,32 @@
     function createSummaryCard(item, type) {
       const card = document.createElement("div");
       card.className = "summary-card";
-      
-      const art = document.createElement("div");
-      art.className = "summary-art-placeholder";
-      const icon = type === "artists" ? "users" : (type === "genres" ? "music" : "disc");
-      art.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-${icon}"></use></svg>`;
-      
-      const img = document.createElement("img");
-      img.className = "summary-art-image";
-      art.appendChild(img);
 
       const info = document.createElement("div");
       info.className = "summary-info";
-      
+
       const title = document.createElement("div");
       title.className = "summary-title";
-      title.textContent = type === "albums" ? item.title : (type === "artists" ? item.name : item.name);
-      
-      const subtitle = document.createElement("div");
-      subtitle.className = "summary-subtitle";
-      if (type === "albums") {
-        subtitle.textContent = `${item.artist || "Unknown artist"} · ${item.track_count} tracks`;
+      title.textContent = type === "albums" ? item.title : item.name;
+
+      if (type === "albums" && item.artist) {
+        const subtitle = document.createElement("div");
+        subtitle.className = "summary-subtitle";
+        subtitle.textContent = item.artist;
+        info.appendChild(title);
+        info.appendChild(subtitle);
       } else {
-        subtitle.textContent = `${item.track_count} tracks`;
+        info.appendChild(title);
       }
-      
-      info.appendChild(title);
-      info.appendChild(subtitle);
-      card.appendChild(art);
+
+      const count = document.createElement("div");
+      count.className = "summary-count";
+      count.textContent = `${item.track_count} track${item.track_count === 1 ? "" : "s"}`;
+
       card.appendChild(info);
-      
-      card.addEventListener("click", () => {
+      card.appendChild(count);
+
+      const activate = () => {
         if (type === "artists") {
           setLibrarySearchTerm(item.name);
         } else if (type === "albums") {
@@ -6094,13 +6190,12 @@
         } else if (type === "genres") {
           currentGenre = item.name;
           genreFilterSelect.value = item.name;
-          setLibraryTab("browse");
         }
-        if (type !== "genres") {
-          setLibraryTab("browse");
-        }
-      });
-      
+        setLibraryTab("browse");
+      };
+      card.addEventListener("click", activate);
+      makeActivatable(card, activate);
+
       return card;
     }
 
@@ -6143,17 +6238,13 @@
       for (const item of items) {
         const card = createSummaryCard(item, type);
         grid.appendChild(card);
-        
-        if (item.representative_path) {
-          const art = card.querySelector(".summary-art-placeholder");
-          const img = card.querySelector(".summary-art-image");
-          populateSummaryArtwork(item.representative_path, art, img);
-        }
       }
       
       fragment.appendChild(grid);
       target.appendChild(fragment);
-      visibleCountEl.textContent = `${items.length} shown`;
+      if (activeLibraryTab === "browse" || activeLibraryTab === "liked") {
+        visibleCountEl.textContent = `${items.length} shown`;
+      }
     }
 
     async function loadArtists() {
@@ -6449,6 +6540,18 @@
       });
     }
 
+    document.querySelector('.library-tabs[role="tablist"]').addEventListener('keydown', (e) => {
+      const tabs = Array.from(document.querySelectorAll('.library-tabs [role="tab"]'));
+      const currentIndex = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+      let nextIndex = currentIndex;
+      if (e.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+      else if (e.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      else return;
+      e.preventDefault();
+      tabs[nextIndex].focus();
+      tabs[nextIndex].click();
+    });
+
     scanBtn.addEventListener("click", scanConfiguredLibrary);
     refreshBtn.addEventListener("click", refreshLibrary);
     pickFolderBtn.addEventListener("click", () => pickAndScan("folder"));
@@ -6470,6 +6573,8 @@
     libraryImportTabBtn.addEventListener("click", () => setLibraryTab("import"));
     libraryPlaylistsTabBtn.addEventListener("click", () => setLibraryTab("playlists"));
     libraryAudioTabBtn.addEventListener("click", () => setLibraryTab("audio"));
+    librarySettingsTabBtn.addEventListener("click", () => setLibraryTab("settings"));
+    saveSettingsBtn.addEventListener("click", saveSettings);
 
     playerLikeBtn.addEventListener("click", () => {
       const track = currentTrack();
@@ -6535,7 +6640,8 @@
             title: metadataTitleInputEl.value,
             artist: metadataArtistInputEl.value,
             album: metadataAlbumInputEl.value,
-            year: metadataYearInputEl.value
+            year: metadataYearInputEl.value,
+            genre: metadataGenreInputEl.value
           }
         });
         applyTrackUpdate(updatedTrack);
@@ -6763,6 +6869,7 @@
     });
     boostBtn.addEventListener("click", () => {
       boostLevel = boostLevel === 0 ? 1 : boostLevel === 1 ? 2 : 0;
+      saveDspPreferences();
       updateBassBoostFilters();
       updateOutputModeUI();
       const boostProfile = BASS_BOOST_PROFILES[boostLevel] || BASS_BOOST_PROFILES[1];
