@@ -68,6 +68,13 @@ pub fn read_playlist(path: &Path) -> io::Result<Vec<PathBuf>> {
     Ok(parse_m3u(&content))
 }
 
+pub fn delete_playlist(path: &Path) -> io::Result<()> {
+    if path.extension() == Some(OsStr::new("m3u")) && path.exists() {
+        fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
 pub fn list_playlists() -> io::Result<Vec<PathBuf>> {
     fs::create_dir_all(playlists_dir())?;
     let mut paths = fs::read_dir(playlists_dir())?

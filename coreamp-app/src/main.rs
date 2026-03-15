@@ -9,6 +9,7 @@ use coreamp_common::settings;
 use rodio::cpal::traits::{DeviceTrait, HostTrait};
 use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Player, Source};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
@@ -33,26 +34,51 @@ struct ScanResult {
 
 #[derive(Debug, Serialize)]
 struct LibraryTrack {
-    path: String,
-    filename: String,
-    artist: Option<String>,
-    album: Option<String>,
-    title: Option<String>,
-    year: Option<String>,
+    pub path: String,
+    pub filename: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub title: Option<String>,
+    pub year: Option<String>,
+    pub genre: Option<String>,
+    pub liked: bool,
 }
 
 #[derive(Debug, Deserialize)]
 struct TrackMetadataInput {
-    artist: Option<String>,
-    album: Option<String>,
-    title: Option<String>,
-    year: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub title: Option<String>,
+    pub year: Option<String>,
+    pub genre: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 struct TrackArtwork {
     mime_type: String,
     data_base64: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ArtistSummary {
+    pub name: String,
+    pub track_count: usize,
+    pub representative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+struct AlbumSummary {
+    pub title: String,
+    pub artist: Option<String>,
+    pub track_count: usize,
+    pub representative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+struct GenreSummary {
+    pub name: String,
+    pub track_count: usize,
+    pub representative_path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -609,13 +635,116 @@ fn scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
 }
 
 #[tauri::command]
-fn list_library(limit: Option<usize>) -> Result<Vec<LibraryTrack>, String> {
-    let rows = db::list_library_files(limit.unwrap_or(300))?;
+fn list_library(
+    limit: Option<usize>,
+    offset: Option<usize>,
+    genre: Option<String>,
+    liked_only: Option<bool>,
+    search: Option<String>,
+) -> Result<Vec<LibraryTrack>, String> {
+    let rows = db::list_library_files(
+        limit.unwrap_or(300),
+        offset.unwrap_or(0),
+        genre,
+        liked_only.unwrap_or(false),
+        search,
+    )?;
     let tracks = rows
         .into_iter()
         .map(library_track_from_row)
         .collect::<Vec<_>>();
     Ok(tracks)
+}
+
+#[tauri::command]
+fn toggle_liked(path: String) -> Result<bool, String> {
+    db::toggle_liked(&path)
+}
+
+#[tauri::command]
+fn list_genres() -> Result<Vec<String>, String> {
+    db::list_all_genres()
+}
+
+#[tauri::command]
+fn list_artists() -> Result<Vec<ArtistSummary>, String> {
+    let rows = db::list_all_artists()?;
+    Ok(rows
+        .into_iter()
+        .map(|r| ArtistSummary {
+            name: r.name,
+            track_count: r.track_count,
+            representative_path: r.representative_path,
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn list_albums() -> Result<Vec<AlbumSummary>, String> {
+    let rows = db::list_all_albums()?;
+    Ok(rows
+        .into_iter()
+        .map(|r| AlbumSummary {
+            title: r.title,
+            artist: r.artist,
+            track_count: r.track_count,
+            representative_path: r.representative_path,
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn list_genre_summaries() -> Result<Vec<GenreSummary>, String> {
+    let rows = db::list_all_genre_summaries()?;
+    Ok(rows
+        .into_iter()
+        .map(|r| GenreSummary {
+            name: r.name,
+            track_count: r.track_count,
+            representative_path: r.representative_path,
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn record_play(path: String) -> Result<(), String> {
+    db::record_play(&path)
+}
+
+#[tauri::command]
+fn list_recently_played(limit: usize) -> Result<Vec<LibraryTrack>, String> {
+    let rows = db::list_recently_played(limit)?;
+    Ok(rows
+        .into_iter()
+        .map(|r| LibraryTrack {
+            path: r.path,
+            filename: r.filename,
+            artist: r.artist,
+            album: r.album,
+            title: r.title,
+            year: r.year,
+            genre: r.genre,
+            liked: r.liked,
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
+    let rows = db::list_top_artists(limit)?;
+    Ok(rows
+        .into_iter()
+        .map(|r| ArtistSummary {
+            name: r.name,
+            track_count: r.track_count,
+            representative_path: r.representative_path,
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn clear_history() -> Result<(), String> {
+    db::clear_history()
 }
 
 #[tauri::command]
@@ -665,6 +794,7 @@ fn hydrate_track_from_file(track: &mut LibraryTrack) {
     }
     merge_missing(&mut track.title, file_metadata.title);
     merge_missing(&mut track.year, file_metadata.year);
+    merge_missing(&mut track.genre, file_metadata.genre);
 }
 
 fn library_track_from_row(row: db::LibraryRow) -> LibraryTrack {
@@ -675,6 +805,8 @@ fn library_track_from_row(row: db::LibraryRow) -> LibraryTrack {
         album: row.album,
         title: row.title,
         year: row.year,
+        genre: row.genre,
+        liked: row.liked,
     };
     hydrate_track_from_file(&mut track);
     track
@@ -698,6 +830,8 @@ fn track_from_path(path: &Path) -> LibraryTrack {
         album: metadata.album,
         title: metadata.title,
         year: metadata.year,
+        genre: metadata.genre,
+        liked: false,
     }
 }
 
@@ -768,11 +902,32 @@ return output"#
     }
 }
 
+use std::io::Cursor;
+
 #[tauri::command]
-fn read_track_artwork(path: String) -> Option<TrackArtwork> {
-    metadata::read_track_artwork(Path::new(&path)).map(|artwork| TrackArtwork {
-        mime_type: artwork.mime_type,
-        data_base64: base64::engine::general_purpose::STANDARD.encode(artwork.data),
+fn read_track_artwork(path: String, max_size: Option<u32>) -> Option<TrackArtwork> {
+    metadata::read_track_artwork(Path::new(&path)).map(|artwork| {
+        let mut data = artwork.data;
+        let mut mime_type = artwork.mime_type;
+
+        if let Some(limit) = max_size {
+            if let Ok(img) = image::load_from_memory(&data) {
+                if img.width() > limit || img.height() > limit {
+                    let resized = img.thumbnail(limit, limit);
+                    let mut buffer = Vec::new();
+                    // Always encode as JPEG for simplicity/speed in transit if resizing
+                    if resized.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Jpeg).is_ok() {
+                        data = buffer;
+                        mime_type = String::from("image/jpeg");
+                    }
+                }
+            }
+        }
+
+        TrackArtwork {
+            mime_type,
+            data_base64: base64::engine::general_purpose::STANDARD.encode(data),
+        }
     })
 }
 
@@ -811,7 +966,13 @@ fn append_to_playlist(
 ) -> Result<PlaylistSummary, String> {
     let target = PathBuf::from(&playlist_path);
     let mut entries = playlist::read_playlist(&target).map_err(|err| err.to_string())?;
-    entries.extend(paths.into_iter().map(PathBuf::from));
+    let mut existing: HashSet<_> = entries.iter().cloned().collect();
+    for path in paths {
+        let pb = PathBuf::from(path);
+        if existing.insert(pb.clone()) {
+            entries.push(pb);
+        }
+    }
     let target_name = target
         .file_stem()
         .map(|value| value.to_string_lossy().to_string())
@@ -845,9 +1006,35 @@ fn import_playlist_file(source_path: String) -> Result<PlaylistSummary, String> 
 }
 
 #[tauri::command]
-fn read_audio_file_base64(path: String) -> Result<String, String> {
-    let bytes = std::fs::read(path).map_err(|err| err.to_string())?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+fn delete_playlist(playlist_path: String) -> Result<(), String> {
+    let target = PathBuf::from(&playlist_path);
+    playlist::delete_playlist(&target).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn dedup_playlist(playlist_path: String) -> Result<PlaylistSummary, String> {
+    let target = PathBuf::from(&playlist_path);
+    let entries = playlist::read_playlist(&target).map_err(|err| err.to_string())?;
+    let mut seen = std::collections::HashSet::new();
+    let deduped: Vec<PathBuf> = entries
+        .into_iter()
+        .filter(|p| seen.insert(p.clone()))
+        .collect();
+    let target_name = target
+        .file_stem()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| String::from("playlist"));
+    let written_path =
+        playlist::write_playlist(&target_name, &deduped).map_err(|err| err.to_string())?;
+    playlist_summary_from_path(&written_path)
+}
+
+#[tauri::command]
+fn playlist_contains(playlist_path: String, track_path: String) -> Result<bool, String> {
+    let target = PathBuf::from(&playlist_path);
+    let entries = playlist::read_playlist(&target).map_err(|err| err.to_string())?;
+    let check = PathBuf::from(&track_path);
+    Ok(entries.contains(&check))
 }
 
 #[tauri::command]
@@ -859,6 +1046,7 @@ fn write_missing_tags_for_path(path: String) -> Result<bool, String> {
         album: row.album,
         title: row.title,
         year: row.year,
+        genre: row.genre,
     };
     metadata::write_missing_tags(Path::new(&path), &metadata)
 }
@@ -880,6 +1068,7 @@ fn normalize_metadata_input(input: TrackMetadataInput) -> metadata::TrackMetadat
         album: clean(input.album),
         title: clean(input.title),
         year: clean(input.year),
+        genre: clean(input.genre),
     }
 }
 
@@ -937,7 +1126,12 @@ fn path_format_label(path: &Path) -> String {
 }
 
 fn parse_wav_bit_depth(path: &Path) -> Option<u16> {
-    let bytes = std::fs::read(path).ok()?;
+    use std::io::{BufReader, Read};
+    let file = std::fs::File::open(path).ok()?;
+    let mut reader = BufReader::new(file);
+    let mut buf = [0u8; 512];
+    let n = reader.read(&mut buf).ok()?;
+    let bytes = &buf[..n];
     if bytes.len() < 44 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
         return None;
     }
@@ -1469,7 +1663,7 @@ fn main() {
             return;
         }
         CliMode::List { limit } => {
-            match list_library(Some(limit)) {
+            match list_library(Some(limit), None, None, None, None) {
                 Ok(tracks) => {
                     for track in tracks {
                         println!(
@@ -1492,6 +1686,10 @@ fn main() {
 
     tauri::Builder::default()
         .setup(|app| {
+            #[cfg(feature = "devtools")]
+            if let Some(window) = app.get_webview_window("main") {
+                window.open_devtools();
+            }
             let app_handle = app.handle().clone();
             thread::spawn(move || {
                 let mut last_id = ipc::read_daemon_events(None, Some(1))
@@ -1585,12 +1783,23 @@ fn main() {
             pick_scan_paths,
             list_library,
             library_count,
+            list_genres,
+            list_artists,
+            list_albums,
+            list_genre_summaries,
+            toggle_liked,
+            record_play,
+            list_recently_played,
+            list_top_artists,
+            clear_history,
             list_playlists,
             save_playlist,
             append_to_playlist,
             load_playlist,
             import_playlist_file,
-            read_audio_file_base64,
+            delete_playlist,
+            dedup_playlist,
+            playlist_contains,
             read_track_artwork,
             read_track_signal_details,
             write_missing_tags_for_path,

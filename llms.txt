@@ -1,0 +1,45 @@
+# CoreAmp
+
+Lightweight, privacy-first audio player built with Tauri v2 and Rust.
+
+## Architecture
+
+- **`coreamp-app`**: The main desktop application. Handles the UI, playback controls, and integrates with the system tray.
+- **`coreamp-daemon`**: A background service for file system scanning and metadata enrichment (using MusicBrainz and acoustic fingerprinting).
+- **`coreamp-common`**: Shared library containing database logic (SQLite), IPC protocols, and playlist management.
+
+## Tech Stack
+
+- **Framework**: Tauri v2
+- **Backend**: Rust
+- **Frontend**: Single-file HTML/CSS/JS application located at `coreamp-app/dist/index.html`. Uses Vanilla CSS and native JS (no heavy framework in source).
+- **Audio Engine**: Rodio / CPAL (Pure Rust).
+- **Database**: SQLite (via Rusqlite) for library tracking.
+- **Metadata**: Lofty for tag reading/writing.
+
+## Key Findings & Conventions
+
+- **UI Structure**: The entire user interface is contained within a single large `index.html` in the `dist` folder. It uses CSS variables for theming and standard DOM APIs for interaction.
+- **Window Constraints**: The main application window is resizable. However, the **Player Panel** (`.player-wrap`) has a fixed height of **640px** to maintain its core aesthetic, while the **Library Panel** below it expands to fill the remaining window height.
+- **Playlist Management**: Supports standard M3U files. Logic in `coreamp-app/src/main.rs` ensures that duplicate tracks cannot be added to a playlist.
+- **IPC**: Communication between the app and the daemon happens via shared library calls and custom IPC mechanisms defined in `coreamp-common`.
+- **Audio Output**: Supports direct device selection (DACs, etc.) via CPAL integration.
+
+## Documentation & Resources
+
+- [README.md](README.md): Main project overview, installation, and architecture.
+- [PRD.md](PRD.md): Product Requirements Document, core vision, and design philosophy.
+- [TODO.md](TODO.md): Immediate roadmap and pending features.
+- [CONTRIBUTING.md](CONTRIBUTING.md): Guidelines for development and contributions.
+- [CONTRIBUTORS.md](CONTRIBUTORS.md): List of authors and library dependencies.
+- [SECURITY.md](SECURITY.md): Security policy and vulnerability reporting.
+- [deploy/README.md](deploy/README.md): Deployment strategies for Linux (systemd) and macOS (launchd).
+- [packaging/README.md](packaging/README.md): Strategies for building AppImages, Debian packages, and macOS bundles.
+- [profiling/startup-baseline.md](profiling/startup-baseline.md): Performance benchmarks and startup metrics.
+- [coreamp-app/tauri.conf.json](coreamp-app/tauri.conf.json): Main application and window configuration.
+
+## Development Workflows
+
+- **Building**: `cargo build` at the root.
+- **Testing**: `cargo test` in `coreamp-common` for playlist and DB logic.
+- **UI Tweaks**: Directly edit `coreamp-app/dist/index.html` (styles and scripts are embedded).
