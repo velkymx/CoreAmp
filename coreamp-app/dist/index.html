@@ -2880,8 +2880,8 @@
     let visualizerPseudoFullscreen = false;
     let spectrumSubMode = Number(window.localStorage.getItem("coreamp.spectrumSubMode") || 0);
     let reactiveSubMode = Number(window.localStorage.getItem("coreamp.reactiveSubMode") || 0);
-    const REACTIVE_SUB_MODE_COUNT = 6;
-    const REACTIVE_SUB_MODE_NAMES = ["Orb", "Vortex", "Nebula", "Storm", "Game", "Fishing"];
+    const REACTIVE_SUB_MODE_COUNT = 7;
+    const REACTIVE_SUB_MODE_NAMES = ["Orb", "Vortex", "Nebula", "Storm", "Game", "Fishing", "Keys"];
     let enabledSpectrumModes = JSON.parse(window.localStorage.getItem("coreamp.enabledSpectrumModes") || "null");
     let enabledReactiveModes = JSON.parse(window.localStorage.getItem("coreamp.enabledReactiveModes") || "null");
     let audioMotionInstance = null;
@@ -5691,13 +5691,13 @@
       // Layered radial gradients for soft cloud look
       cx.fillStyle = "rgba(0,0,0,0)";
       cx.fillRect(0, 0, size, size);
-      const layers = 6 + Math.floor(Math.random() * 4);
+      const layers = 10 + Math.floor(Math.random() * 6);
       for (let i = 0; i < layers; i++) {
         const x = size * 0.3 + Math.random() * size * 0.4;
         const y = size * 0.3 + Math.random() * size * 0.4;
         const r = size * (0.15 + Math.random() * 0.25);
         const g = cx.createRadialGradient(x, y, 0, x, y, r);
-        const a = 0.08 + Math.random() * 0.12;
+        const a = 0.12 + Math.random() * 0.18;
         g.addColorStop(0, `rgba(255,255,255,${a})`);
         g.addColorStop(0.5, `rgba(220,225,240,${a * 0.5})`);
         g.addColorStop(1, "rgba(200,210,230,0)");
@@ -5750,23 +5750,23 @@
         const cloudPlaneGeo = new THREE.PlaneGeometry(600, 600);
         const clouds = [];
         const cloudTextures = [];
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 55; i++) {
           const tex = generateCloudTexture(THREE);
           cloudTextures.push(tex);
           const mat = new THREE.MeshLambertMaterial({
             map: tex,
             transparent: true,
-            opacity: 0.4 + Math.random() * 0.3,
+            opacity: 0.45 + Math.random() * 0.35,
             depthWrite: false,
             side: THREE.DoubleSide,
           });
           const mesh = new THREE.Mesh(cloudPlaneGeo, mat);
           mesh.position.set(
-            (Math.random() - 0.5) * 500,
-            250 + Math.random() * 200,
-            (Math.random() - 0.5) * 500 - 100
+            (Math.random() - 0.5) * 600,
+            200 + Math.random() * 250,
+            (Math.random() - 0.5) * 600 - 80
           );
-          mesh.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.2;
+          mesh.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
           mesh.rotation.z = Math.random() * Math.PI * 2;
           scene.add(mesh);
           clouds.push({
@@ -5802,8 +5802,8 @@
         scene.add(rain);
 
         // ── Lightning bolt geometry (line segments) ──
-        const maxBolts = 8;
-        const boltSegments = 35;
+        const maxBolts = 14;
+        const boltSegments = 40;
         const bolts = [];
         for (let b = 0; b < maxBolts; b++) {
           const geo = new THREE.BufferGeometry();
@@ -5979,7 +5979,7 @@
       slot.branch2Geo.attributes.position.needsUpdate = true;
 
       slot.life = 1.0;
-      slot.maxLife = 0.18 + Math.random() * 0.2;
+      slot.maxLife = 0.25 + Math.random() * 0.3;
       slot.line.visible = true;
       slot.glowLine.visible = true;
       slot.branchLine.visible = true;
@@ -5991,7 +5991,7 @@
 
       // Massive flash
       s.flashLight.position.set(startX, startY - 80, startZ);
-      s.flashLight.power = 800 + Math.random() * 600;
+      s.flashLight.power = 1500 + Math.random() * 1000;
       s.flashDecay = 1.0;
       s.screenFlash = 1.0;
     }
@@ -6051,25 +6051,33 @@
       s.rainMat.opacity = 0.2 + s.smoothMid * 0.3;
       s.rainMat.size = 0.3 + s.smoothBass * 0.4;
 
-      // ── Lightning — bass triggers, more aggressive ──
+      // ── Lightning — bass triggers, extremely aggressive ──
+      const bassVelocity = bass - s.smoothBass;
       s.boltCooldown = Math.max(0, s.boltCooldown - dt);
-      if (bassVelocity > 0.04 && s.smoothBass > 0.2 && s.boltCooldown <= 0) {
+      if (bassVelocity > 0.02 && s.smoothBass > 0.1 && s.boltCooldown <= 0) {
         spawnBolt(s);
-        // Multi-bolt volleys on strong hits
-        if (bassVelocity > 0.08) {
-          setTimeout(() => { if (reactiveState === s) spawnBolt(s); }, 30 + Math.random() * 60);
+        // Multi-bolt volleys on any decent hit
+        if (bassVelocity > 0.05) {
+          setTimeout(() => { if (reactiveState === s) spawnBolt(s); }, 20 + Math.random() * 40);
+          setTimeout(() => { if (reactiveState === s) spawnBolt(s); }, 50 + Math.random() * 50);
         }
-        if (bassVelocity > 0.15) {
-          setTimeout(() => { if (reactiveState === s) spawnBolt(s); }, 80 + Math.random() * 80);
+        // Triple+ volleys on strong bass
+        if (bassVelocity > 0.1) {
+          setTimeout(() => { if (reactiveState === s) spawnBolt(s); }, 80 + Math.random() * 60);
+          setTimeout(() => { if (reactiveState === s) spawnBolt(s); }, 120 + Math.random() * 80);
         }
-        s.boltCooldown = 0.12 + Math.random() * 0.2;
+        s.boltCooldown = 0.06 + Math.random() * 0.1;
       }
-      // Random ambient flashes — more frequent
-      if (Math.random() > 0.985 && s.smoothBass > 0.1) {
-        s.flashLight.position.set((Math.random()-0.5)*400, 250+Math.random()*150, (Math.random()-0.5)*300);
-        s.flashLight.power = 200 + Math.random() * 400;
-        s.flashDecay = Math.max(s.flashDecay, 0.5);
-        s.screenFlash = Math.max(s.screenFlash, 0.3);
+      // Constant ambient lightning — always something crackling
+      if (Math.random() > 0.96) {
+        spawnBolt(s);
+      }
+      // Random ambient flashes — very frequent
+      if (Math.random() > 0.97 && s.smoothBass > 0.05) {
+        s.flashLight.position.set((Math.random()-0.5)*500, 200+Math.random()*200, (Math.random()-0.5)*400);
+        s.flashLight.power = 400 + Math.random() * 800;
+        s.flashDecay = Math.max(s.flashDecay, 0.7);
+        s.screenFlash = Math.max(s.screenFlash, 0.5);
       }
 
       for (const bolt of s.bolts) {
@@ -6107,10 +6115,10 @@
 
       // Flash decay — slower for more drama
       s.flashDecay = Math.max(0, s.flashDecay - 0.02);
-      s.flashLight.power = s.flashDecay * 1200;
-      // Screen flash overlay
-      s.screenFlash = Math.max(0, s.screenFlash - 0.025);
-      s.flashPlaneMat.opacity = s.screenFlash * 0.35;
+      s.flashLight.power = s.flashDecay * 2000;
+      // Screen flash overlay — brighter, slower decay
+      s.screenFlash = Math.max(0, s.screenFlash - 0.018);
+      s.flashPlaneMat.opacity = s.screenFlash * 0.5;
       s.flashPlane.lookAt(s.camera.position);
 
       // ── Render ──
@@ -8173,6 +8181,457 @@
       ctx.restore();
     }
 
+    // ══════════════════════════════════════════════════════════════════
+    // ██  KEYS — Guitar Hero Style Keyboard Rhythm Game              ██
+    // ══════════════════════════════════════════════════════════════════
+
+    const KEYS_W = 320, KEYS_H = 180;
+    // 4 lanes: D, F, J, K — mapped to neon colors
+    const KEY_LANES = [
+      { key: "d", label: "D", color: "#ff2266", hue: 340 },
+      { key: "f", label: "F", color: "#22ff66", hue: 140 },
+      { key: "j", label: "J", color: "#2266ff", hue: 220 },
+      { key: "k", label: "K", color: "#ffcc22", hue: 50 },
+    ];
+    const KEY_LANE_W = 30;
+    const KEY_LANE_GAP = 6;
+    const KEY_TOTAL_W = KEY_LANES.length * KEY_LANE_W + (KEY_LANES.length - 1) * KEY_LANE_GAP;
+    const KEY_LANE_START = (KEYS_W - KEY_TOTAL_W) / 2;
+    const KEY_HIT_Y = KEYS_H - 28; // where notes must be hit
+    const KEY_NOTE_H = 8;
+    const KEY_NOTE_SPEED_BASE = 80; // px/sec
+
+    function initKeysVisualizer() {
+      if (reactiveState) return;
+      try {
+        const container = visualizerContainerEl;
+        const canvas = document.createElement("canvas");
+        canvas.width = KEYS_W;
+        canvas.height = KEYS_H;
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.imageRendering = "pixelated";
+        canvas.style.imageRendering = "crisp-edges";
+        container.appendChild(canvas);
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+
+        const keys = {};
+        const onKeyDown = (e) => {
+          const k = e.key.toLowerCase();
+          if (["d","f","j","k"].includes(k)) {
+            e.preventDefault();
+            if (!keys[k]) keys[k + "_pressed"] = true;
+            keys[k] = true;
+          }
+        };
+        const onKeyUp = (e) => { keys[e.key.toLowerCase()] = false; };
+        window.addEventListener("keydown", onKeyDown);
+        window.addEventListener("keyup", onKeyUp);
+
+        const ro = new ResizeObserver(() => {});
+        ro.observe(container);
+
+        reactiveState = {
+          canvas, ctx, ro, keys, onKeyDown, onKeyUp,
+          mode: "keys",
+          // Notes — { lane: 0-3, y: number, hit: bool, missed: bool }
+          notes: [],
+          // Scoring
+          score: 0, combo: 0, maxCombo: 0, totalHits: 0, totalMisses: 0,
+          streak: 0, multiplier: 1,
+          // Timing
+          spawnTimer: 0, spawnInterval: 0.5,
+          noteSpeed: KEY_NOTE_SPEED_BASE,
+          // Music analysis for note generation
+          smoothBass: 0, smoothMid: 0, smoothTreble: 0,
+          prevBass: 0, prevTreble: 0,
+          energyAccum: 0, beatAccum: 0,
+          // Visual effects
+          laneFlash: [0, 0, 0, 0], // flash timer per lane on hit
+          hitEffects: [], // { x, y, color, life }
+          missEffects: [], // { x, y, life }
+          strobeTimer: 0, bgPulse: 0,
+          starField: Array.from({length: 40}, () => ({
+            x: Math.random() * KEYS_W, y: Math.random() * KEYS_H,
+            speed: 0.5 + Math.random() * 2, size: 1,
+          })),
+          // Hit feedback text
+          hitText: "", hitTextTimer: 0, hitTextColor: "#fff",
+          // Paused
+          gamePaused: false,
+          lastTime: 0,
+        };
+      } catch (error) {
+        console.error("Keys init failed", error);
+        reactiveState = null;
+      }
+    }
+
+    function destroyKeysVisualizer() {
+      if (!reactiveState) return;
+      try {
+        window.removeEventListener("keydown", reactiveState.onKeyDown);
+        window.removeEventListener("keyup", reactiveState.onKeyUp);
+        reactiveState.ro.disconnect();
+        if (reactiveState.canvas.parentNode) {
+          reactiveState.canvas.parentNode.removeChild(reactiveState.canvas);
+        }
+      } catch (_) {}
+      reactiveState = null;
+    }
+
+    function tickKeysVisualizer(bass, mid, treble, time) {
+      if (!reactiveState || reactiveState.mode !== "keys") return;
+      const s = reactiveState;
+      const ctx = s.ctx;
+      const dt = s.lastTime ? Math.min((time - s.lastTime) / 1000, 0.05) : 0.016;
+      s.lastTime = time;
+
+      // Pause check
+      const audioEl = playbackPlayer();
+      if (audioEl && (audioEl.paused || audioEl.ended)) {
+        s.gamePaused = true;
+      } else {
+        s.gamePaused = false;
+      }
+
+      // Smooth audio
+      s.smoothBass += (bass - s.smoothBass) * 0.25;
+      s.smoothMid += (mid - s.smoothMid) * 0.2;
+      s.smoothTreble += (treble - s.smoothTreble) * 0.2;
+      s.energyAccum += dt;
+
+      // Beat detection
+      const bassVel = bass - s.prevBass;
+      const trebleVel = treble - s.prevTreble;
+      s.prevBass = bass;
+      s.prevTreble = treble;
+
+      if (bassVel > 0.12) s.strobeTimer = 0.08;
+      s.strobeTimer = Math.max(0, s.strobeTimer - dt);
+      s.bgPulse = Math.max(0, s.bgPulse - dt * 3);
+
+      // Consume pressed flags
+      for (let i = 0; i < 4; i++) {
+        const k = KEY_LANES[i].key;
+        if (s.keys[k + "_pressed"]) {
+          s.keys[k + "_pressed"] = false;
+
+          // Check for note hit
+          let bestNote = null;
+          let bestDist = 999;
+          for (const note of s.notes) {
+            if (note.lane !== i || note.hit || note.missed) continue;
+            const dist = Math.abs(note.y - KEY_HIT_Y);
+            if (dist < 18 && dist < bestDist) {
+              bestNote = note;
+              bestDist = dist;
+            }
+          }
+
+          if (bestNote) {
+            bestNote.hit = true;
+            s.combo++;
+            s.totalHits++;
+            s.streak++;
+            if (s.combo > s.maxCombo) s.maxCombo = s.combo;
+            s.multiplier = s.combo >= 30 ? 8 : (s.combo >= 20 ? 4 : (s.combo >= 10 ? 2 : 1));
+
+            // Score based on accuracy
+            let hitQuality, hitColor, hitPts;
+            if (bestDist < 4) {
+              hitQuality = "PERFECT!"; hitColor = "#ff0"; hitPts = 100;
+            } else if (bestDist < 9) {
+              hitQuality = "GREAT!"; hitColor = "#0f0"; hitPts = 50;
+            } else {
+              hitQuality = "OK"; hitColor = "#0af"; hitPts = 25;
+            }
+            s.score += hitPts * s.multiplier;
+            s.hitText = hitQuality;
+            s.hitTextTimer = 0.6;
+            s.hitTextColor = hitColor;
+
+            // Visual effects
+            const lx = KEY_LANE_START + i * (KEY_LANE_W + KEY_LANE_GAP) + KEY_LANE_W / 2;
+            s.laneFlash[i] = 0.3;
+            for (let p = 0; p < 6; p++) {
+              s.hitEffects.push({
+                x: lx + (Math.random() - 0.5) * 20,
+                y: KEY_HIT_Y + (Math.random() - 0.5) * 10,
+                vx: (Math.random() - 0.5) * 3, vy: -(1 + Math.random() * 3),
+                color: KEY_LANES[i].color, life: 0.5 + Math.random() * 0.5,
+              });
+            }
+            s.bgPulse = 0.3;
+          } else {
+            // Pressed but no note — no penalty, just flash the lane dim
+            s.laneFlash[i] = 0.1;
+          }
+        }
+      }
+
+      if (!s.gamePaused) {
+        // ═══ NOTE SPAWNING — driven by music ═══
+        // Speed scales with energy
+        s.noteSpeed = KEY_NOTE_SPEED_BASE + s.smoothBass * 40 + s.smoothTreble * 20;
+        s.spawnTimer -= dt;
+
+        // Bass hits spawn on lanes 0-1, treble on lanes 2-3
+        if (bassVel > 0.06 && s.spawnTimer <= 0) {
+          const lane = Math.random() < 0.5 ? 0 : 1;
+          s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: bassVel });
+          s.spawnTimer = 0.15;
+        }
+        if (trebleVel > 0.05 && s.spawnTimer <= 0) {
+          const lane = Math.random() < 0.5 ? 2 : 3;
+          s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: trebleVel });
+          s.spawnTimer = 0.12;
+        }
+        // Mid drives additional notes across all lanes
+        if (s.smoothMid > 0.3 && Math.random() < dt * 2.5) {
+          const lane = Math.floor(Math.random() * 4);
+          s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: 0.1 });
+        }
+        // Minimum note density — always something coming
+        if (s.notes.filter(n => !n.hit && !n.missed).length < 2 && Math.random() < dt * 1.5) {
+          const lane = Math.floor(Math.random() * 4);
+          s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: 0.05 });
+        }
+
+        // ═══ UPDATE NOTES ═══
+        for (let i = s.notes.length - 1; i >= 0; i--) {
+          const note = s.notes[i];
+          if (note.hit) {
+            // Fade out hit notes
+            note.y += s.noteSpeed * dt * 0.5;
+            note.glow -= dt * 3;
+            if (note.glow <= -1) s.notes.splice(i, 1);
+            continue;
+          }
+          note.y += s.noteSpeed * dt;
+          // Missed — went past hit zone
+          if (note.y > KEY_HIT_Y + 20 && !note.missed) {
+            note.missed = true;
+            s.combo = 0;
+            s.multiplier = 1;
+            s.totalMisses++;
+            s.hitText = "MISS";
+            s.hitTextTimer = 0.4;
+            s.hitTextColor = "#f33";
+            // Miss effect
+            const lx = KEY_LANE_START + note.lane * (KEY_LANE_W + KEY_LANE_GAP) + KEY_LANE_W / 2;
+            s.missEffects.push({ x: lx, y: KEY_HIT_Y, life: 0.4 });
+          }
+          // Remove off-screen
+          if (note.y > KEYS_H + 20) s.notes.splice(i, 1);
+        }
+
+        // Update hit effects
+        for (let i = s.hitEffects.length - 1; i >= 0; i--) {
+          const e = s.hitEffects[i];
+          e.x += e.vx; e.y += e.vy;
+          e.life -= dt;
+          if (e.life <= 0) s.hitEffects.splice(i, 1);
+        }
+        // Update miss effects
+        for (let i = s.missEffects.length - 1; i >= 0; i--) {
+          s.missEffects[i].life -= dt;
+          if (s.missEffects[i].life <= 0) s.missEffects.splice(i, 1);
+        }
+
+        // Lane flash decay
+        for (let i = 0; i < 4; i++) {
+          s.laneFlash[i] = Math.max(0, s.laneFlash[i] - dt * 3);
+        }
+        s.hitTextTimer = Math.max(0, s.hitTextTimer - dt);
+
+        // Star field
+        for (const star of s.starField) {
+          star.y += star.speed * (1 + s.smoothBass * 2);
+          if (star.y > KEYS_H) { star.y = 0; star.x = Math.random() * KEYS_W; }
+        }
+      }
+
+      // ═══ RENDER ═══
+      ctx.save();
+
+      // Background — dark with pulsing
+      const bgHue = (s.energyAccum * 8) % 360;
+      ctx.fillStyle = `hsl(${bgHue}, 30%, ${2 + s.bgPulse * 8}%)`;
+      ctx.fillRect(0, 0, KEYS_W, KEYS_H);
+
+      // Star field
+      for (const star of s.starField) {
+        ctx.globalAlpha = 0.3 + s.smoothTreble * 0.4;
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(Math.floor(star.x), Math.floor(star.y), star.size, star.size);
+      }
+      ctx.globalAlpha = 1;
+
+      // ── Lane tracks ──
+      for (let i = 0; i < 4; i++) {
+        const lx = KEY_LANE_START + i * (KEY_LANE_W + KEY_LANE_GAP);
+        const lane = KEY_LANES[i];
+
+        // Lane background
+        ctx.fillStyle = `hsla(${lane.hue}, 40%, 8%, 0.6)`;
+        ctx.fillRect(lx, 0, KEY_LANE_W, KEYS_H);
+
+        // Lane borders
+        ctx.fillStyle = `hsla(${lane.hue}, 100%, 40%, 0.15)`;
+        ctx.fillRect(lx, 0, 1, KEYS_H);
+        ctx.fillRect(lx + KEY_LANE_W - 1, 0, 1, KEYS_H);
+
+        // Lane flash (on hit)
+        if (s.laneFlash[i] > 0) {
+          ctx.fillStyle = `hsla(${lane.hue}, 100%, 60%, ${s.laneFlash[i] * 0.5})`;
+          ctx.fillRect(lx, 0, KEY_LANE_W, KEYS_H);
+        }
+
+        // Hit zone marker
+        ctx.fillStyle = `hsla(${lane.hue}, 100%, 50%, 0.3)`;
+        ctx.fillRect(lx, KEY_HIT_Y - 2, KEY_LANE_W, KEY_NOTE_H + 4);
+        // Hit zone border
+        ctx.fillStyle = `hsla(${lane.hue}, 100%, 70%, 0.6)`;
+        ctx.fillRect(lx, KEY_HIT_Y - 2, KEY_LANE_W, 1);
+        ctx.fillRect(lx, KEY_HIT_Y + KEY_NOTE_H + 2, KEY_LANE_W, 1);
+
+        // Key label at bottom
+        const held = s.keys[lane.key];
+        const labelColor = held ? lane.color : `hsla(${lane.hue}, 60%, 40%, 0.6)`;
+        drawText(ctx, lane.label, lx + KEY_LANE_W / 2 - 3, KEYS_H - 10, labelColor, 1);
+        // Glow when held
+        if (held) {
+          ctx.fillStyle = `hsla(${lane.hue}, 100%, 60%, 0.15)`;
+          ctx.fillRect(lx, KEY_HIT_Y - 5, KEY_LANE_W, 18);
+        }
+      }
+
+      // ── Notes ──
+      for (const note of s.notes) {
+        if (note.missed) continue; // don't render missed notes
+        const lane = KEY_LANES[note.lane];
+        const lx = KEY_LANE_START + note.lane * (KEY_LANE_W + KEY_LANE_GAP);
+
+        if (note.hit) {
+          // Fading out
+          ctx.globalAlpha = Math.max(0, 0.5 + note.glow);
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(lx + 2, Math.floor(note.y), KEY_LANE_W - 4, KEY_NOTE_H);
+          ctx.globalAlpha = 1;
+          continue;
+        }
+
+        // Note body — neon block
+        ctx.fillStyle = lane.color;
+        ctx.fillRect(lx + 2, Math.floor(note.y), KEY_LANE_W - 4, KEY_NOTE_H);
+        // Note glow
+        ctx.globalAlpha = 0.3;
+        ctx.fillRect(lx, Math.floor(note.y) - 1, KEY_LANE_W, KEY_NOTE_H + 2);
+        ctx.globalAlpha = 1;
+        // Bright core
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(lx + 4, Math.floor(note.y) + 2, KEY_LANE_W - 8, KEY_NOTE_H - 4);
+      }
+
+      // ── Hit effects (particles) ──
+      for (const e of s.hitEffects) {
+        ctx.globalAlpha = Math.min(1, e.life * 2);
+        ctx.fillStyle = e.color;
+        ctx.fillRect(Math.floor(e.x), Math.floor(e.y), 2, 2);
+      }
+      ctx.globalAlpha = 1;
+
+      // ── Miss effects (red X flash) ──
+      for (const m of s.missEffects) {
+        ctx.globalAlpha = m.life * 2;
+        ctx.fillStyle = "#f33";
+        const mx = Math.floor(m.x);
+        const my = Math.floor(m.y);
+        // X shape
+        for (let d = -3; d <= 3; d++) {
+          ctx.fillRect(mx + d, my + d, 2, 2);
+          ctx.fillRect(mx + d, my - d, 2, 2);
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // ── Hit quality text (center) ──
+      if (s.hitTextTimer > 0) {
+        const textAlpha = Math.min(1, s.hitTextTimer * 3);
+        const textY = KEYS_H / 2 - 20 - (0.6 - s.hitTextTimer) * 15;
+        ctx.globalAlpha = textAlpha;
+        drawText(ctx, s.hitText, KEYS_W / 2 - s.hitText.length * 6, Math.floor(textY), s.hitTextColor, 2);
+        ctx.globalAlpha = 1;
+      }
+
+      // ── Bass strobe ──
+      if (s.strobeTimer > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${s.strobeTimer * 1.5})`;
+        ctx.fillRect(0, 0, KEYS_W, KEYS_H);
+      }
+
+      // ── Neon laser beams on treble (background) ──
+      if (s.smoothTreble > 0.3) {
+        const laserCount = Math.floor(s.smoothTreble * 4);
+        for (let i = 0; i < laserCount; i++) {
+          const lHue = (bgHue + i * 90 + time * 0.05) % 360;
+          const lx1 = (Math.sin(time * 0.002 + i * 1.7) * 0.5 + 0.5) * KEYS_W;
+          const lx2 = (Math.cos(time * 0.0015 + i * 2.3) * 0.5 + 0.5) * KEYS_W;
+          ctx.strokeStyle = `hsla(${lHue}, 100%, 50%, 0.08)`;
+          ctx.beginPath();
+          ctx.moveTo(lx1, 0);
+          ctx.lineTo(lx2, KEYS_H);
+          ctx.stroke();
+        }
+      }
+
+      // ── HUD ──
+      // Score (top-left)
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.fillRect(0, 0, 75, 28);
+      drawText(ctx, `SCORE:${s.score}`, 4, 4, "#fff", 1);
+      // Combo
+      if (s.combo > 1) {
+        drawText(ctx, `${s.combo} COMBO`, 4, 13, "#ff0", 1);
+      }
+      // Multiplier
+      if (s.multiplier > 1) {
+        drawText(ctx, `X${s.multiplier}`, 4, 22, "#f80", 1);
+      }
+
+      // Accuracy (top-right)
+      const totalNotes = s.totalHits + s.totalMisses;
+      const accuracy = totalNotes > 0 ? Math.floor((s.totalHits / totalNotes) * 100) : 100;
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.fillRect(KEYS_W - 60, 0, 60, 14);
+      drawText(ctx, `${accuracy}%`, KEYS_W - 30, 4, accuracy > 80 ? "#0f0" : (accuracy > 50 ? "#ff0" : "#f33"), 1);
+
+      // ── Instructions (bottom, outside lanes) ──
+      const instrY = KEYS_H - 10;
+      drawText(ctx, "D", 8, instrY, KEY_LANES[0].color, 1);
+      drawText(ctx, "F", 22, instrY, KEY_LANES[1].color, 1);
+      drawText(ctx, "J", KEYS_W - 30, instrY, KEY_LANES[2].color, 1);
+      drawText(ctx, "K", KEYS_W - 16, instrY, KEY_LANES[3].color, 1);
+
+      // ── Paused overlay ──
+      if (s.gamePaused) {
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        ctx.fillRect(0, 0, KEYS_W, KEYS_H);
+        drawText(ctx, "PAUSED", KEYS_W / 2 - 18, KEYS_H / 2 - 15, "#fff", 2);
+        drawText(ctx, "PLAY A SONG TO JAM", KEYS_W / 2 - 55, KEYS_H / 2 + 5, "#888", 1);
+        // Show controls
+        drawText(ctx, "HIT D F J K TO THE BEAT", KEYS_W / 2 - 68, KEYS_H / 2 + 20, "#666", 1);
+      }
+
+      // CRT scanlines
+      ctx.fillStyle = "rgba(0,0,0,0.04)";
+      for (let y = 0; y < KEYS_H; y += 2) ctx.fillRect(0, y, KEYS_W, 1);
+
+      ctx.restore();
+    }
+
     // ── Reactive mode dispatching ──
 
     function initCurrentReactiveMode() {
@@ -8181,6 +8640,7 @@
       else if (reactiveSubMode === 3) initStormVisualizer();
       else if (reactiveSubMode === 4) initGameVisualizer();
       else if (reactiveSubMode === 5) initFishingVisualizer();
+      else if (reactiveSubMode === 6) initKeysVisualizer();
       else initReactiveVisualizer();
     }
 
@@ -8192,6 +8652,7 @@
       else if (m === "storm") destroyStormVisualizer();
       else if (m === "game") destroyGameVisualizer();
       else if (m === "fishing") destroyFishingVisualizer();
+      else if (m === "keys") destroyKeysVisualizer();
       else destroyReactiveVisualizer();
     }
 
@@ -8203,6 +8664,7 @@
       else if (m === "storm") tickStormVisualizer(bass, mid, treble, time);
       else if (m === "game") tickGameVisualizer(bass, mid, treble, time);
       else if (m === "fishing") tickFishingVisualizer(bass, mid, treble, time);
+      else if (m === "keys") tickKeysVisualizer(bass, mid, treble, time);
       else tickReactiveVisualizer(bass, mid, treble, time);
     }
 
