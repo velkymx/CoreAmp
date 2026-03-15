@@ -1804,9 +1804,11 @@
     }
     .player-signal-details {
       color: var(--text-tertiary);
-      font-size: 0.79rem;
+      font-size: 0.75rem;
       font-variant-numeric: tabular-nums;
-      min-height: 1.2em;
+      margin-left: auto;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .player-stats {
       display: flex;
@@ -2294,12 +2296,12 @@
           <div class="player-meta">
             <div class="player-copy-row">
               <div id="playerTitle" class="player-title">Nothing loaded</div>
+              <div id="playerSignalDetails" class="player-signal-details"></div>
               <button id="playerLikeBtn" class="heart-btn" type="button" aria-label="Like this track" aria-pressed="false">
                 <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
               </button>
             </div>
             <div id="playerSubtitle" class="player-subtitle">Queue a track or load a playlist to begin.</div>
-            <div id="playerSignalDetails" class="player-signal-details"></div>
           </div>
           <div class="slider-group">
             <div class="slider-inline">
