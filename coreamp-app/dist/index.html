@@ -8863,12 +8863,12 @@
         s.py = Math.max(SHP_PLAYER_SIZE / 2, Math.min(SHP_H - SHP_PLAYER_SIZE / 2, s.py));
 
         // ── ATTACK SPAWNING (music-driven + steady-state) ──
-        // Difficulty ramps with survival time
-        const diff = Math.min(2.0, 1.0 + s.survived * 0.03);
+        // Difficulty ramps slowly with survival time
+        const diff = Math.min(1.5, 1.0 + s.survived * 0.015);
+        const GAP = SHP_PLAYER_SIZE * 3; // safe gap = 3x player
 
         // Bass → expanding circles from random point
-        // Spike-triggered OR steady bass energy
-        if (s.bassAttackCD <= 0 && (bassVel > 0.05 || (s.smoothBass > 0.15 && Math.random() < dt * 1.5 * diff))) {
+        if (s.bassAttackCD <= 0 && (bassVel > 0.08 || (s.smoothBass > 0.2 && Math.random() < dt * 0.8 * diff))) {
           const cx = 40 + Math.random() * (SHP_W - 80);
           const cy = 30 + Math.random() * (SHP_H - 60);
           s.warnings.push({ x: cx, y: cy, timer: 0.35, type: "circle" });
@@ -8877,28 +8877,27 @@
             radius: 0, maxRadius: 35 + s.smoothBass * 35, speed: 55 + s.smoothBass * 45,
             life: 2.0, hue: 0,
           });
-          s.bassAttackCD = Math.max(0.25, 0.5 / diff);
+          s.bassAttackCD = Math.max(0.8, 1.2 / diff);
         }
 
-        // Treble → laser beams that sweep
-        if (s.trebleAttackCD <= 0 && (trebleVel > 0.04 || (s.smoothTreble > 0.15 && Math.random() < dt * 1.2 * diff))) {
+        // Treble → laser beams with gap
+        if (s.trebleAttackCD <= 0 && (trebleVel > 0.06 || (s.smoothTreble > 0.2 && Math.random() < dt * 0.7 * diff))) {
           const horizontal = Math.random() < 0.5;
           const span = horizontal ? SHP_W : SHP_H;
           const pos = Math.random() * (horizontal ? SHP_H : SHP_W);
-          const gapSize = SHP_PLAYER_SIZE * 3;
-          const gapPos = gapSize + Math.random() * (span - gapSize * 2);
+          const gapPos = GAP + Math.random() * (span - GAP * 2);
           s.attacks.push({
             type: "laser", horizontal, pos,
             width: 0, maxWidth: 10 + s.smoothTreble * 12,
             growSpeed: 80, life: 1.2, hue: 180,
-            gapPos, gapSize,
+            gapPos, gapSize: GAP,
           });
-          s.trebleAttackCD = Math.max(0.2, 0.4 / diff);
+          s.trebleAttackCD = Math.max(0.6, 1.0 / diff);
         }
 
-        // Mid → rain of small squares from top
-        if (s.midAttackCD <= 0 && (midVel > 0.03 || (s.smoothMid > 0.15 && Math.random() < dt * 1.8 * diff))) {
-          const count = 2 + Math.floor(s.smoothMid * 4 * diff);
+        // Mid → rain of small squares from top (fewer)
+        if (s.midAttackCD <= 0 && (midVel > 0.05 || (s.smoothMid > 0.2 && Math.random() < dt * 0.6 * diff))) {
+          const count = 2 + Math.floor(s.smoothMid * 2 * diff);
           for (let i = 0; i < count; i++) {
             s.attacks.push({
               type: "bullet", x: Math.random() * SHP_W, y: -8,
@@ -8906,39 +8905,33 @@
               size: 4 + Math.random() * 3, life: 3.0, hue: 280,
             });
           }
-          s.midAttackCD = Math.max(0.3, 0.6 / diff);
+          s.midAttackCD = Math.max(0.8, 1.5 / diff);
         }
 
-        // Big bass drops → screen-wide horizontal wave
-        if (s.sweepCD <= 0 && (bassVel > 0.12 || (s.smoothBass > 0.25 && Math.random() < dt * 0.4 * diff))) {
+        // Big bass drops → wave with gap
+        if (s.sweepCD <= 0 && (bassVel > 0.15 || (s.smoothBass > 0.3 && Math.random() < dt * 0.2 * diff))) {
           const fromTop = Math.random() < 0.5;
+          const waveGapPos = GAP + Math.random() * (SHP_W - GAP * 2);
           s.attacks.push({
             type: "wave", y: fromTop ? -20 : SHP_H + 20,
             vy: fromTop ? 70 : -70,
             height: 14 + s.smoothBass * 14, life: 3.0, hue: 330,
+            gapPos: waveGapPos, gapSize: GAP,
           });
-          s.sweepCD = Math.max(0.6, 1.2 / diff);
+          s.sweepCD = Math.max(1.5, 2.5 / diff);
         }
 
-        // Guaranteed minimum — always something on screen
-        if (s.attacks.length < 2 && Math.random() < dt * 2.0) {
-          const type = ["circle", "laser", "bullet"][Math.floor(Math.random() * 3)];
-          if (type === "circle") {
-            const cx = 40 + Math.random() * (SHP_W - 80);
-            const cy = 30 + Math.random() * (SHP_H - 60);
-            s.attacks.push({ type: "circle", x: cx, y: cy, radius: 0, maxRadius: 35, speed: 55, life: 2.0, hue: 0 });
-          } else if (type === "laser") {
-            const horizontal = Math.random() < 0.5;
-            const lSpan = horizontal ? SHP_W : SHP_H;
-            const lPos = Math.random() * (horizontal ? SHP_H : SHP_W);
-            const lGapSize = SHP_PLAYER_SIZE * 3;
-            const lGapPos = lGapSize + Math.random() * (lSpan - lGapSize * 2);
-            s.attacks.push({ type: "laser", horizontal, pos: lPos, width: 0, maxWidth: 10, growSpeed: 80, life: 1.2, hue: 180, gapPos: lGapPos, gapSize: lGapSize });
-          } else {
-            for (let i = 0; i < 3; i++) {
-              s.attacks.push({ type: "bullet", x: Math.random() * SHP_W, y: -8, vx: (Math.random() - 0.5) * 20, vy: 50 + Math.random() * 60, size: 4 + Math.random() * 3, life: 3.0, hue: 280 });
-            }
-          }
+        // Guaranteed minimum — one attack if screen is empty
+        if (s.attacks.length === 0 && Math.random() < dt * 1.0) {
+          const horizontal = Math.random() < 0.5;
+          const span = horizontal ? SHP_W : SHP_H;
+          const gapPos = GAP + Math.random() * (span - GAP * 2);
+          s.attacks.push({
+            type: "laser", horizontal,
+            pos: Math.random() * (horizontal ? SHP_H : SHP_W),
+            width: 0, maxWidth: 10, growSpeed: 80, life: 1.2, hue: 180,
+            gapPos, gapSize: GAP,
+          });
         }
 
         // ── UPDATE ATTACKS ──
@@ -8986,7 +8979,14 @@
           } else if (a.type === "wave") {
             a.y += a.vy * dt;
             const halfH = a.height / 2;
-            if (s.py + half > a.y - halfH && s.py - half < a.y + halfH) hit = true;
+            let inWave = s.py + half > a.y - halfH && s.py - half < a.y + halfH;
+            // Check gap (horizontal gap in the wave)
+            if (inWave && a.gapPos !== undefined) {
+              if (s.px - half >= a.gapPos && s.px + half <= a.gapPos + a.gapSize) {
+                inWave = false;
+              }
+            }
+            if (inWave) hit = true;
             if (a.y > SHP_H + 40 || a.y < -40) { s.attacks.splice(i, 1); continue; }
           }
 
@@ -9149,13 +9149,20 @@
           ctx.fillRect(a.x - sz / 2 - 1, a.y - sz / 2 - 1, sz + 2, sz + 2);
         } else if (a.type === "wave") {
           const h = a.height * pulse;
+          const wgp = a.gapPos !== undefined ? a.gapPos : -1;
+          const wgs = a.gapSize || 0;
           ctx.globalAlpha = alpha;
           const grad = ctx.createLinearGradient(0, a.y - h / 2, 0, a.y + h / 2);
           grad.addColorStop(0, `hsla(${a.hue}, 100%, 55%, 0)`);
           grad.addColorStop(0.5, `hsla(${a.hue}, 100%, 55%, 1)`);
           grad.addColorStop(1, `hsla(${a.hue}, 100%, 55%, 0)`);
           ctx.fillStyle = grad;
-          ctx.fillRect(-4, a.y - h / 2, SHP_W + 8, h);
+          if (wgp >= 0) {
+            ctx.fillRect(-4, a.y - h / 2, wgp + 4, h);
+            ctx.fillRect(wgp + wgs, a.y - h / 2, SHP_W - wgp - wgs + 4, h);
+          } else {
+            ctx.fillRect(-4, a.y - h / 2, SHP_W + 8, h);
+          }
         }
         ctx.globalAlpha = 1;
       }
