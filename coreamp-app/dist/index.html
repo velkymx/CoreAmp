@@ -2335,10 +2335,6 @@
             </button>
           </div>
           <div class="player-mode-row">
-            <button id="appearanceToggleBtn" class="secondary mode-toggle-btn" type="button" aria-label="Toggle appearance">
-              <svg id="appearanceToggleIcon" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="12" rx="2"></rect><path d="M10 19h4"></path><path d="M12 17v2"></path></svg>
-              <span>Theme</span>
-            </button>
           </div>
         </div>
         <div class="player-column queue-column">
@@ -2598,16 +2594,13 @@
                 Drop files or folders here to scan them.
               </div>
             </div>
-            <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Visualizer Modes</h3>
-            <p style="margin:0 0 8px;font-size:0.8rem;color:var(--text-secondary);">Uncheck modes you don't want in the rotation. Click Spectrum/Reactive buttons to cycle through enabled modes.</p>
-            <div style="margin-bottom:12px;">
-              <h4 style="margin:0 0 6px;font-size:0.82rem;font-weight:600;color:var(--text-secondary);">Spectrum</h4>
-              <div id="spectrumToggleGrid" class="viz-toggle-grid"></div>
-            </div>
-            <div style="margin-bottom:20px;">
-              <h4 style="margin:0 0 6px;font-size:0.82rem;font-weight:600;color:var(--text-secondary);">Reactive</h4>
-              <div id="reactiveToggleGrid" class="viz-toggle-grid"></div>
-            </div>
+            <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Appearance</h3>
+            <button id="appearanceToggleBtn" class="secondary" type="button" aria-label="Toggle appearance" style="margin-bottom:20px;">
+              <svg id="appearanceToggleIcon" viewBox="0 0 24 24" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"><rect x="4" y="5" width="16" height="12" rx="2"></rect><path d="M10 19h4"></path><path d="M12 17v2"></path></svg>
+              <span>Theme</span>
+            </button>
+            <div id="spectrumToggleGrid" style="display:none;"></div>
+            <div id="reactiveToggleGrid" style="display:none;"></div>
             <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Library Settings</h3>
             <div class="metadata-field" style="margin-bottom: 16px;">
               <label for="scanIntervalInput">Scan interval (seconds)</label>
