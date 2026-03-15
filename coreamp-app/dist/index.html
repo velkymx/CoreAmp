@@ -2902,8 +2902,8 @@
     let visualizerPseudoFullscreen = false;
     let spectrumSubMode = Number(window.localStorage.getItem("coreamp.spectrumSubMode") || 0);
     let reactiveSubMode = Number(window.localStorage.getItem("coreamp.reactiveSubMode") || 0);
-    const REACTIVE_SUB_MODE_COUNT = 7;
-    const REACTIVE_SUB_MODE_NAMES = ["Orb", "Vortex", "Nebula", "Storm", "Game", "Fishing", "Keys"];
+    const REACTIVE_SUB_MODE_COUNT = 8;
+    const REACTIVE_SUB_MODE_NAMES = ["Orb", "Vortex", "Nebula", "Storm", "Game", "Fishing", "Keys", "Shapes"];
     let enabledSpectrumModes = JSON.parse(window.localStorage.getItem("coreamp.enabledSpectrumModes") || "null");
     let enabledReactiveModes = JSON.parse(window.localStorage.getItem("coreamp.enabledReactiveModes") || "null");
     let audioMotionInstance = null;
@@ -8695,6 +8695,501 @@
       ctx.restore();
     }
 
+    // ══════════════════════════════════════════════
+    // ── SHAPES — Just Shapes & Beats style dodge game (reactive sub-mode 7) ──
+    // ══════════════════════════════════════════════
+    const SHP_W = 320, SHP_H = 180;
+    const SHP_PLAYER_SIZE = 6;
+    const SHP_PLAYER_SPEED = 120; // px/sec
+    const SHP_DASH_SPEED = 300;
+    const SHP_DASH_DUR = 0.12;
+    const SHP_DASH_COOLDOWN = 0.4;
+    const SHP_MAX_HP = 3;
+    const SHP_INVULN_DUR = 1.5;
+
+    function initShapesVisualizer() {
+      if (reactiveState) return;
+      try {
+        const container = visualizerContainerEl;
+        const canvas = document.createElement("canvas");
+        canvas.width = SHP_W;
+        canvas.height = SHP_H;
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.imageRendering = "pixelated";
+        canvas.style.imageRendering = "crisp-edges";
+        container.appendChild(canvas);
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+
+        const keys = {};
+        const onKeyDown = (e) => {
+          const k = e.key.toLowerCase();
+          if (["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)) {
+            e.preventDefault();
+            keys[k] = true;
+          }
+        };
+        const onKeyUp = (e) => { keys[e.key.toLowerCase()] = false; };
+        window.addEventListener("keydown", onKeyDown);
+        window.addEventListener("keyup", onKeyUp);
+
+        reactiveState = {
+          canvas, ctx, keys, onKeyDown, onKeyUp,
+          mode: "shapes",
+          // Player
+          px: SHP_W / 2, py: SHP_H / 2,
+          hp: SHP_MAX_HP,
+          invulnTimer: 0,
+          dashTimer: 0, dashCooldown: 0,
+          dashDx: 0, dashDy: 0,
+          alive: true,
+          // Attacks
+          attacks: [],
+          // Warnings — brief flash before attack spawns
+          warnings: [],
+          // Score
+          score: 0, survived: 0,
+          // Audio
+          smoothBass: 0, smoothMid: 0, smoothTreble: 0,
+          prevBass: 0, prevTreble: 0, prevMid: 0,
+          energyAccum: 0,
+          // Attack cooldowns
+          bassAttackCD: 0, trebleAttackCD: 0, midAttackCD: 0, sweepCD: 0,
+          // Visual
+          bgPulse: 0, screenShake: 0,
+          particles: [],
+          // Timing
+          lastTime: 0, gamePaused: false,
+          // Game over
+          gameOverTimer: 0,
+        };
+      } catch (error) {
+        console.error("Shapes init failed", error);
+        reactiveState = null;
+      }
+    }
+
+    function destroyShapesVisualizer() {
+      if (!reactiveState) return;
+      try {
+        window.removeEventListener("keydown", reactiveState.onKeyDown);
+        window.removeEventListener("keyup", reactiveState.onKeyUp);
+        if (reactiveState.canvas.parentNode) {
+          reactiveState.canvas.parentNode.removeChild(reactiveState.canvas);
+        }
+      } catch (_) {}
+      reactiveState = null;
+    }
+
+    function tickShapesVisualizer(bass, mid, treble, time) {
+      if (!reactiveState || reactiveState.mode !== "shapes") return;
+      const s = reactiveState;
+      const ctx = s.ctx;
+      const dt = s.lastTime ? Math.min((time - s.lastTime) / 1000, 0.05) : 0.016;
+      s.lastTime = time;
+
+      // Pause check
+      const audioEl = playbackPlayer();
+      if (audioEl && (audioEl.paused || audioEl.ended)) {
+        s.gamePaused = true;
+      } else {
+        s.gamePaused = false;
+      }
+
+      // Smooth audio
+      s.smoothBass += (bass - s.smoothBass) * 0.25;
+      s.smoothMid += (mid - s.smoothMid) * 0.2;
+      s.smoothTreble += (treble - s.smoothTreble) * 0.2;
+      s.energyAccum += dt;
+
+      const bassVel = bass - s.prevBass;
+      const trebleVel = treble - s.prevTreble;
+      const midVel = mid - s.prevMid;
+      s.prevBass = bass;
+      s.prevTreble = treble;
+      s.prevMid = mid;
+
+      if (bassVel > 0.1) { s.bgPulse = 0.4; s.screenShake = 3; }
+      s.bgPulse = Math.max(0, s.bgPulse - dt * 2);
+      s.screenShake = Math.max(0, s.screenShake - dt * 15);
+
+      // Cooldowns
+      s.bassAttackCD = Math.max(0, s.bassAttackCD - dt);
+      s.trebleAttackCD = Math.max(0, s.trebleAttackCD - dt);
+      s.midAttackCD = Math.max(0, s.midAttackCD - dt);
+      s.sweepCD = Math.max(0, s.sweepCD - dt);
+      s.dashCooldown = Math.max(0, s.dashCooldown - dt);
+      s.invulnTimer = Math.max(0, s.invulnTimer - dt);
+
+      if (!s.gamePaused && s.alive) {
+        s.survived += dt;
+        s.score = Math.floor(s.survived * 10);
+
+        // ── PLAYER MOVEMENT ──
+        let dx = 0, dy = 0;
+        if (s.keys["a"] || s.keys["arrowleft"]) dx -= 1;
+        if (s.keys["d"] || s.keys["arrowright"]) dx += 1;
+        if (s.keys["w"] || s.keys["arrowup"]) dy -= 1;
+        if (s.keys["s"] || s.keys["arrowdown"]) dy += 1;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0) { dx /= len; dy /= len; }
+
+        // Dash
+        if (s.keys[" "] && s.dashCooldown <= 0 && s.dashTimer <= 0 && len > 0) {
+          s.dashTimer = SHP_DASH_DUR;
+          s.dashCooldown = SHP_DASH_COOLDOWN;
+          s.dashDx = dx;
+          s.dashDy = dy;
+          // Dash trail particles
+          for (let i = 0; i < 5; i++) {
+            s.particles.push({
+              x: s.px, y: s.py, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30,
+              life: 0.3 + Math.random() * 0.2, color: "#0ff", size: 2,
+            });
+          }
+        }
+
+        if (s.dashTimer > 0) {
+          s.dashTimer -= dt;
+          s.px += s.dashDx * SHP_DASH_SPEED * dt;
+          s.py += s.dashDy * SHP_DASH_SPEED * dt;
+        } else {
+          s.px += dx * SHP_PLAYER_SPEED * dt;
+          s.py += dy * SHP_PLAYER_SPEED * dt;
+        }
+        // Clamp
+        s.px = Math.max(SHP_PLAYER_SIZE / 2, Math.min(SHP_W - SHP_PLAYER_SIZE / 2, s.px));
+        s.py = Math.max(SHP_PLAYER_SIZE / 2, Math.min(SHP_H - SHP_PLAYER_SIZE / 2, s.py));
+
+        // ── ATTACK SPAWNING (music-driven) ──
+
+        // Bass → expanding circles from random point
+        if (bassVel > 0.10 && s.bassAttackCD <= 0) {
+          const cx = 40 + Math.random() * (SHP_W - 80);
+          const cy = 30 + Math.random() * (SHP_H - 60);
+          s.warnings.push({ x: cx, y: cy, timer: 0.35, type: "circle" });
+          s.attacks.push({
+            type: "circle", x: cx, y: cy,
+            radius: 0, maxRadius: 40 + bass * 30, speed: 60 + bass * 40,
+            life: 2.0, hue: 0,
+          });
+          s.bassAttackCD = 0.5;
+        }
+
+        // Treble → laser beams that sweep
+        if (trebleVel > 0.08 && s.trebleAttackCD <= 0) {
+          const horizontal = Math.random() < 0.5;
+          const pos = Math.random() * (horizontal ? SHP_H : SHP_W);
+          s.attacks.push({
+            type: "laser", horizontal, pos,
+            width: 0, maxWidth: 12 + treble * 10,
+            growSpeed: 80, life: 1.2, hue: 180,
+          });
+          s.trebleAttackCD = 0.4;
+        }
+
+        // Mid → rain of small squares from top
+        if (midVel > 0.06 && s.midAttackCD <= 0) {
+          const count = 3 + Math.floor(mid * 5);
+          for (let i = 0; i < count; i++) {
+            s.attacks.push({
+              type: "bullet", x: Math.random() * SHP_W, y: -8,
+              vx: (Math.random() - 0.5) * 20, vy: 50 + Math.random() * 60,
+              size: 4 + Math.random() * 3, life: 3.0, hue: 280,
+            });
+          }
+          s.midAttackCD = 0.6;
+        }
+
+        // Big bass drops → screen-wide horizontal wave
+        if (bassVel > 0.20 && s.sweepCD <= 0) {
+          const fromTop = Math.random() < 0.5;
+          s.attacks.push({
+            type: "wave", y: fromTop ? -20 : SHP_H + 20,
+            vy: fromTop ? 70 : -70,
+            height: 16 + bass * 12, life: 3.0, hue: 330,
+          });
+          s.sweepCD = 1.0;
+        }
+
+        // ── UPDATE ATTACKS ──
+        for (let i = s.attacks.length - 1; i >= 0; i--) {
+          const a = s.attacks[i];
+          a.life -= dt;
+          if (a.life <= 0) { s.attacks.splice(i, 1); continue; }
+
+          let hit = false;
+          const half = SHP_PLAYER_SIZE / 2;
+
+          if (a.type === "circle") {
+            a.radius = Math.min(a.radius + a.speed * dt, a.maxRadius);
+            // Ring collision — player must be outside ring or inside hole
+            const dist = Math.sqrt((s.px - a.x) ** 2 + (s.py - a.y) ** 2);
+            const ringInner = Math.max(0, a.radius - 4);
+            const ringOuter = a.radius + 4;
+            if (dist + half > ringInner && dist - half < ringOuter) hit = true;
+          } else if (a.type === "laser") {
+            a.width = Math.min(a.width + a.growSpeed * dt, a.maxWidth);
+            const halfW = a.width / 2;
+            if (a.horizontal) {
+              if (s.py + half > a.pos - halfW && s.py - half < a.pos + halfW) hit = true;
+            } else {
+              if (s.px + half > a.pos - halfW && s.px - half < a.pos + halfW) hit = true;
+            }
+          } else if (a.type === "bullet") {
+            a.x += a.vx * dt;
+            a.y += a.vy * dt;
+            if (s.px + half > a.x - a.size / 2 && s.px - half < a.x + a.size / 2 &&
+                s.py + half > a.y - a.size / 2 && s.py - half < a.y + a.size / 2) hit = true;
+            if (a.y > SHP_H + 20 || a.y < -20 || a.x < -20 || a.x > SHP_W + 20) {
+              s.attacks.splice(i, 1); continue;
+            }
+          } else if (a.type === "wave") {
+            a.y += a.vy * dt;
+            const halfH = a.height / 2;
+            if (s.py + half > a.y - halfH && s.py - half < a.y + halfH) hit = true;
+            if (a.y > SHP_H + 40 || a.y < -40) { s.attacks.splice(i, 1); continue; }
+          }
+
+          // Hit detection
+          if (hit && s.invulnTimer <= 0 && s.dashTimer <= 0) {
+            s.hp--;
+            s.invulnTimer = SHP_INVULN_DUR;
+            s.screenShake = 6;
+            // Damage particles
+            for (let p = 0; p < 12; p++) {
+              s.particles.push({
+                x: s.px, y: s.py,
+                vx: (Math.random() - 0.5) * 80, vy: (Math.random() - 0.5) * 80,
+                life: 0.4 + Math.random() * 0.3, color: "#f33", size: 2,
+              });
+            }
+            if (s.hp <= 0) {
+              s.alive = false;
+              s.gameOverTimer = 0;
+              // Death burst
+              for (let p = 0; p < 30; p++) {
+                const angle = (p / 30) * Math.PI * 2;
+                s.particles.push({
+                  x: s.px, y: s.py,
+                  vx: Math.cos(angle) * (40 + Math.random() * 60),
+                  vy: Math.sin(angle) * (40 + Math.random() * 60),
+                  life: 0.6 + Math.random() * 0.5, color: "#0ff", size: 3,
+                });
+              }
+            }
+          }
+        }
+
+        // Update warnings
+        for (let i = s.warnings.length - 1; i >= 0; i--) {
+          s.warnings[i].timer -= dt;
+          if (s.warnings[i].timer <= 0) s.warnings.splice(i, 1);
+        }
+      }
+
+      // Game over — any key restarts
+      if (!s.alive) {
+        s.gameOverTimer += dt;
+        if (s.gameOverTimer > 0.5) {
+          for (const k of Object.keys(s.keys)) {
+            if (s.keys[k]) {
+              // Reset
+              s.px = SHP_W / 2; s.py = SHP_H / 2;
+              s.hp = SHP_MAX_HP; s.alive = true;
+              s.invulnTimer = 1.0;
+              s.attacks = []; s.warnings = [];
+              s.survived = 0; s.score = 0;
+              s.gameOverTimer = 0;
+              s.keys[k] = false;
+              break;
+            }
+          }
+        }
+      }
+
+      // Update particles
+      for (let i = s.particles.length - 1; i >= 0; i--) {
+        const p = s.particles[i];
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) s.particles.splice(i, 1);
+      }
+
+      // ═══ RENDER ═══
+      ctx.save();
+
+      // Screen shake
+      const shakeX = s.screenShake > 0 ? (Math.random() - 0.5) * s.screenShake * 2 : 0;
+      const shakeY = s.screenShake > 0 ? (Math.random() - 0.5) * s.screenShake * 2 : 0;
+      ctx.translate(shakeX, shakeY);
+
+      // Background
+      const bgHue = (s.energyAccum * 6) % 360;
+      ctx.fillStyle = `hsl(${bgHue}, 20%, ${2 + s.bgPulse * 6}%)`;
+      ctx.fillRect(-4, -4, SHP_W + 8, SHP_H + 8);
+
+      // Background grid (subtle, pulses with bass)
+      const gridAlpha = 0.03 + s.smoothBass * 0.06;
+      ctx.strokeStyle = `rgba(0, 255, 255, ${gridAlpha})`;
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x < SHP_W; x += 20) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, SHP_H); ctx.stroke();
+      }
+      for (let y = 0; y < SHP_H; y += 20) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(SHP_W, y); ctx.stroke();
+      }
+
+      // ── Warnings ──
+      for (const w of s.warnings) {
+        const flash = Math.sin(w.timer * 25) > 0 ? 0.4 : 0.1;
+        ctx.globalAlpha = flash;
+        ctx.fillStyle = "#f33";
+        ctx.beginPath();
+        ctx.arc(w.x, w.y, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // ── Attacks ──
+      for (const a of s.attacks) {
+        const fadeIn = Math.min(1, (2.0 - a.life) * 4); // quick fade in
+        const fadeOut = Math.min(1, a.life * 4);
+        const alpha = Math.min(fadeIn, fadeOut) * 0.8;
+        const energy = s.smoothBass * 0.4 + s.smoothTreble * 0.3;
+        const pulse = 1 + Math.sin(time * 0.01) * 0.15 * energy;
+
+        if (a.type === "circle") {
+          const r = a.radius * pulse;
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = `hsl(${a.hue}, 100%, 55%)`;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+          ctx.stroke();
+          // Inner glow
+          ctx.globalAlpha = alpha * 0.15;
+          ctx.fillStyle = `hsl(${a.hue}, 100%, 50%)`;
+          ctx.beginPath();
+          ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (a.type === "laser") {
+          const w = a.width * pulse;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = `hsl(${a.hue}, 100%, 55%)`;
+          if (a.horizontal) {
+            ctx.fillRect(-4, a.pos - w / 2, SHP_W + 8, w);
+            // Bright center line
+            ctx.fillStyle = "#fff";
+            ctx.globalAlpha = alpha * 0.6;
+            ctx.fillRect(-4, a.pos - 1, SHP_W + 8, 2);
+          } else {
+            ctx.fillRect(a.pos - w / 2, -4, w, SHP_H + 8);
+            ctx.fillStyle = "#fff";
+            ctx.globalAlpha = alpha * 0.6;
+            ctx.fillRect(a.pos - 1, -4, 2, SHP_H + 8);
+          }
+        } else if (a.type === "bullet") {
+          const sz = a.size * pulse;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = `hsl(${a.hue}, 100%, 60%)`;
+          ctx.fillRect(a.x - sz / 2, a.y - sz / 2, sz, sz);
+          // Glow
+          ctx.globalAlpha = alpha * 0.3;
+          ctx.fillRect(a.x - sz / 2 - 1, a.y - sz / 2 - 1, sz + 2, sz + 2);
+        } else if (a.type === "wave") {
+          const h = a.height * pulse;
+          ctx.globalAlpha = alpha;
+          const grad = ctx.createLinearGradient(0, a.y - h / 2, 0, a.y + h / 2);
+          grad.addColorStop(0, `hsla(${a.hue}, 100%, 55%, 0)`);
+          grad.addColorStop(0.5, `hsla(${a.hue}, 100%, 55%, 1)`);
+          grad.addColorStop(1, `hsla(${a.hue}, 100%, 55%, 0)`);
+          ctx.fillStyle = grad;
+          ctx.fillRect(-4, a.y - h / 2, SHP_W + 8, h);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // ── Particles ──
+      for (const p of s.particles) {
+        ctx.globalAlpha = Math.min(1, p.life * 3);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+
+      // ── Player ──
+      if (s.alive) {
+        const invFlash = s.invulnTimer > 0 && Math.sin(s.invulnTimer * 20) > 0;
+        if (!invFlash) {
+          const half = SHP_PLAYER_SIZE / 2;
+          // Glow
+          ctx.globalAlpha = 0.2 + s.smoothBass * 0.3;
+          ctx.fillStyle = "#0ff";
+          ctx.fillRect(s.px - half - 2, s.py - half - 2, SHP_PLAYER_SIZE + 4, SHP_PLAYER_SIZE + 4);
+          // Body
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = s.dashTimer > 0 ? "#fff" : "#0ff";
+          ctx.fillRect(s.px - half, s.py - half, SHP_PLAYER_SIZE, SHP_PLAYER_SIZE);
+          // Bright center
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(s.px - 1, s.py - 1, 2, 2);
+        }
+      }
+
+      // ── HUD ──
+      // HP pips (top-left)
+      for (let i = 0; i < SHP_MAX_HP; i++) {
+        ctx.fillStyle = i < s.hp ? "#0ff" : "rgba(0,255,255,0.15)";
+        ctx.fillRect(6 + i * 10, 6, 7, 7);
+      }
+      // Score (top-right)
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.fillRect(SHP_W - 55, 2, 53, 14);
+      drawText(ctx, `${s.score}`, SHP_W - 52, 5, "#0ff", 1);
+
+      // Dash cooldown indicator (small bar under HP)
+      const dashPct = s.dashCooldown > 0 ? 1 - s.dashCooldown / SHP_DASH_COOLDOWN : 1;
+      ctx.fillStyle = "rgba(0,255,255,0.1)";
+      ctx.fillRect(6, 16, 27, 3);
+      ctx.fillStyle = dashPct >= 1 ? "#0ff" : "#066";
+      ctx.fillRect(6, 16, Math.floor(27 * dashPct), 3);
+
+      // ── Instructions ──
+      const instrY = SHP_H - 8;
+      drawText(ctx, "WASD MOVE", 4, instrY, "rgba(0,255,255,0.3)", 1);
+      drawText(ctx, "SPACE DASH", SHP_W - 62, instrY, "rgba(0,255,255,0.3)", 1);
+
+      // ── Paused overlay ──
+      if (s.gamePaused) {
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(-4, -4, SHP_W + 8, SHP_H + 8);
+        drawText(ctx, "PAUSED", SHP_W / 2 - 18, SHP_H / 2 - 20, "#0ff", 2);
+        drawText(ctx, "PLAY A SONG TO BEGIN", SHP_W / 2 - 60, SHP_H / 2 + 5, "#066", 1);
+        drawText(ctx, "DODGE THE SHAPES", SHP_W / 2 - 48, SHP_H / 2 + 18, "#044", 1);
+      }
+
+      // ── Game over ──
+      if (!s.alive) {
+        ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, s.gameOverTimer * 2)})`;
+        ctx.fillRect(-4, -4, SHP_W + 8, SHP_H + 8);
+        if (s.gameOverTimer > 0.3) {
+          drawText(ctx, "GAME OVER", SHP_W / 2 - 27, SHP_H / 2 - 20, "#f33", 2);
+          drawText(ctx, `SCORE: ${s.score}`, SHP_W / 2 - 24, SHP_H / 2 + 5, "#0ff", 1);
+          if (s.gameOverTimer > 0.5) {
+            drawText(ctx, "ANY KEY TO RESTART", SHP_W / 2 - 54, SHP_H / 2 + 20, "#666", 1);
+          }
+        }
+      }
+
+      // CRT scanlines
+      ctx.fillStyle = "rgba(0,0,0,0.04)";
+      for (let y = 0; y < SHP_H; y += 2) ctx.fillRect(-4, y, SHP_W + 8, 1);
+
+      ctx.restore();
+    }
+
     // ── Reactive mode dispatching ──
 
     function initCurrentReactiveMode() {
@@ -8704,6 +9199,7 @@
       else if (reactiveSubMode === 4) initGameVisualizer();
       else if (reactiveSubMode === 5) initFishingVisualizer();
       else if (reactiveSubMode === 6) initKeysVisualizer();
+      else if (reactiveSubMode === 7) initShapesVisualizer();
       else initReactiveVisualizer();
     }
 
@@ -8716,6 +9212,7 @@
       else if (m === "game") destroyGameVisualizer();
       else if (m === "fishing") destroyFishingVisualizer();
       else if (m === "keys") destroyKeysVisualizer();
+      else if (m === "shapes") destroyShapesVisualizer();
       else destroyReactiveVisualizer();
     }
 
@@ -8728,6 +9225,7 @@
       else if (m === "game") tickGameVisualizer(bass, mid, treble, time);
       else if (m === "fishing") tickFishingVisualizer(bass, mid, treble, time);
       else if (m === "keys") tickKeysVisualizer(bass, mid, treble, time);
+      else if (m === "shapes") tickShapesVisualizer(bass, mid, treble, time);
       else tickReactiveVisualizer(bass, mid, treble, time);
     }
 
