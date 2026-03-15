@@ -1128,26 +1128,23 @@
     .heart-btn {
       color: var(--text-tertiary);
       transition: color 0.16s ease, transform 0.16s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      width: 34px;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
+      padding: 0;
+      margin: 0;
+      display: inline-flex;
       cursor: pointer;
       border: none;
       background: transparent;
+      line-height: 0;
     }
     .heart-btn:hover {
       color: var(--heart);
-      background: rgba(255, 79, 94, 0.08);
     }
     .heart-btn.is-liked {
       color: var(--heart);
     }
     .heart-btn svg {
-      width: 30px;
-      height: 30px;
+      width: 28px;
+      height: 28px;
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
