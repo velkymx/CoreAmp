@@ -1228,7 +1228,9 @@
       gap: 8px;
       display: flex;
       flex-direction: column;
-      min-height: 0;
+      height: 580px;
+      min-height: 580px;
+      max-height: 580px;
     }
     .player-wrap.visualizer-expanded .queue-column {
       display: none;
@@ -2211,6 +2213,7 @@
           </div>
           <div class="library-toolbar">
             <input id="trackSearchInput" aria-label="Search tracks" placeholder="Search title, artist, or album">
+            <button id="saveSearchPlaylistBtn" class="secondary sort-chip" type="button" style="display:none;" aria-label="Save search results as playlist">+ Playlist</button>
             <select id="genreFilterSelect" class="genre-select" aria-label="Filter by genre">
               <option value="">All Genres</option>
             </select>
@@ -2548,6 +2551,7 @@
     const albumsGridEl = document.getElementById("albumsGrid");
     const genresGridEl = document.getElementById("genresGrid");
     const trackSearchInput = document.getElementById("trackSearchInput");
+    const saveSearchPlaylistBtn = document.getElementById("saveSearchPlaylistBtn");
     const genreFilterSelect = document.getElementById("genreFilterSelect");
     const sortTitleBtn = document.getElementById("sortTitleBtn");
     const sortArtistBtn = document.getElementById("sortArtistBtn");
@@ -2679,12 +2683,16 @@
     })();
     let visualizerPseudoFullscreen = false;
     let spectrumSubMode = Number(window.localStorage.getItem("coreamp.spectrumSubMode") || 0);
+    let reactiveSubMode = Number(window.localStorage.getItem("coreamp.reactiveSubMode") || 0);
+    const REACTIVE_SUB_MODE_COUNT = 3; // 0 = Orb, 1 = Vortex, 2 = Nebula
     let audioMotionInstance = null;
     let reactiveState = null;
     let smoothedBass = 0;
     let smoothedMid = 0;
     let smoothedTreble = 0;
     let prevBass = 0;
+    let bassVelocity = 0;
+    let prevSmoothedBass = 0;
     let webglAvailable = null;
     let artworkRequestToken = 0;
     let artworkPath = null;
@@ -3201,35 +3209,26 @@
     }
 
     function compareLibraryValues(aValue, bValue, direction) {
-      const aMissing = !aValue;
-      const bMissing = !bValue;
-      if (aMissing && bMissing) {
-        return 0;
-      }
-      if (aMissing) {
-        return 1;
-      }
-      if (bMissing) {
-        return -1;
-      }
-      return aValue.localeCompare(bValue, undefined, {
+      const aStr = aValue || "";
+      const bStr = bValue || "";
+      return aStr.localeCompare(bStr, undefined, {
         numeric: true,
         sensitivity: "base"
       }) * direction;
     }
 
     function librarySortTuple(track, field) {
-      const title = normalizedSortText(track.title);
-      const artist = normalizedSortText(track.artist);
-      const album = normalizedSortText(track.album);
+      const title = normalizedSortText(track.title) || "unknown title";
+      const artist = normalizedSortText(track.artist) || "unknown artist";
+      const album = normalizedSortText(track.album) || "unknown album";
       const filename = normalizedSortText(track.filename);
       if (field === "artist") {
-        return [artist, album, title || filename, filename];
+        return [artist, album, title, filename];
       }
       if (field === "album") {
-        return [album, artist, title || filename, filename];
+        return [album, artist, title, filename];
       }
-      return [title || filename, artist, album, filename];
+      return [title, artist, album, filename];
     }
 
     function formatTime(value) {
@@ -4309,9 +4308,21 @@
 
     const SPECTRUM_SUB_MODES = [
       { mode: 6, name: "1/3 Octave" },
+      { mode: 3, name: "1/12 Octave" },
+      { mode: 4, name: "1/8 Octave" },
+      { mode: 5, name: "1/6 Octave" },
+      { mode: 7, name: "1/2 Octave" },
       { mode: 8, name: "Full Octave" },
       { mode: 10, name: "Graph" },
       { mode: 0, name: "Discrete" },
+      { mode: 2, name: "1/24 Octave", ledBars: false },
+      { mode: 6, name: "Mirror", mirror: 1 },
+      { mode: 3, name: "Mirror Split", mirror: 2 },
+      { mode: 6, name: "Radial", radial: true },
+      { mode: 10, name: "Radial Graph", radial: true },
+      { mode: 8, name: "Lumi Bars", lumiBars: true },
+      { mode: 6, name: "LED Bars", ledBars: true },
+      { mode: 0, name: "Reflex", reflexRatio: 0.4, reflexAlpha: 0.2 },
     ];
 
     function initSpectrumVisualizer() {
@@ -4361,7 +4372,12 @@
       spectrumSubMode = (spectrumSubMode + 1) % SPECTRUM_SUB_MODES.length;
       window.localStorage.setItem("coreamp.spectrumSubMode", spectrumSubMode);
       if (audioMotionInstance) {
-        audioMotionInstance.setOptions(SPECTRUM_SUB_MODES[spectrumSubMode]);
+        // Reset all special options before applying new mode
+        audioMotionInstance.setOptions({
+          mirror: 0, radial: false, lumiBars: false, ledBars: false,
+          reflexRatio: 0.15, reflexAlpha: 0.15,
+          ...SPECTRUM_SUB_MODES[spectrumSubMode],
+        });
       }
     }
 
@@ -4393,23 +4409,36 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(w, h);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setClearColor(0x020408, 1);
+        renderer.setClearColor(0x000000, 1);
+        renderer.autoClear = false;
         container.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x020408, 0.18);
-        const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 100);
-        camera.position.z = 3.6;
+        const camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 100);
+        camera.position.z = 3.8;
 
-        // Primary form — high-detail sphere with custom shader material
+        // Trail/afterimage effect — fullscreen fade quad
+        const trailScene = new THREE.Scene();
+        const trailCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const trailMat = new THREE.MeshBasicMaterial({
+          color: 0x000000, transparent: true, opacity: 0.12,
+          blending: THREE.NormalBlending, depthTest: false,
+        });
+        const trailQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), trailMat);
+        trailScene.add(trailQuad);
+
+        // Primary form — high-detail sphere with vibrant shader
         const geo = new THREE.IcosahedronGeometry(1.0, 5);
         const basePositions = new Float32Array(geo.attributes.position.array);
         const vertexShader = `
           varying vec3 vNormal;
           varying vec3 vPosition;
+          varying vec3 vWorldPosition;
           void main() {
             vNormal = normalize(normalMatrix * normal);
             vPosition = position;
+            vec4 wp = modelMatrix * vec4(position, 1.0);
+            vWorldPosition = wp.xyz;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }
         `;
@@ -4419,93 +4448,167 @@
           uniform float uTreble;
           uniform float uTime;
           uniform float uBloom;
+          uniform float uBassVelocity;
           varying vec3 vNormal;
           varying vec3 vPosition;
+          varying vec3 vWorldPosition;
+
+          vec3 hsl2rgb(float h, float s, float l) {
+            float c = (1.0 - abs(2.0 * l - 1.0)) * s;
+            float x = c * (1.0 - abs(mod(h * 6.0, 2.0) - 1.0));
+            float m = l - c * 0.5;
+            vec3 rgb;
+            float hh = h * 6.0;
+            if (hh < 1.0) rgb = vec3(c, x, 0.0);
+            else if (hh < 2.0) rgb = vec3(x, c, 0.0);
+            else if (hh < 3.0) rgb = vec3(0.0, c, x);
+            else if (hh < 4.0) rgb = vec3(0.0, x, c);
+            else if (hh < 5.0) rgb = vec3(x, 0.0, c);
+            else rgb = vec3(c, 0.0, x);
+            return rgb + m;
+          }
+
           void main() {
-            vec3 viewDir = normalize(cameraPosition - vPosition);
-            float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
-            float warmShift = uBass * 0.6 + uTreble * 0.3;
-            vec3 coolColor = vec3(0.1, 0.45, 0.9);
-            vec3 warmColor = vec3(0.95, 0.4, 0.15);
-            vec3 accentColor = vec3(0.6, 0.1, 0.95);
-            vec3 baseColor = mix(coolColor, warmColor, warmShift);
-            baseColor = mix(baseColor, accentColor, uTreble * 0.4);
-            float pulse = 0.3 + uBass * 0.5 + uBloom * 0.4;
+            vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+            float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
+
+            // Color palette cycles through deep vibrant hues — never light
+            float hueBase = 0.65 + sin(uTime * 0.12) * 0.15;
+            float hueShift = uBass * 0.2 - uTreble * 0.1;
+            float hue = mod(hueBase + hueShift, 1.0);
+
+            // Deep saturated base — luminance capped low
+            vec3 baseColor = hsl2rgb(hue, 0.95, 0.2 + uMid * 0.1);
+
+            // Rim glow — complementary hue, stays deep
+            float rimHue = mod(hue + 0.35 + uBassVelocity * 0.15, 1.0);
+            vec3 rimColor = hsl2rgb(rimHue, 1.0, 0.25 + uTreble * 0.1);
+
+            // Inner pulse — intensifies color, never whitens
+            float pulse = 0.5 + uBass * 0.4 + uBloom * 0.4;
             vec3 innerGlow = baseColor * pulse;
-            vec3 rimColor = mix(vec3(0.3, 0.7, 1.0), vec3(1.0, 0.5, 0.2), warmShift);
-            vec3 color = innerGlow + rimColor * fresnel * (0.6 + uTreble * 0.8);
-            color += vec3(0.08, 0.12, 0.2) * (1.0 - fresnel) * 0.3;
-            float alpha = 0.15 + fresnel * 0.7 + pulse * 0.2;
-            gl_FragColor = vec4(color, min(alpha, 1.0));
+
+            // Compose: deep glow + saturated rim
+            vec3 color = innerGlow + rimColor * fresnel * (0.8 + uBloom * 0.5);
+
+            // Iridescence — shifts hue, stays dark and saturated
+            float iridescence = sin(dot(vNormal, vec3(1.0, 0.5, 0.3)) * 4.0 + uTime * 0.5) * 0.5 + 0.5;
+            color += hsl2rgb(mod(hue + iridescence * 0.3, 1.0), 0.9, 0.15) * 0.2;
+
+            // Clamp: no channel exceeds 0.7 — prevents wash-out
+            color = min(color, vec3(0.7));
+
+            // On bloom: go transparent to reveal wireframe geometry underneath
+            float alpha = 0.55 + fresnel * 0.35 - uBloom * 0.45;
+            alpha = clamp(alpha, 0.05, 0.95);
+            gl_FragColor = vec4(color, alpha);
           }
         `;
         const shaderMat = new THREE.ShaderMaterial({
           vertexShader, fragmentShader,
           uniforms: {
             uBass: { value: 0 }, uMid: { value: 0 }, uTreble: { value: 0 },
-            uTime: { value: 0 }, uBloom: { value: 0 },
+            uTime: { value: 0 }, uBloom: { value: 0 }, uBassVelocity: { value: 0 },
           },
-          transparent: true, side: THREE.DoubleSide, wireframe: false,
+          transparent: true, side: THREE.DoubleSide,
         });
         const mesh = new THREE.Mesh(geo, shaderMat);
         scene.add(mesh);
 
-        // Inner wireframe glow
-        const wireGeo = new THREE.IcosahedronGeometry(0.98, 3);
+        // Inner wireframe glow — denser, more visible
+        const wireGeo = new THREE.IcosahedronGeometry(0.97, 4);
         const wireBasePositions = new Float32Array(wireGeo.attributes.position.array);
         const wireMat = new THREE.MeshBasicMaterial({
-          color: 0x4488ff, wireframe: true, transparent: true, opacity: 0.12,
+          color: 0x8844ff, wireframe: true, transparent: true, opacity: 0.18,
+          blending: THREE.AdditiveBlending, depthWrite: false,
         });
         const wireMesh = new THREE.Mesh(wireGeo, wireMat);
         scene.add(wireMesh);
 
-        // Orbiting particle rings
-        const particleCount = 600;
+        // Orbiting particle system — more particles, more energy
+        const particleCount = 900;
         const pGeo = new THREE.BufferGeometry();
         const pPos = new Float32Array(particleCount * 3);
         const pVel = new Float32Array(particleCount * 3);
-        const pAlpha = new Float32Array(particleCount);
+        const pBaseR = new Float32Array(particleCount);
+        const pPhase = new Float32Array(particleCount);
         for (let i = 0; i < particleCount; i++) {
-          const ring = Math.floor(Math.random() * 3);
           const angle = Math.random() * Math.PI * 2;
-          const r = 1.4 + ring * 0.35 + (Math.random() - 0.5) * 0.2;
-          const ySpread = (Math.random() - 0.5) * 0.4;
+          const r = 1.3 + Math.random() * 1.2;
+          const ySpread = (Math.random() - 0.5) * 0.8;
           pPos[i * 3] = Math.cos(angle) * r;
           pPos[i * 3 + 1] = ySpread;
           pPos[i * 3 + 2] = Math.sin(angle) * r;
-          const speed = 0.002 + Math.random() * 0.003;
-          pVel[i * 3] = -Math.sin(angle) * speed;
-          pVel[i * 3 + 1] = (Math.random() - 0.5) * 0.0005;
-          pVel[i * 3 + 2] = Math.cos(angle) * speed;
-          pAlpha[i] = 0.2 + Math.random() * 0.6;
+          const speed = 0.003 + Math.random() * 0.006;
+          const dir = Math.random() > 0.5 ? 1 : -1;
+          pVel[i * 3] = -Math.sin(angle) * speed * dir;
+          pVel[i * 3 + 1] = (Math.random() - 0.5) * 0.001;
+          pVel[i * 3 + 2] = Math.cos(angle) * speed * dir;
+          pBaseR[i] = r;
+          pPhase[i] = Math.random() * Math.PI * 2;
         }
         pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
         const pMat = new THREE.PointsMaterial({
-          color: 0xaaddff, size: 0.018, transparent: true, opacity: 0.45,
+          color: 0xaaccff, size: 0.022, transparent: true, opacity: 0.6,
           blending: THREE.AdditiveBlending, depthWrite: false,
         });
         const particles = new THREE.Points(pGeo, pMat);
         scene.add(particles);
 
-        // Background star field
-        const starCount = 200;
+        // Background star field — more stars, distributed in a sphere
+        const starCount = 400;
         const sGeo = new THREE.BufferGeometry();
         const sPos = new Float32Array(starCount * 3);
         for (let i = 0; i < starCount; i++) {
-          sPos[i * 3] = (Math.random() - 0.5) * 20;
-          sPos[i * 3 + 1] = (Math.random() - 0.5) * 20;
-          sPos[i * 3 + 2] = -5 - Math.random() * 15;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          const r = 6 + Math.random() * 12;
+          sPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+          sPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+          sPos[i * 3 + 2] = r * Math.cos(phi);
         }
         sGeo.setAttribute("position", new THREE.BufferAttribute(sPos, 3));
         const sMat = new THREE.PointsMaterial({
-          color: 0x6688bb, size: 0.03, transparent: true, opacity: 0.4,
+          color: 0x8899cc, size: 0.04, transparent: true, opacity: 0.5,
           blending: THREE.AdditiveBlending, depthWrite: false,
         });
         const stars = new THREE.Points(sGeo, sMat);
         scene.add(stars);
 
-        // Ambient light for subtle depth
-        scene.add(new THREE.AmbientLight(0x112244, 0.3));
+        // ── Lens flare sprite (procedural — no texture needed) ──
+        const flareCanvas = document.createElement("canvas");
+        flareCanvas.width = 128;
+        flareCanvas.height = 128;
+        const fctx = flareCanvas.getContext("2d");
+        const grad = fctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+        grad.addColorStop(0, "rgba(180,120,255,0.9)");
+        grad.addColorStop(0.15, "rgba(100,60,220,0.5)");
+        grad.addColorStop(0.4, "rgba(60,20,180,0.15)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        fctx.fillStyle = grad;
+        fctx.fillRect(0, 0, 128, 128);
+        // Add horizontal streak
+        const streakGrad = fctx.createLinearGradient(0, 62, 128, 66);
+        streakGrad.addColorStop(0, "rgba(0,0,0,0)");
+        streakGrad.addColorStop(0.3, "rgba(140,80,255,0.3)");
+        streakGrad.addColorStop(0.5, "rgba(180,120,255,0.5)");
+        streakGrad.addColorStop(0.7, "rgba(140,80,255,0.3)");
+        streakGrad.addColorStop(1, "rgba(0,0,0,0)");
+        fctx.fillStyle = streakGrad;
+        fctx.fillRect(0, 56, 128, 16);
+
+        const flareTexture = new THREE.CanvasTexture(flareCanvas);
+        const flareMat = new THREE.SpriteMaterial({
+          map: flareTexture,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false,
+        });
+        const flareSprite = new THREE.Sprite(flareMat);
+        flareSprite.scale.set(0.1, 0.1, 1);
+        scene.add(flareSprite);
 
         const ro = new ResizeObserver(() => {
           const cw = container.clientWidth;
@@ -4521,9 +4624,13 @@
         reactiveState = {
           scene, camera, renderer, mesh, geo, basePositions, shaderMat,
           wireMesh, wireGeo, wireBasePositions, wireMat,
-          particles, pGeo, pPos, pVel, pAlpha, pMat,
-          stars, sMat, ro,
-          bloomDecay: 0, camAngle: 0,
+          particles, pGeo, pPos, pVel, pBaseR, pPhase, pMat,
+          stars, sMat, sGeo, ro,
+          trailScene, trailCamera, trailMat,
+          flareSprite, flareMat, flareTexture,
+          bloomDecay: 0, flareDecay: 0, camAngle: 0, camRadius: 3.8,
+          targetCamRadius: 3.8, camTilt: 0,
+          mode: "orb",
         };
       } catch (error) {
         console.error("Reactive init failed", error);
@@ -4546,8 +4653,11 @@
         reactiveState.wireMat.dispose();
         reactiveState.pGeo.dispose();
         reactiveState.pMat.dispose();
-        reactiveState.stars.geometry.dispose();
+        reactiveState.sGeo.dispose();
         reactiveState.sMat.dispose();
+        reactiveState.trailMat.dispose();
+        reactiveState.flareMat.dispose();
+        reactiveState.flareTexture.dispose();
         if (reactiveState.renderer.domElement.parentNode) {
           reactiveState.renderer.domElement.parentNode.removeChild(reactiveState.renderer.domElement);
         }
@@ -4558,106 +4668,812 @@
     function tickReactiveVisualizer(bass, mid, treble, time) {
       if (!reactiveState) return;
       const s = reactiveState;
+      const THREE = window.THREE;
       const t = time * 0.001;
 
-      // Slow camera orbit
-      s.camAngle += 0.0008 + mid * 0.002;
-      s.camera.position.x = Math.sin(s.camAngle) * 3.6;
-      s.camera.position.z = Math.cos(s.camAngle) * 3.6;
-      s.camera.position.y = Math.sin(t * 0.15) * 0.4;
+      // ── Camera: gentle orbit, bass pulls in slightly ──
+      s.camAngle += 0.001 + mid * 0.001;
+      s.targetCamRadius = 3.6 - bass * 0.3;
+      s.camRadius += (s.targetCamRadius - s.camRadius) * 0.02;
+      s.camTilt += (Math.sin(t * 0.12) * 0.5 - s.camTilt) * 0.01;
+      s.camera.position.x = Math.sin(s.camAngle) * s.camRadius;
+      s.camera.position.z = Math.cos(s.camAngle) * s.camRadius;
+      s.camera.position.y = s.camTilt;
       s.camera.lookAt(0, 0, 0);
 
-      // Mesh rotation — organic compound rotation
-      s.mesh.rotation.y += 0.003 + mid * 0.008;
-      s.mesh.rotation.x += 0.001 + bass * 0.003;
+      // ── Mesh rotation: slow, steady — mid adds gentle variation ──
+      s.mesh.rotation.y += 0.003 + mid * 0.004;
+      s.mesh.rotation.x += 0.001 + treble * 0.002;
       s.mesh.rotation.z += 0.0005;
       s.wireMesh.rotation.copy(s.mesh.rotation);
 
-      // Vertex displacement — multi-octave noise-like
+      // ── Vertex displacement: bass drives scale, mids/treble drive shape ──
       const positions = s.geo.attributes.position.array;
       const wPositions = s.wireGeo.attributes.position.array;
-      const amplitude = 0.03 + bass * 0.45;
-      const noiseSpeed = 0.25 + mid * 1.5;
+      // Shape morphing from mids + treble
+      const morphAmp = 0.05 + mid * 0.2 + treble * 0.12;
+      // Bass drives overall inflation — the whole form breathes
+      const bassInflate = 1.0 + bass * 0.25 + s.bloomDecay * 0.15;
+      const noiseSpeed = 0.2 + mid * 0.35;
       const nt = t * noiseSpeed;
+      const lerpRate = 0.1;
       for (let i = 0; i < positions.length; i += 3) {
         const bx = s.basePositions[i], by = s.basePositions[i + 1], bz = s.basePositions[i + 2];
         const n1 = Math.sin(bx * 3.7 + nt) * Math.cos(by * 4.1 + nt * 0.7) * Math.sin(bz * 2.9 + nt * 1.3);
         const n2 = Math.sin(bx * 7.3 - nt * 0.5) * Math.cos(bz * 5.1 + nt * 0.3) * 0.3;
         const n3 = Math.cos(by * 9.1 + nt * 0.9) * Math.sin(bx * 6.7 - nt * 0.4) * 0.15;
-        const displacement = 1 + (n1 + n2 + n3) * amplitude;
-        positions[i] = bx * displacement;
-        positions[i + 1] = by * displacement;
-        positions[i + 2] = bz * displacement;
+        const morphDisp = 1 + (n1 + n2 + n3) * morphAmp;
+        // Bass inflates uniformly — shape morphs on top
+        const tx = bx * morphDisp * bassInflate;
+        const ty = by * morphDisp * bassInflate;
+        const tz = bz * morphDisp * bassInflate;
+        positions[i] += (tx - positions[i]) * lerpRate;
+        positions[i + 1] += (ty - positions[i + 1]) * lerpRate;
+        positions[i + 2] += (tz - positions[i + 2]) * lerpRate;
       }
       s.geo.attributes.position.needsUpdate = true;
       s.geo.computeVertexNormals();
 
-      // Wire mesh follows with slightly less displacement
+      // Wire mesh — lerped, follows bass inflation
       for (let i = 0; i < wPositions.length; i += 3) {
         const bx = s.wireBasePositions[i], by = s.wireBasePositions[i + 1], bz = s.wireBasePositions[i + 2];
         const n1 = Math.sin(bx * 3.7 + nt) * Math.cos(by * 4.1 + nt * 0.7) * Math.sin(bz * 2.9 + nt * 1.3);
-        const displacement = 1 + n1 * amplitude * 0.7;
-        wPositions[i] = bx * displacement;
-        wPositions[i + 1] = by * displacement;
-        wPositions[i + 2] = bz * displacement;
+        const morphDisp = 1 + n1 * morphAmp * 0.6;
+        const tx = bx * morphDisp * bassInflate;
+        const ty = by * morphDisp * bassInflate;
+        const tz = bz * morphDisp * bassInflate;
+        wPositions[i] += (tx - wPositions[i]) * lerpRate;
+        wPositions[i + 1] += (ty - wPositions[i + 1]) * lerpRate;
+        wPositions[i + 2] += (tz - wPositions[i + 2]) * lerpRate;
       }
       s.wireGeo.attributes.position.needsUpdate = true;
 
-      // Update shader uniforms
+      // ── Shader uniforms ──
       s.shaderMat.uniforms.uBass.value = bass;
       s.shaderMat.uniforms.uMid.value = mid;
       s.shaderMat.uniforms.uTreble.value = treble;
       s.shaderMat.uniforms.uTime.value = t;
+      s.shaderMat.uniforms.uBassVelocity.value = bassVelocity;
 
-      // Bass bloom
-      if (bass > 0.55 && bass - prevBass > 0.12) {
-        s.bloomDecay = 1.0;
+      // ── Bloom: triggers on bass hits ──
+      if (bassVelocity > 0.03) {
+        s.bloomDecay = Math.min(1.0, s.bloomDecay + bassVelocity * 4.0);
       }
       s.shaderMat.uniforms.uBloom.value = s.bloomDecay;
-      if (s.bloomDecay > 0) {
-        const scale = 1 + s.bloomDecay * 0.12;
-        s.mesh.scale.setScalar(scale);
-        s.wireMesh.scale.setScalar(scale * 1.02);
-        s.bloomDecay = Math.max(0, s.bloomDecay - 0.025);
+      // Scale pulse — bass breathes, bloom punches
+      const bassScale = 1 + bass * 0.15 + s.bloomDecay * 0.2;
+      s.mesh.scale.setScalar(bassScale);
+      s.wireMesh.scale.setScalar(bassScale * 1.02);
+      s.bloomDecay = Math.max(0, s.bloomDecay - 0.03);
+
+      // ── Lens flare on treble spikes ──
+      const trebleVelocity = Math.max(0, treble - (s._prevTreble || 0));
+      s._prevTreble = treble;
+      if (trebleVelocity > 0.06 && treble > 0.4) {
+        s.flareDecay = Math.min(1.0, s.flareDecay + trebleVelocity * 5.0);
+      }
+      if (s.flareDecay > 0.01) {
+        s.flareSprite.visible = true;
+        const flareSize = 1.5 + s.flareDecay * 4.0;
+        s.flareSprite.scale.set(flareSize, flareSize, 1);
+        s.flareMat.opacity = s.flareDecay * 0.55;
+        // Position at mesh surface toward camera
+        const camDir = s.camera.position.clone().normalize().multiplyScalar(0.6);
+        s.flareSprite.position.copy(camDir);
+        // Tint flare to match current hue — never white
+        const flareHue = (0.72 + Math.sin(t * 0.1) * 0.1 + treble * 0.08) % 1;
+        s.flareMat.color.setHSL(flareHue, 0.9, 0.3);
+        s.flareDecay = Math.max(0, s.flareDecay - 0.04);
       } else {
-        s.mesh.scale.setScalar(1);
-        s.wireMesh.scale.setScalar(1);
+        s.flareSprite.visible = false;
       }
 
-      // Wire color shifts
-      const warmth = bass * 0.5 + treble * 0.3;
-      s.wireMat.color.setHSL(0.58 - warmth * 0.25, 0.6, 0.4 + treble * 0.2);
-      s.wireMat.opacity = 0.08 + bass * 0.15;
+      // ── Wire: bloom reveals the geometric skeleton — deep vibrant color ──
+      const hue = (0.7 + Math.sin(t * 0.08) * 0.12) % 1;
+      s.wireMat.color.setHSL(hue, 0.95, 0.25 + treble * 0.1 + s.bloomDecay * 0.1);
+      s.wireMat.opacity = 0.1 + bass * 0.1 + s.bloomDecay * 0.6;
 
-      // Animate particles — orbit + audio pulse
+      // ── Particles: steady orbit, bass expands gently ──
       const pPositions = s.pGeo.attributes.position.array;
-      for (let i = 0; i < pPositions.length / 3; i++) {
+      const pCount = pPositions.length / 3;
+      const bassExpand = 1 + bass * 0.25;
+      for (let i = 0; i < pCount; i++) {
         const idx = i * 3;
-        pPositions[idx] += s.pVel[idx] * (1 + bass * 3);
-        pPositions[idx + 1] += s.pVel[idx + 1];
-        pPositions[idx + 2] += s.pVel[idx + 2] * (1 + bass * 3);
-        // Keep in orbit
-        const dist = Math.sqrt(pPositions[idx] ** 2 + pPositions[idx + 2] ** 2);
-        if (dist > 2.8 || dist < 1.0) {
-          const angle = Math.atan2(pPositions[idx + 2], pPositions[idx]);
-          const r = 1.4 + Math.random() * 0.7;
+        const speed = 1 + bass * 1.5;
+        pPositions[idx] += s.pVel[idx] * speed;
+        pPositions[idx + 1] += s.pVel[idx + 1] + Math.sin(t * 1.5 + s.pPhase[i]) * 0.0005;
+        pPositions[idx + 2] += s.pVel[idx + 2] * speed;
+        // Gentle radial correction
+        const px = pPositions[idx], pz = pPositions[idx + 2];
+        const dist = Math.sqrt(px * px + pz * pz);
+        const targetR = s.pBaseR[i] * bassExpand;
+        if (dist > 0.01) {
+          const correction = (targetR - dist) * 0.01;
+          pPositions[idx] += (px / dist) * correction;
+          pPositions[idx + 2] += (pz / dist) * correction;
+        }
+        if (dist > 3.5 || dist < 0.8) {
+          const angle = Math.random() * Math.PI * 2;
+          const r = 1.3 + Math.random() * 1.0;
           pPositions[idx] = Math.cos(angle) * r;
+          pPositions[idx + 1] = (Math.random() - 0.5) * 0.6;
           pPositions[idx + 2] = Math.sin(angle) * r;
         }
       }
       s.pGeo.attributes.position.needsUpdate = true;
-      s.pMat.opacity = 0.25 + bass * 0.5;
-      s.pMat.size = 0.015 + treble * 0.025;
-      s.pMat.color.setHSL(0.55 - warmth * 0.2, 0.5, 0.6 + treble * 0.2);
+      s.pMat.opacity = 0.3 + bass * 0.3;
+      s.pMat.size = 0.018 + treble * 0.015;
+      s.pMat.color.setHSL((hue + 0.15) % 1, 0.6, 0.5 + treble * 0.15);
 
-      // Stars twinkle
-      s.sMat.opacity = 0.2 + Math.sin(t * 0.7) * 0.1 + bass * 0.15;
+      // ── Stars: gentle twinkle ──
+      s.sMat.opacity = 0.2 + Math.sin(t * 0.5) * 0.08 + bass * 0.1;
 
-      // Background breathe
-      const bgBrightness = Math.floor(2 + bass * 6);
-      s.renderer.setClearColor(new THREE.Color(`rgb(${bgBrightness}, ${bgBrightness + 2}, ${bgBrightness + 6})`), 1);
-
+      // ── Render with motion trails ──
+      s.trailMat.opacity = 0.06 + (1.0 - bass) * 0.06;
+      s.renderer.render(s.trailScene, s.trailCamera);
       s.renderer.render(s.scene, s.camera);
+    }
+
+    // ── Vortex reactive mode (sub-mode 1) ──
+
+    function initVortexVisualizer() {
+      if (reactiveState) return;
+      if (!isWebGLAvailable() || !window.THREE) {
+        visualizerReactiveBtn.disabled = true;
+        setVisualizerMode("spectrum");
+        return;
+      }
+      try {
+        const THREE = window.THREE;
+        const container = visualizerContainerEl;
+        const w = container.clientWidth || 400;
+        const h = container.clientHeight || 300;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(w, h);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x000000, 1);
+        renderer.autoClear = false;
+        container.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(65, w / h, 0.1, 120);
+        camera.position.set(0, 6, 8);
+        camera.lookAt(0, 0, 0);
+
+        // Trail effect
+        const trailScene = new THREE.Scene();
+        const trailCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const trailMat = new THREE.MeshBasicMaterial({
+          color: 0x000000, transparent: true, opacity: 0.06,
+          blending: THREE.NormalBlending, depthTest: false,
+        });
+        trailScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), trailMat));
+
+        // ── Spiral particle system ──
+        const armCount = 5;
+        const particlesPerArm = 1200;
+        const totalParticles = armCount * particlesPerArm;
+        const pGeo = new THREE.BufferGeometry();
+        const pPos = new Float32Array(totalParticles * 3);
+        const pColor = new Float32Array(totalParticles * 3);
+        const pBaseAngle = new Float32Array(totalParticles);
+        const pBaseR = new Float32Array(totalParticles);
+        const pBaseY = new Float32Array(totalParticles);
+        const pArm = new Float32Array(totalParticles);
+        const pSpeed = new Float32Array(totalParticles);
+
+        for (let a = 0; a < armCount; a++) {
+          const armOffset = (a / armCount) * Math.PI * 2;
+          for (let i = 0; i < particlesPerArm; i++) {
+            const idx = a * particlesPerArm + i;
+            const t = i / particlesPerArm; // 0..1 from center to edge
+            const r = 0.2 + t * 6.0;
+            const angle = armOffset + t * Math.PI * 3.5 + (Math.random() - 0.5) * 0.4;
+            const y = (Math.random() - 0.5) * (0.15 + t * 0.6);
+
+            pPos[idx * 3] = Math.cos(angle) * r;
+            pPos[idx * 3 + 1] = y;
+            pPos[idx * 3 + 2] = Math.sin(angle) * r;
+
+            pBaseAngle[idx] = angle;
+            pBaseR[idx] = r;
+            pBaseY[idx] = y;
+            pArm[idx] = a;
+            pSpeed[idx] = 0.8 + Math.random() * 0.4; // inner = faster
+
+            // Color: warm core → cool edges
+            const hue = 0.6 + t * 0.25 + a * 0.04; // blue → purple gradient per arm
+            const sat = 0.7 + (1 - t) * 0.3;
+            const lum = 0.4 + (1 - t) * 0.35;
+            const c = new THREE.Color().setHSL(hue % 1, sat, lum);
+            pColor[idx * 3] = c.r;
+            pColor[idx * 3 + 1] = c.g;
+            pColor[idx * 3 + 2] = c.b;
+          }
+        }
+
+        pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+        pGeo.setAttribute("color", new THREE.BufferAttribute(pColor, 3));
+
+        const pMat = new THREE.PointsMaterial({
+          size: 0.045,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.85,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        const particles = new THREE.Points(pGeo, pMat);
+        scene.add(particles);
+
+        // ── Center glow orb ──
+        const glowGeo = new THREE.SphereGeometry(0.3, 16, 16);
+        const glowMat = new THREE.MeshBasicMaterial({
+          color: 0x6644ff,
+          transparent: true,
+          opacity: 0.5,
+          blending: THREE.AdditiveBlending,
+        });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        scene.add(glowMesh);
+
+        // Outer halo
+        const haloGeo = new THREE.SphereGeometry(0.6, 16, 16);
+        const haloMat = new THREE.MeshBasicMaterial({
+          color: 0x4422aa,
+          transparent: true,
+          opacity: 0.15,
+          blending: THREE.AdditiveBlending,
+        });
+        const haloMesh = new THREE.Mesh(haloGeo, haloMat);
+        scene.add(haloMesh);
+
+        const ro = new ResizeObserver(() => {
+          const cw = container.clientWidth;
+          const ch = container.clientHeight;
+          if (cw && ch) {
+            camera.aspect = cw / ch;
+            camera.updateProjectionMatrix();
+            renderer.setSize(cw, ch);
+          }
+        });
+        ro.observe(container);
+
+        reactiveState = {
+          scene, camera, renderer, ro,
+          trailScene, trailCamera, trailMat,
+          particles, pGeo, pPos, pColor, pBaseAngle, pBaseR, pBaseY, pArm, pSpeed, pMat,
+          glowMesh, glowMat, haloMesh, haloMat, glowGeo, haloGeo,
+          totalParticles, particlesPerArm, armCount,
+          spinOffset: 0, camAngle: 0, bloomDecay: 0,
+          mode: "vortex",
+        };
+      } catch (error) {
+        console.error("Vortex init failed", error);
+        reactiveState = null;
+        visualizerReactiveBtn.disabled = true;
+        setVisualizerMode("spectrum");
+      }
+    }
+
+    function destroyVortexVisualizer() {
+      if (!reactiveState) return;
+      try {
+        reactiveState.ro.disconnect();
+        reactiveState.renderer.dispose();
+        reactiveState.pGeo.dispose();
+        reactiveState.pMat.dispose();
+        reactiveState.glowGeo.dispose();
+        reactiveState.glowMat.dispose();
+        reactiveState.haloGeo.dispose();
+        reactiveState.haloMat.dispose();
+        reactiveState.trailMat.dispose();
+        if (reactiveState.renderer.domElement.parentNode) {
+          reactiveState.renderer.domElement.parentNode.removeChild(reactiveState.renderer.domElement);
+        }
+      } catch (_) {}
+      reactiveState = null;
+    }
+
+    function tickVortexVisualizer(bass, mid, treble, time) {
+      if (!reactiveState || reactiveState.mode !== "vortex") return;
+      const s = reactiveState;
+      const THREE = window.THREE;
+      const t = time * 0.001;
+
+      // ── Camera: orbit above the vortex, dips on bass ──
+      s.camAngle += 0.0015 + mid * 0.005;
+      const camDip = 4.5 - bass * 2.5; // dives closer on bass
+      const camDist = 8 + treble * 2 - bass * 2;
+      s.camera.position.x = Math.sin(s.camAngle) * camDist;
+      s.camera.position.z = Math.cos(s.camAngle) * camDist;
+      s.camera.position.y = camDip + Math.sin(t * 0.18) * 0.8;
+      s.camera.lookAt(0, 0, 0);
+
+      // ── Bloom from bass hits ──
+      if (bassVelocity > 0.03) {
+        s.bloomDecay = Math.min(1.0, s.bloomDecay + bassVelocity * 5.0);
+      }
+      s.bloomDecay = Math.max(0, s.bloomDecay - 0.03);
+
+      // ── Spin particles ──
+      const spinSpeed = 0.3 + bass * 1.2 + s.bloomDecay * 0.8;
+      s.spinOffset += spinSpeed * 0.016; // ~60fps normalized
+      const positions = s.pGeo.attributes.position.array;
+      const colors = s.pGeo.attributes.color.array;
+
+      const expand = 1.0 + bass * 0.5 + s.bloomDecay * 0.6;
+      const yPulse = 1.0 + mid * 1.5 + s.bloomDecay * 2.0;
+      const colorTime = t * 0.15;
+
+      for (let i = 0; i < s.totalParticles; i++) {
+        const idx = i * 3;
+        const baseR = s.pBaseR[i];
+        const tNorm = (i % s.particlesPerArm) / s.particlesPerArm; // 0=center, 1=edge
+
+        // Inner particles spin faster
+        const localSpin = s.spinOffset * s.pSpeed[i] * (1.2 - tNorm * 0.7);
+        const angle = s.pBaseAngle[i] + localSpin;
+        const r = baseR * expand;
+
+        // Radial wave — ripple from center on beats
+        const wave = Math.sin(baseR * 2.5 - t * 3.0) * bass * 0.3;
+        const yOff = s.pBaseY[i] * yPulse + wave;
+
+        positions[idx] = Math.cos(angle) * r;
+        positions[idx + 1] = yOff;
+        positions[idx + 2] = Math.sin(angle) * r;
+
+        // Color: shift hue with music, brighten core on beats
+        const armHueOffset = s.pArm[i] * 0.08;
+        const hue = (0.55 + tNorm * 0.3 + armHueOffset + colorTime + bass * 0.1) % 1;
+        const sat = 0.75 + treble * 0.25;
+        const lum = 0.3 + (1 - tNorm) * 0.4 + s.bloomDecay * 0.25 * (1 - tNorm);
+
+        // Inline HSL → RGB for performance
+        const c = (1 - Math.abs(2 * lum - 1)) * sat;
+        const x = c * (1 - Math.abs((hue * 6) % 2 - 1));
+        const m = lum - c * 0.5;
+        const hh = hue * 6;
+        let cr, cg, cb;
+        if (hh < 1) { cr = c; cg = x; cb = 0; }
+        else if (hh < 2) { cr = x; cg = c; cb = 0; }
+        else if (hh < 3) { cr = 0; cg = c; cb = x; }
+        else if (hh < 4) { cr = 0; cg = x; cb = c; }
+        else if (hh < 5) { cr = x; cg = 0; cb = c; }
+        else { cr = c; cg = 0; cb = x; }
+        colors[idx] = cr + m;
+        colors[idx + 1] = cg + m;
+        colors[idx + 2] = cb + m;
+      }
+      s.pGeo.attributes.position.needsUpdate = true;
+      s.pGeo.attributes.color.needsUpdate = true;
+
+      // Particle size pulses with treble
+      s.pMat.size = 0.035 + treble * 0.04 + s.bloomDecay * 0.03;
+      s.pMat.opacity = 0.6 + bass * 0.3;
+
+      // ── Center glow: throbs with bass ──
+      const glowScale = 0.8 + bass * 1.5 + s.bloomDecay * 1.2;
+      s.glowMesh.scale.setScalar(glowScale);
+      const glowHue = (0.7 + colorTime + bass * 0.15) % 1;
+      s.glowMat.color.setHSL(glowHue, 0.9, 0.5 + s.bloomDecay * 0.3);
+      s.glowMat.opacity = 0.4 + bass * 0.4 + s.bloomDecay * 0.3;
+
+      s.haloMesh.scale.setScalar(glowScale * 1.8);
+      s.haloMat.color.setHSL((glowHue + 0.1) % 1, 0.7, 0.3);
+      s.haloMat.opacity = 0.08 + bass * 0.15 + s.bloomDecay * 0.1;
+
+      // ── Render with trails ──
+      s.trailMat.opacity = 0.04 + (1.0 - bass) * 0.06;
+      s.renderer.render(s.trailScene, s.trailCamera);
+      s.renderer.render(s.scene, s.camera);
+    }
+
+    // ── Nebula reactive mode (sub-mode 2) ──
+
+    function initNebulaVisualizer() {
+      if (reactiveState) return;
+      if (!isWebGLAvailable() || !window.THREE) {
+        visualizerReactiveBtn.disabled = true;
+        setVisualizerMode("spectrum");
+        return;
+      }
+      try {
+        const THREE = window.THREE;
+        const container = visualizerContainerEl;
+        const w = container.clientWidth || 400;
+        const h = container.clientHeight || 300;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(w, h);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x000005, 1);
+        renderer.autoClear = false;
+        container.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 80);
+        camera.position.set(0, 0, 5);
+
+        // Trail effect — heavier trails for nebula haze
+        const trailScene = new THREE.Scene();
+        const trailCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const trailMat = new THREE.MeshBasicMaterial({
+          color: 0x000005, transparent: true, opacity: 0.035,
+          blending: THREE.NormalBlending, depthTest: false,
+        });
+        trailScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), trailMat));
+
+        // ── Nebula cloud particles — large, soft, volumetric-looking ──
+        const cloudCount = 250;
+        const cloudGeo = new THREE.BufferGeometry();
+        const cloudPos = new Float32Array(cloudCount * 3);
+        const cloudColor = new Float32Array(cloudCount * 3);
+        const cloudBasePos = new Float32Array(cloudCount * 3);
+        const cloudPhase = new Float32Array(cloudCount);
+        const cloudLayer = new Float32Array(cloudCount); // depth layer 0-1
+
+        for (let i = 0; i < cloudCount; i++) {
+          const theta = Math.random() * Math.PI * 2;
+          const r = 1.0 + Math.random() * 5.0;
+          const y = (Math.random() - 0.5) * 4.0;
+          cloudPos[i * 3] = Math.cos(theta) * r;
+          cloudPos[i * 3 + 1] = y;
+          cloudPos[i * 3 + 2] = Math.sin(theta) * r - 2;
+          cloudBasePos[i * 3] = cloudPos[i * 3];
+          cloudBasePos[i * 3 + 1] = cloudPos[i * 3 + 1];
+          cloudBasePos[i * 3 + 2] = cloudPos[i * 3 + 2];
+          cloudPhase[i] = Math.random() * Math.PI * 2;
+          cloudLayer[i] = Math.random();
+
+          // Deep purples, blues, magentas
+          const hue = 0.7 + Math.random() * 0.2;
+          const c = new THREE.Color().setHSL(hue % 1, 0.6, 0.15 + Math.random() * 0.1);
+          cloudColor[i * 3] = c.r;
+          cloudColor[i * 3 + 1] = c.g;
+          cloudColor[i * 3 + 2] = c.b;
+        }
+        cloudGeo.setAttribute("position", new THREE.BufferAttribute(cloudPos, 3));
+        cloudGeo.setAttribute("color", new THREE.BufferAttribute(cloudColor, 3));
+        const cloudMat = new THREE.PointsMaterial({
+          size: 1.8,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.25,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        const clouds = new THREE.Points(cloudGeo, cloudMat);
+        scene.add(clouds);
+
+        // ── Cores: 3 moving spheres with glow ──
+        const cores = [];
+        const coreColors = [0xff2288, 0x4488ff, 0xaa44ff];
+        for (let i = 0; i < 3; i++) {
+          const coreGeo = new THREE.SphereGeometry(0.15, 12, 12);
+          const coreMat = new THREE.MeshBasicMaterial({
+            color: coreColors[i],
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+          });
+          const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+          // Glow halo around each core
+          const haloGeo = new THREE.SphereGeometry(0.5, 12, 12);
+          const haloMat = new THREE.MeshBasicMaterial({
+            color: coreColors[i],
+            transparent: true,
+            opacity: 0.12,
+            blending: THREE.AdditiveBlending,
+          });
+          const haloMesh = new THREE.Mesh(haloGeo, haloMat);
+          coreMesh.add(haloMesh);
+          scene.add(coreMesh);
+          cores.push({
+            mesh: coreMesh, mat: coreMat, haloMat,
+            geo: coreGeo, haloGeo,
+            orbitR: 1.2 + i * 0.6,
+            orbitSpeed: 0.3 + i * 0.15,
+            orbitPhase: i * Math.PI * 2 / 3,
+            yPhase: i * 1.1,
+          });
+        }
+
+        // ── Rays: flowing lines emanating from cores ──
+        const rayCount = 60;
+        const raySegments = 20;
+        const rayGeo = new THREE.BufferGeometry();
+        const rayPos = new Float32Array(rayCount * raySegments * 3);
+        const rayColor = new Float32Array(rayCount * raySegments * 3);
+        const rayBaseAngle = new Float32Array(rayCount);
+        const rayLength = new Float32Array(rayCount);
+        const rayCore = new Float32Array(rayCount); // which core it originates from
+
+        for (let i = 0; i < rayCount; i++) {
+          rayBaseAngle[i] = Math.random() * Math.PI * 2;
+          rayLength[i] = 1.5 + Math.random() * 3.0;
+          rayCore[i] = Math.floor(Math.random() * 3);
+          for (let s = 0; s < raySegments; s++) {
+            const idx = (i * raySegments + s) * 3;
+            rayPos[idx] = 0;
+            rayPos[idx + 1] = 0;
+            rayPos[idx + 2] = 0;
+            const t = s / raySegments;
+            const fade = Math.sin(t * Math.PI);
+            const hue = (0.75 + rayCore[i] * 0.12) % 1;
+            const c = new THREE.Color().setHSL(hue, 0.8, 0.4 * fade);
+            rayColor[idx] = c.r;
+            rayColor[idx + 1] = c.g;
+            rayColor[idx + 2] = c.b;
+          }
+        }
+        rayGeo.setAttribute("position", new THREE.BufferAttribute(rayPos, 3));
+        rayGeo.setAttribute("color", new THREE.BufferAttribute(rayColor, 3));
+        const rayMat = new THREE.PointsMaterial({
+          size: 0.06,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.7,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        const rays = new THREE.Points(rayGeo, rayMat);
+        scene.add(rays);
+
+        // ── Dust motes — tiny ambient particles ──
+        const dustCount = 500;
+        const dustGeo = new THREE.BufferGeometry();
+        const dustPos = new Float32Array(dustCount * 3);
+        const dustPhase = new Float32Array(dustCount);
+        for (let i = 0; i < dustCount; i++) {
+          dustPos[i * 3] = (Math.random() - 0.5) * 14;
+          dustPos[i * 3 + 1] = (Math.random() - 0.5) * 8;
+          dustPos[i * 3 + 2] = (Math.random() - 0.5) * 14;
+          dustPhase[i] = Math.random() * Math.PI * 2;
+        }
+        dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+        const dustMat = new THREE.PointsMaterial({
+          color: 0x8877cc,
+          size: 0.025,
+          transparent: true,
+          opacity: 0.35,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        const dust = new THREE.Points(dustGeo, dustMat);
+        scene.add(dust);
+
+        const ro = new ResizeObserver(() => {
+          const cw = container.clientWidth;
+          const ch = container.clientHeight;
+          if (cw && ch) {
+            camera.aspect = cw / ch;
+            camera.updateProjectionMatrix();
+            renderer.setSize(cw, ch);
+          }
+        });
+        ro.observe(container);
+
+        reactiveState = {
+          scene, camera, renderer, ro,
+          trailScene, trailCamera, trailMat,
+          clouds, cloudGeo, cloudPos, cloudColor, cloudBasePos, cloudPhase, cloudLayer, cloudMat,
+          cores, rays, rayGeo, rayPos, rayColor, rayBaseAngle, rayLength, rayCore, rayMat,
+          rayCount, raySegments,
+          dust, dustGeo, dustPos, dustPhase, dustMat,
+          camAngle: 0, bloomDecay: 0,
+          mode: "nebula",
+        };
+      } catch (error) {
+        console.error("Nebula init failed", error);
+        reactiveState = null;
+        visualizerReactiveBtn.disabled = true;
+        setVisualizerMode("spectrum");
+      }
+    }
+
+    function destroyNebulaVisualizer() {
+      if (!reactiveState) return;
+      try {
+        reactiveState.ro.disconnect();
+        reactiveState.renderer.dispose();
+        reactiveState.cloudGeo.dispose();
+        reactiveState.cloudMat.dispose();
+        reactiveState.cores.forEach(c => { c.geo.dispose(); c.mat.dispose(); c.haloGeo.dispose(); c.haloMat.dispose(); });
+        reactiveState.rayGeo.dispose();
+        reactiveState.rayMat.dispose();
+        reactiveState.dustGeo.dispose();
+        reactiveState.dustMat.dispose();
+        reactiveState.trailMat.dispose();
+        if (reactiveState.renderer.domElement.parentNode) {
+          reactiveState.renderer.domElement.parentNode.removeChild(reactiveState.renderer.domElement);
+        }
+      } catch (_) {}
+      reactiveState = null;
+    }
+
+    function tickNebulaVisualizer(bass, mid, treble, time) {
+      if (!reactiveState || reactiveState.mode !== "nebula") return;
+      const s = reactiveState;
+      const THREE = window.THREE;
+      const t = time * 0.001;
+
+      // ── Camera: slow drift with gentle music response ──
+      s.camAngle += 0.0008 + mid * 0.002;
+      s.camera.position.x = Math.sin(s.camAngle) * 5;
+      s.camera.position.z = Math.cos(s.camAngle) * 5;
+      s.camera.position.y = Math.sin(t * 0.1) * 1.2 + bass * 0.5;
+      s.camera.lookAt(0, 0, 0);
+
+      // ── Bloom ──
+      if (bassVelocity > 0.03) {
+        s.bloomDecay = Math.min(1.0, s.bloomDecay + bassVelocity * 4.0);
+      }
+      s.bloomDecay = Math.max(0, s.bloomDecay - 0.02);
+
+      // ── Animate cloud particles — slow billow + bass expansion ──
+      const cPos = s.cloudGeo.attributes.position.array;
+      const cCol = s.cloudGeo.attributes.color.array;
+      const cloudExpand = 1.0 + bass * 0.4 + s.bloomDecay * 0.3;
+      const colorShift = t * 0.08;
+
+      for (let i = 0; i < cPos.length / 3; i++) {
+        const idx = i * 3;
+        const phase = s.cloudPhase[i];
+        const layer = s.cloudLayer[i];
+
+        // Billowing motion — different layers move at different speeds
+        const speed = 0.3 + layer * 0.4;
+        const bx = s.cloudBasePos[idx];
+        const by = s.cloudBasePos[idx + 1];
+        const bz = s.cloudBasePos[idx + 2];
+
+        cPos[idx] = bx * cloudExpand + Math.sin(t * speed + phase) * 0.3 * (1 + bass);
+        cPos[idx + 1] = by + Math.cos(t * speed * 0.7 + phase * 1.3) * 0.2 + mid * 0.3 * Math.sin(phase);
+        cPos[idx + 2] = bz * cloudExpand + Math.cos(t * speed * 0.5 + phase * 0.7) * 0.25;
+
+        // Color: breathe between deep purple and magenta with music
+        const hue = (0.72 + layer * 0.18 + colorShift + bass * 0.08) % 1;
+        const sat = 0.5 + treble * 0.4 + s.bloomDecay * 0.2;
+        const lum = 0.1 + bass * 0.15 + s.bloomDecay * 0.12 + layer * 0.08;
+        const c = (1 - Math.abs(2 * lum - 1)) * sat;
+        const x = c * (1 - Math.abs((hue * 6) % 2 - 1));
+        const m = lum - c * 0.5;
+        const hh = hue * 6;
+        let cr, cg, cb;
+        if (hh < 1) { cr = c; cg = x; cb = 0; }
+        else if (hh < 2) { cr = x; cg = c; cb = 0; }
+        else if (hh < 3) { cr = 0; cg = c; cb = x; }
+        else if (hh < 4) { cr = 0; cg = x; cb = c; }
+        else if (hh < 5) { cr = x; cg = 0; cb = c; }
+        else { cr = c; cg = 0; cb = x; }
+        cCol[idx] = cr + m;
+        cCol[idx + 1] = cg + m;
+        cCol[idx + 2] = cb + m;
+      }
+      s.cloudGeo.attributes.position.needsUpdate = true;
+      s.cloudGeo.attributes.color.needsUpdate = true;
+      s.cloudMat.size = 1.5 + bass * 1.0 + s.bloomDecay * 0.8;
+      s.cloudMat.opacity = 0.15 + bass * 0.15 + s.bloomDecay * 0.1;
+
+      // ── Animate cores — orbiting, pulsing spheres ──
+      for (let i = 0; i < s.cores.length; i++) {
+        const core = s.cores[i];
+        const orbAngle = t * core.orbitSpeed + core.orbitPhase + bass * 0.3;
+        const r = core.orbitR * (1 + bass * 0.3);
+        core.mesh.position.x = Math.cos(orbAngle) * r;
+        core.mesh.position.y = Math.sin(t * 0.4 + core.yPhase) * 1.0;
+        core.mesh.position.z = Math.sin(orbAngle) * r;
+
+        const coreScale = 0.8 + bass * 1.5 + s.bloomDecay * 1.0;
+        core.mesh.scale.setScalar(coreScale);
+        core.mat.opacity = 0.6 + bass * 0.35 + s.bloomDecay * 0.2;
+        core.haloMat.opacity = 0.08 + bass * 0.12 + s.bloomDecay * 0.15;
+
+        // Shift core color slightly with music
+        const coreHue = (0.85 + i * 0.12 + colorShift) % 1;
+        core.mat.color.setHSL(coreHue, 0.9, 0.5 + s.bloomDecay * 0.3);
+        core.haloMat.color.setHSL(coreHue, 0.7, 0.35);
+      }
+
+      // ── Animate rays — flowing lines from cores ──
+      const rPos = s.rayGeo.attributes.position.array;
+      const rCol = s.rayGeo.attributes.color.array;
+      const rayEnergy = 0.5 + mid * 1.5 + treble * 1.0 + s.bloomDecay * 2.0;
+
+      for (let i = 0; i < s.rayCount; i++) {
+        const coreIdx = Math.floor(s.rayCore[i]);
+        const core = s.cores[coreIdx];
+        const cx = core.mesh.position.x;
+        const cy = core.mesh.position.y;
+        const cz = core.mesh.position.z;
+
+        const angle = s.rayBaseAngle[i] + t * 0.5 + bass * 0.8;
+        const len = s.rayLength[i] * rayEnergy;
+
+        for (let seg = 0; seg < s.raySegments; seg++) {
+          const idx = (i * s.raySegments + seg) * 3;
+          const st = seg / s.raySegments;
+
+          // Curved flowing rays with sinusoidal wobble
+          const wobble = Math.sin(st * Math.PI * 2 + t * 2 + s.rayBaseAngle[i]) * 0.3 * st;
+          rPos[idx] = cx + Math.cos(angle + wobble) * st * len;
+          rPos[idx + 1] = cy + Math.sin(t * 1.5 + st * 2 + s.rayBaseAngle[i]) * st * 0.5;
+          rPos[idx + 2] = cz + Math.sin(angle + wobble) * st * len;
+
+          // Color fades along ray
+          const fade = Math.sin(st * Math.PI) * (0.3 + treble * 0.5 + s.bloomDecay * 0.4);
+          const hue = (0.75 + coreIdx * 0.12 + colorShift + st * 0.1) % 1;
+          const rc = (1 - Math.abs(2 * fade - 1)) * 0.8;
+          const rx = rc * (1 - Math.abs((hue * 6) % 2 - 1));
+          const rm = fade - rc * 0.5;
+          const rhh = hue * 6;
+          if (rhh < 1) { rCol[idx] = rc + rm; rCol[idx+1] = rx + rm; rCol[idx+2] = rm; }
+          else if (rhh < 2) { rCol[idx] = rx + rm; rCol[idx+1] = rc + rm; rCol[idx+2] = rm; }
+          else if (rhh < 3) { rCol[idx] = rm; rCol[idx+1] = rc + rm; rCol[idx+2] = rx + rm; }
+          else if (rhh < 4) { rCol[idx] = rm; rCol[idx+1] = rx + rm; rCol[idx+2] = rc + rm; }
+          else if (rhh < 5) { rCol[idx] = rx + rm; rCol[idx+1] = rm; rCol[idx+2] = rc + rm; }
+          else { rCol[idx] = rc + rm; rCol[idx+1] = rm; rCol[idx+2] = rx + rm; }
+        }
+      }
+      s.rayGeo.attributes.position.needsUpdate = true;
+      s.rayGeo.attributes.color.needsUpdate = true;
+      s.rayMat.opacity = 0.3 + treble * 0.4 + s.bloomDecay * 0.3;
+      s.rayMat.size = 0.04 + treble * 0.04 + s.bloomDecay * 0.03;
+
+      // ── Dust motes drift ──
+      const dPos = s.dustGeo.attributes.position.array;
+      for (let i = 0; i < dPos.length / 3; i++) {
+        const idx = i * 3;
+        dPos[idx] += Math.sin(t * 0.2 + s.dustPhase[i]) * 0.002;
+        dPos[idx + 1] += Math.cos(t * 0.15 + s.dustPhase[i] * 1.3) * 0.001 + bass * 0.003;
+        dPos[idx + 2] += Math.sin(t * 0.18 + s.dustPhase[i] * 0.7) * 0.002;
+        // Wrap around
+        if (Math.abs(dPos[idx]) > 7) dPos[idx] *= -0.9;
+        if (Math.abs(dPos[idx+1]) > 4) dPos[idx+1] *= -0.9;
+        if (Math.abs(dPos[idx+2]) > 7) dPos[idx+2] *= -0.9;
+      }
+      s.dustGeo.attributes.position.needsUpdate = true;
+      s.dustMat.opacity = 0.2 + bass * 0.15 + treble * 0.1;
+      s.dustMat.color.setHSL((0.7 + colorShift) % 1, 0.5, 0.5);
+
+      // ── Render with heavy trails for haze effect ──
+      s.trailMat.opacity = 0.025 + (1.0 - bass) * 0.025; // very slow fade = dreamy nebula haze
+      s.renderer.render(s.trailScene, s.trailCamera);
+      s.renderer.render(s.scene, s.camera);
+    }
+
+    // ── Reactive mode dispatching ──
+
+    function initCurrentReactiveMode() {
+      if (reactiveSubMode === 1) initVortexVisualizer();
+      else if (reactiveSubMode === 2) initNebulaVisualizer();
+      else initReactiveVisualizer();
+    }
+
+    function destroyCurrentReactiveMode() {
+      if (!reactiveState) return;
+      const m = reactiveState.mode;
+      if (m === "vortex") destroyVortexVisualizer();
+      else if (m === "nebula") destroyNebulaVisualizer();
+      else destroyReactiveVisualizer();
+    }
+
+    function tickCurrentReactiveMode(bass, mid, treble, time) {
+      if (!reactiveState) return;
+      const m = reactiveState.mode;
+      if (m === "vortex") tickVortexVisualizer(bass, mid, treble, time);
+      else if (m === "nebula") tickNebulaVisualizer(bass, mid, treble, time);
+      else tickReactiveVisualizer(bass, mid, treble, time);
+    }
+
+    function cycleReactiveSubMode() {
+      destroyCurrentReactiveMode();
+      reactiveSubMode = (reactiveSubMode + 1) % REACTIVE_SUB_MODE_COUNT;
+      window.localStorage.setItem("coreamp.reactiveSubMode", reactiveSubMode);
+      initCurrentReactiveMode();
     }
 
     // ── Audio energy computation ──
@@ -4695,10 +5511,10 @@
       visualizerMode = (mode === "reactive") ? "reactive" : "spectrum";
 
       if (prev === "spectrum" && visualizerMode !== "spectrum") destroySpectrumVisualizer();
-      if (prev === "reactive" && visualizerMode !== "reactive") destroyReactiveVisualizer();
+      if (prev === "reactive" && visualizerMode !== "reactive") destroyCurrentReactiveMode();
 
       if (visualizerMode === "spectrum") initSpectrumVisualizer();
-      if (visualizerMode === "reactive") initReactiveVisualizer();
+      if (visualizerMode === "reactive") initCurrentReactiveMode();
 
       setButtonState(visualizerSpectrumBtn, visualizerMode === "spectrum", "Switch to spectrum visualizer");
       setButtonState(visualizerReactiveBtn, visualizerMode === "reactive", "Switch to reactive 3D visualizer");
@@ -4849,11 +5665,19 @@
               treble = energy.treble;
             }
 
-            smoothedBass = smoothedBass * 0.85 + bass * 0.15;
-            smoothedMid = smoothedMid * 0.85 + mid * 0.15;
-            smoothedTreble = smoothedTreble * 0.85 + treble * 0.15;
+            // Moderate attack, smooth release — punchy but not jittery
+            const attackBass = bass > smoothedBass ? 0.25 : 0.08;
+            const attackMid = mid > smoothedMid ? 0.2 : 0.08;
+            const attackTreble = treble > smoothedTreble ? 0.3 : 0.1;
+            smoothedBass = smoothedBass * (1 - attackBass) + bass * attackBass;
+            smoothedMid = smoothedMid * (1 - attackMid) + mid * attackMid;
+            smoothedTreble = smoothedTreble * (1 - attackTreble) + treble * attackTreble;
 
-            tickReactiveVisualizer(smoothedBass, smoothedMid, smoothedTreble, time);
+            // Track bass velocity for transient detection
+            bassVelocity = Math.max(0, smoothedBass - prevSmoothedBass);
+            prevSmoothedBass = smoothedBass;
+
+            tickCurrentReactiveMode(smoothedBass, smoothedMid, smoothedTreble, time);
             prevBass = smoothedBass;
           }
           // Spectrum mode: audioMotion handles its own render loop
@@ -6592,7 +7416,13 @@
         setVisualizerMode("spectrum");
       }
     });
-    visualizerReactiveBtn.addEventListener("click", () => setVisualizerMode("reactive"));
+    visualizerReactiveBtn.addEventListener("click", () => {
+      if (visualizerMode === "reactive") {
+        cycleReactiveSubMode();
+      } else {
+        setVisualizerMode("reactive");
+      }
+    });
     visualizerFullscreenBtn.addEventListener("click", toggleVisualizerFullscreen);
     document.addEventListener("keydown", async (event) => {
       if (event.key === "Escape" && visualizerIsFullscreen()) {
@@ -6606,7 +7436,26 @@
 
     trackSearchInput.addEventListener("input", (event) => {
       currentSearchTerm = event.target.value || "";
+      saveSearchPlaylistBtn.style.display = currentSearchTerm.trim() ? "" : "none";
       debouncedRefreshLibrary();
+    });
+    saveSearchPlaylistBtn.addEventListener("click", async () => {
+      if (!allTracks.length) {
+        setStatus("No tracks to save.");
+        return;
+      }
+      const name = currentSearchTerm.trim() || "Search Results";
+      try {
+        setBusy(true, `Saving playlist "${name}"...`);
+        const paths = allTracks.map(t => t.path);
+        const playlist = await invoke("save_playlist", { name, paths });
+        await refreshPlaylists();
+        setStatus(`Saved playlist "${playlist.name}" with ${paths.length} tracks`, true);
+      } catch (error) {
+        setStatus(`Failed to save playlist: ${String(error)}`);
+      } finally {
+        setBusy(false);
+      }
     });
     playlistNameInput.addEventListener("input", updatePlaylistActionStates);
     sortTitleBtn.addEventListener("click", () => setSortField("title"));
