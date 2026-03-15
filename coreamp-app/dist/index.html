@@ -443,6 +443,33 @@
       color: #ffffff;
       box-shadow: none;
     }
+    .library-segment {
+      display: inline-flex;
+      background: var(--surface-2, rgba(255,255,255,0.06));
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .segment-btn {
+      all: unset;
+      padding: 5px 14px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      border-radius: 6px;
+      color: var(--text-secondary, rgba(255,255,255,0.55));
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      user-select: none;
+    }
+    .segment-btn:hover {
+      color: var(--text-primary, #fff);
+      background: rgba(255,255,255,0.06);
+    }
+    .segment-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
     .library-panels {
       margin-top: 12px;
       flex: 1 1 0;
@@ -2176,12 +2203,8 @@
       </div>
       <div class="library-tabs" role="tablist" aria-label="Library sections">
         <button id="libraryDashboardTab" class="secondary library-tab active" type="button" role="tab" aria-selected="true" aria-controls="libraryDashboardPanel">Home</button>
-        <button id="libraryBrowseTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryBrowsePanel">Tracks</button>
-        <button id="libraryArtistsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryArtistsPanel">Artists</button>
-        <button id="libraryAlbumsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryAlbumsPanel">Albums</button>
-        <button id="libraryGenresTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryGenresPanel">Genres</button>
+        <button id="libraryBrowseTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryBrowsePanel">Library</button>
         <button id="libraryLikedTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryBrowsePanel">Liked</button>
-        <button id="libraryImportTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryImportPanel">Import</button>
         <button id="libraryPlaylistsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryPlaylistsPanel">Playlists</button>
         <button id="libraryAudioTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryAudioPanel">Audio</button>
         <button id="librarySettingsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="librarySettingsPanel">Settings</button>
@@ -2192,70 +2215,46 @@
             <div id="dashboardContainer"></div>
           </div>
         </section>
-        <section id="libraryArtistsPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryArtistsTab" hidden>
-          <div class="table-wrap">
-            <div id="artistsGrid"></div>
-          </div>
-        </section>
-        <section id="libraryAlbumsPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryAlbumsTab" hidden>
-          <div class="table-wrap">
-            <div id="albumsGrid"></div>
-          </div>
-        </section>
-        <section id="libraryGenresPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryGenresTab" hidden>
-          <div class="table-wrap">
-            <div id="genresGrid"></div>
-          </div>
-        </section>
         <section id="libraryBrowsePanel" class="library-panel" role="tabpanel" aria-labelledby="libraryBrowseTab libraryLikedTab" hidden>
           <div class="library-browse-head">
+            <div class="library-segment" role="group" aria-label="Browse view">
+              <button id="segmentTracksBtn" class="segment-btn active" type="button">Tracks</button>
+              <button id="segmentArtistsBtn" class="segment-btn" type="button">Artists</button>
+              <button id="segmentAlbumsBtn" class="segment-btn" type="button">Albums</button>
+              <button id="segmentGenresBtn" class="segment-btn" type="button">Genres</button>
+            </div>
             <div id="visibleCount" class="count-chip">0 shown</div>
           </div>
-          <div class="library-toolbar">
-            <input id="trackSearchInput" aria-label="Search tracks" placeholder="Search title, artist, or album">
-            <button id="saveSearchPlaylistBtn" class="secondary sort-chip" type="button" style="display:none;" aria-label="Save search results as playlist">+ Playlist</button>
-            <select id="genreFilterSelect" class="genre-select" aria-label="Filter by genre">
-              <option value="">All Genres</option>
-            </select>
-            <div class="sort-controls" role="group" aria-label="Sort library">
-              <button id="sortTitleBtn" class="secondary sort-chip active" type="button">Title</button>
-              <button id="sortArtistBtn" class="secondary sort-chip" type="button">Artist</button>
-              <button id="sortAlbumBtn" class="secondary sort-chip" type="button">Album</button>
-              <button id="sortDirectionBtn" class="secondary sort-chip" type="button" aria-label="Toggle sort direction">
-                <svg id="sortDirectionIcon" viewBox="0 0 24 24"><path d="M8 7l4-4 4 4"></path><path d="M12 3v18"></path></svg>
-                <span id="sortDirectionLabel">A-Z</span>
-              </button>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <div id="libraryRows" class="track-list"></div>
-          </div>
-          <div id="emptyState" class="empty">No indexed tracks yet.</div>
-        </section>
-        <section id="libraryImportPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryImportTab" hidden>
-          <div class="library-workbench">
-            <div class="library-intake-panel">
-              <div>
-                <h2>Import</h2>
-                <p class="library-intake-copy">Choose folders or files to add music.</p>
-              </div>
-              <div class="library-intake">
-                <button id="pickFolderBtn" type="button">Choose folder</button>
-                <button id="pickFileBtn" class="secondary" type="button">Choose files</button>
-                <button id="scanBtn" class="secondary" type="button">Scan library</button>
-                <button id="refreshBtn" class="secondary" type="button">Refresh</button>
-              </div>
-              <div class="library-advanced">
-                <label class="subtle" for="pathInput">Explicit path(s), separated by <span class="mono">:</span></label>
-                <div class="row">
-                  <input id="pathInput" aria-label="Scan explicit paths" placeholder="/Users/me/Music:/Volumes/External/Albums">
-                  <button id="importPathBtn" class="secondary">Scan</button>
-                </div>
-                <div id="dropZone" class="drop-zone">
-                  Drop files or folders here to scan them.
-                </div>
+          <div id="libraryTracksView">
+            <div class="library-toolbar">
+              <input id="trackSearchInput" aria-label="Search tracks" placeholder="Search title, artist, or album">
+              <button id="saveSearchPlaylistBtn" class="secondary sort-chip" type="button" style="display:none;" aria-label="Save search results as playlist">+ Playlist</button>
+              <select id="genreFilterSelect" class="genre-select" aria-label="Filter by genre">
+                <option value="">All Genres</option>
+              </select>
+              <div class="sort-controls" role="group" aria-label="Sort library">
+                <button id="sortTitleBtn" class="secondary sort-chip active" type="button">Title</button>
+                <button id="sortArtistBtn" class="secondary sort-chip" type="button">Artist</button>
+                <button id="sortAlbumBtn" class="secondary sort-chip" type="button">Album</button>
+                <button id="sortDirectionBtn" class="secondary sort-chip" type="button" aria-label="Toggle sort direction">
+                  <svg id="sortDirectionIcon" viewBox="0 0 24 24"><path d="M8 7l4-4 4 4"></path><path d="M12 3v18"></path></svg>
+                  <span id="sortDirectionLabel">A-Z</span>
+                </button>
               </div>
             </div>
+            <div class="table-wrap">
+              <div id="libraryRows" class="track-list"></div>
+            </div>
+            <div id="emptyState" class="empty">No indexed tracks yet.</div>
+          </div>
+          <div id="libraryArtistsView" class="library-subview" hidden>
+            <div class="table-wrap"><div id="artistsGrid"></div></div>
+          </div>
+          <div id="libraryAlbumsView" class="library-subview" hidden>
+            <div class="table-wrap"><div id="albumsGrid"></div></div>
+          </div>
+          <div id="libraryGenresView" class="library-subview" hidden>
+            <div class="table-wrap"><div id="genresGrid"></div></div>
           </div>
         </section>
         <section id="libraryPlaylistsPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryPlaylistsTab" hidden>
@@ -2413,10 +2412,28 @@
           <div class="audio-panel-head">
             <div>
               <h2>Settings</h2>
-              <p class="audio-panel-copy">Configure library scanning and metadata enrichment.</p>
+              <p class="audio-panel-copy">Import music and configure library scanning.</p>
             </div>
           </div>
           <div class="audio-module" style="max-width: 480px;">
+            <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Import Music</h3>
+            <div class="library-intake" style="margin-bottom:20px;">
+              <button id="pickFolderBtn" type="button">Choose folder</button>
+              <button id="pickFileBtn" class="secondary" type="button">Choose files</button>
+              <button id="scanBtn" class="secondary" type="button">Scan library</button>
+              <button id="refreshBtn" class="secondary" type="button">Refresh</button>
+            </div>
+            <div class="library-advanced" style="margin-bottom:20px;">
+              <label class="subtle" for="pathInput">Explicit path(s), separated by <span class="mono">:</span></label>
+              <div class="row">
+                <input id="pathInput" aria-label="Scan explicit paths" placeholder="/Users/me/Music:/Volumes/External/Albums">
+                <button id="importPathBtn" class="secondary">Scan</button>
+              </div>
+              <div id="dropZone" class="drop-zone">
+                Drop files or folders here to scan them.
+              </div>
+            </div>
+            <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Library Settings</h3>
             <div class="metadata-field" style="margin-bottom: 16px;">
               <label for="scanIntervalInput">Scan interval (seconds)</label>
               <input id="scanIntervalInput" type="number" min="1" step="1" value="300" autocomplete="off">
@@ -2525,23 +2542,23 @@
     const loadingTextEl = document.getElementById("loadingText");
     const libraryDashboardTabBtn = document.getElementById("libraryDashboardTab");
     const libraryBrowseTabBtn = document.getElementById("libraryBrowseTab");
-    const libraryArtistsTabBtn = document.getElementById("libraryArtistsTab");
-    const libraryAlbumsTabBtn = document.getElementById("libraryAlbumsTab");
-    const libraryGenresTabBtn = document.getElementById("libraryGenresTab");
     const libraryLikedTabBtn = document.getElementById("libraryLikedTab");
-    const libraryImportTabBtn = document.getElementById("libraryImportTab");
     const libraryPlaylistsTabBtn = document.getElementById("libraryPlaylistsTab");
     const libraryAudioTabBtn = document.getElementById("libraryAudioTab");
     const librarySettingsTabBtn = document.getElementById("librarySettingsTab");
     const libraryDashboardPanelEl = document.getElementById("libraryDashboardPanel");
-    const libraryArtistsPanelEl = document.getElementById("libraryArtistsPanel");
-    const libraryAlbumsPanelEl = document.getElementById("libraryAlbumsPanel");
-    const libraryGenresPanelEl = document.getElementById("libraryGenresPanel");
     const libraryBrowsePanelEl = document.getElementById("libraryBrowsePanel");
-    const libraryImportPanelEl = document.getElementById("libraryImportPanel");
     const libraryPlaylistsPanelEl = document.getElementById("libraryPlaylistsPanel");
     const libraryAudioPanelEl = document.getElementById("libraryAudioPanel");
     const librarySettingsPanelEl = document.getElementById("librarySettingsPanel");
+    const segmentTracksBtn = document.getElementById("segmentTracksBtn");
+    const segmentArtistsBtn = document.getElementById("segmentArtistsBtn");
+    const segmentAlbumsBtn = document.getElementById("segmentAlbumsBtn");
+    const segmentGenresBtn = document.getElementById("segmentGenresBtn");
+    const libraryTracksView = document.getElementById("libraryTracksView");
+    const libraryArtistsView = document.getElementById("libraryArtistsView");
+    const libraryAlbumsView = document.getElementById("libraryAlbumsView");
+    const libraryGenresView = document.getElementById("libraryGenresView");
     const scanIntervalInput = document.getElementById("scanIntervalInput");
     const apiProxyInput = document.getElementById("apiProxyInput");
     const saveSettingsBtn = document.getElementById("saveSettingsBtn");
@@ -3114,63 +3131,57 @@
       return "system";
     }
 
+    let activeSegment = "tracks";
+
     function setLibraryTab(tab) {
-      activeLibraryTab = ["dashboard", "browse", "import", "playlists", "audio", "liked", "artists", "albums", "genres", "settings"].includes(tab) ? tab : "dashboard";
+      activeLibraryTab = ["dashboard", "browse", "playlists", "audio", "liked", "settings"].includes(tab) ? tab : "dashboard";
       const isDashboard = activeLibraryTab === "dashboard";
       const isBrowse = activeLibraryTab === "browse";
-      const isArtists = activeLibraryTab === "artists";
-      const isAlbums = activeLibraryTab === "albums";
-      const isGenres = activeLibraryTab === "genres";
       const isLiked = activeLibraryTab === "liked";
-      const isImport = activeLibraryTab === "import";
       const isPlaylists = activeLibraryTab === "playlists";
       const isAudio = activeLibraryTab === "audio";
       const isSettings = activeLibraryTab === "settings";
 
-      libraryDashboardTabBtn.setAttribute("aria-selected", String(isDashboard));
-      libraryBrowseTabBtn.setAttribute("aria-selected", String(isBrowse));
-      libraryArtistsTabBtn.setAttribute("aria-selected", String(isArtists));
-      libraryAlbumsTabBtn.setAttribute("aria-selected", String(isAlbums));
-      libraryGenresTabBtn.setAttribute("aria-selected", String(isGenres));
-      libraryLikedTabBtn.setAttribute("aria-selected", String(isLiked));
-      libraryImportTabBtn.setAttribute("aria-selected", String(isImport));
-      libraryPlaylistsTabBtn.setAttribute("aria-selected", String(isPlaylists));
-      libraryAudioTabBtn.setAttribute("aria-selected", String(isAudio));
-      librarySettingsTabBtn.setAttribute("aria-selected", String(isSettings));
-
-      libraryDashboardTabBtn.classList.toggle("active", isDashboard);
-      libraryBrowseTabBtn.classList.toggle("active", isBrowse);
-      libraryArtistsTabBtn.classList.toggle("active", isArtists);
-      libraryAlbumsTabBtn.classList.toggle("active", isAlbums);
-      libraryGenresTabBtn.classList.toggle("active", isGenres);
-      libraryLikedTabBtn.classList.toggle("active", isLiked);
-      libraryImportTabBtn.classList.toggle("active", isImport);
-      libraryPlaylistsTabBtn.classList.toggle("active", isPlaylists);
-      libraryAudioTabBtn.classList.toggle("active", isAudio);
-      librarySettingsTabBtn.classList.toggle("active", isSettings);
+      const tabBtns = [libraryDashboardTabBtn, libraryBrowseTabBtn, libraryLikedTabBtn, libraryPlaylistsTabBtn, libraryAudioTabBtn, librarySettingsTabBtn];
+      const tabStates = [isDashboard, isBrowse, isLiked, isPlaylists, isAudio, isSettings];
+      tabBtns.forEach((btn, i) => {
+        btn.setAttribute("aria-selected", String(tabStates[i]));
+        btn.classList.toggle("active", tabStates[i]);
+      });
 
       libraryDashboardPanelEl.hidden = !isDashboard;
-      libraryArtistsPanelEl.hidden = !isArtists;
-      libraryAlbumsPanelEl.hidden = !isAlbums;
-      libraryGenresPanelEl.hidden = !isGenres;
       libraryBrowsePanelEl.hidden = !(isBrowse || isLiked);
-      libraryImportPanelEl.hidden = !isImport;
       libraryPlaylistsPanelEl.hidden = !isPlaylists;
       libraryAudioPanelEl.hidden = !isAudio;
       librarySettingsPanelEl.hidden = !isSettings;
 
       if (isDashboard) loadDashboard();
-      else if (isArtists) loadArtists();
-      else if (isAlbums) loadAlbums();
-      else if (isGenres) loadGenreSummaries();
       else if (isPlaylists) refreshPlaylists();
       else if (isSettings) loadSettings();
-      else if (likedOnly !== isLiked) {
-        likedOnly = isLiked;
-        refreshLibrary();
+      else if (isLiked) {
+        if (likedOnly !== true) { likedOnly = true; refreshLibrary(); }
+        setLibrarySegment("tracks");
       } else if (isBrowse) {
-        applyLibraryView();
+        if (likedOnly !== false) { likedOnly = false; refreshLibrary(); }
+        setLibrarySegment(activeSegment);
       }
+    }
+
+    function setLibrarySegment(segment) {
+      activeSegment = ["tracks", "artists", "albums", "genres"].includes(segment) ? segment : "tracks";
+      const segBtns = [segmentTracksBtn, segmentArtistsBtn, segmentAlbumsBtn, segmentGenresBtn];
+      const segKeys = ["tracks", "artists", "albums", "genres"];
+      const segViews = [libraryTracksView, libraryArtistsView, libraryAlbumsView, libraryGenresView];
+      segBtns.forEach((btn, i) => {
+        btn.classList.toggle("active", segKeys[i] === activeSegment);
+      });
+      segViews.forEach((view, i) => {
+        view.hidden = segKeys[i] !== activeSegment;
+      });
+      if (activeSegment === "tracks") applyLibraryView();
+      else if (activeSegment === "artists") loadArtists();
+      else if (activeSegment === "albums") loadAlbums();
+      else if (activeSegment === "genres") loadGenreSummaries();
     }
     function updateSortControls() {
       const [field, order] = currentSortOrder.split("-");
@@ -7386,14 +7397,14 @@
     resetHistoryBtn.addEventListener("click", resetHistory);
     libraryDashboardTabBtn.addEventListener("click", () => setLibraryTab("dashboard"));
     libraryBrowseTabBtn.addEventListener("click", () => setLibraryTab("browse"));
-    libraryArtistsTabBtn.addEventListener("click", () => setLibraryTab("artists"));
-    libraryAlbumsTabBtn.addEventListener("click", () => setLibraryTab("albums"));
-    libraryGenresTabBtn.addEventListener("click", () => setLibraryTab("genres"));
     libraryLikedTabBtn.addEventListener("click", () => setLibraryTab("liked"));
-    libraryImportTabBtn.addEventListener("click", () => setLibraryTab("import"));
     libraryPlaylistsTabBtn.addEventListener("click", () => setLibraryTab("playlists"));
     libraryAudioTabBtn.addEventListener("click", () => setLibraryTab("audio"));
     librarySettingsTabBtn.addEventListener("click", () => setLibraryTab("settings"));
+    segmentTracksBtn.addEventListener("click", () => setLibrarySegment("tracks"));
+    segmentArtistsBtn.addEventListener("click", () => setLibrarySegment("artists"));
+    segmentAlbumsBtn.addEventListener("click", () => setLibrarySegment("albums"));
+    segmentGenresBtn.addEventListener("click", () => setLibrarySegment("genres"));
     saveSettingsBtn.addEventListener("click", saveSettings);
 
     playerLikeBtn.addEventListener("click", () => {
