@@ -78,7 +78,12 @@ fn compute_metadata_hash(path: &Path, metadata: &fs::Metadata) -> String {
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    format!("{}\0{}\0{}", path.to_string_lossy(), metadata.len(), mtime_nanos)
+    format!(
+        "{}\0{}\0{}",
+        path.to_string_lossy(),
+        metadata.len(),
+        mtime_nanos
+    )
 }
 
 fn to_scanned_file(path: &Path, metadata_hash: String) -> Option<ScannedFile> {
@@ -167,7 +172,8 @@ pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
     let mut changed_files = Vec::new();
     for file in files.iter() {
         let path_str = file.path.to_string_lossy().to_string();
-        let is_unchanged = matches!(cached_hashes.get(&path_str), Some(hash) if hash == &file.metadata_hash);
+        let is_unchanged =
+            matches!(cached_hashes.get(&path_str), Some(hash) if hash == &file.metadata_hash);
         if !is_unchanged {
             if let Some(scanned) = to_scanned_file(&file.path, file.metadata_hash.clone()) {
                 changed_files.push(scanned);
@@ -193,7 +199,8 @@ pub fn index_explicit_paths(paths: &[PathBuf]) -> Result<ScanSummary, String> {
     let mut changed_files = Vec::new();
     for file in files.iter() {
         let path_str = file.path.to_string_lossy().to_string();
-        let is_unchanged = matches!(cached_hashes.get(&path_str), Some(hash) if hash == &file.metadata_hash);
+        let is_unchanged =
+            matches!(cached_hashes.get(&path_str), Some(hash) if hash == &file.metadata_hash);
         if !is_unchanged {
             if let Some(scanned) = to_scanned_file(&file.path, file.metadata_hash.clone()) {
                 changed_files.push(scanned);
@@ -264,7 +271,10 @@ mod tests {
         fs::write(nested.join("notes.txt"), b"skip").expect("write txt");
 
         let files = scan_library_files(std::slice::from_ref(&root));
-        let names: Vec<_> = files.into_iter().map(|f| f.path.file_name().unwrap().to_string_lossy().to_string()).collect();
+        let names: Vec<_> = files
+            .into_iter()
+            .map(|f| f.path.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
         assert!(names.iter().any(|name| name == "track1.mp3"));
         assert!(names.iter().any(|name| name == "track2.ogg"));
         assert!(!names.iter().any(|name| name == "notes.txt"));
@@ -280,7 +290,15 @@ mod tests {
 
         let files = scan_explicit_paths(std::slice::from_ref(&file));
         assert_eq!(files.len(), 1);
-        assert_eq!(files[0].path.file_name().unwrap().to_string_lossy().to_string(), "single.mp3");
+        assert_eq!(
+            files[0]
+                .path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string(),
+            "single.mp3"
+        );
 
         fs::remove_dir_all(root).expect("cleanup");
     }

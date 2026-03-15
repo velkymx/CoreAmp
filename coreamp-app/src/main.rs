@@ -916,7 +916,10 @@ fn read_track_artwork(path: String, max_size: Option<u32>) -> Option<TrackArtwor
                     let resized = img.thumbnail(limit, limit);
                     let mut buffer = Vec::new();
                     // Always encode as JPEG for simplicity/speed in transit if resizing
-                    if resized.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Jpeg).is_ok() {
+                    if resized
+                        .write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Jpeg)
+                        .is_ok()
+                    {
                         data = buffer;
                         mime_type = String::from("image/jpeg");
                     }

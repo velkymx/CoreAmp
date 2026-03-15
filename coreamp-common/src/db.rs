@@ -215,7 +215,9 @@ pub fn list_library_files(
         query.push_str(" AND liked = 1");
     }
     if search_term.is_some() {
-        query.push_str(" AND (artist LIKE ?3 OR album LIKE ?3 OR title LIKE ?3 OR filename LIKE ?3)");
+        query.push_str(
+            " AND (artist LIKE ?3 OR album LIKE ?3 OR title LIKE ?3 OR filename LIKE ?3)",
+        );
     }
 
     query.push_str(
@@ -506,7 +508,9 @@ pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
 pub fn clear_history() -> Result<(), String> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|err| err.to_string())?;
-    let tx = connection.unchecked_transaction().map_err(|err| err.to_string())?;
+    let tx = connection
+        .unchecked_transaction()
+        .map_err(|err| err.to_string())?;
 
     tx.execute("DELETE FROM history", [])
         .map_err(|err| err.to_string())?;
@@ -565,7 +569,9 @@ pub fn get_all_metadata_hashes() -> Result<HashMap<String, String>, String> {
         .map_err(|err| err.to_string())?;
 
     let rows = stmt
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|err| err.to_string())?;
 
     let mut out = HashMap::new();
