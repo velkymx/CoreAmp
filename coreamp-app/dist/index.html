@@ -8862,36 +8862,39 @@
         s.px = Math.max(SHP_PLAYER_SIZE / 2, Math.min(SHP_W - SHP_PLAYER_SIZE / 2, s.px));
         s.py = Math.max(SHP_PLAYER_SIZE / 2, Math.min(SHP_H - SHP_PLAYER_SIZE / 2, s.py));
 
-        // ── ATTACK SPAWNING (music-driven) ──
+        // ── ATTACK SPAWNING (music-driven + steady-state) ──
+        // Difficulty ramps with survival time
+        const diff = Math.min(2.0, 1.0 + s.survived * 0.03);
 
         // Bass → expanding circles from random point
-        if (bassVel > 0.10 && s.bassAttackCD <= 0) {
+        // Spike-triggered OR steady bass energy
+        if (s.bassAttackCD <= 0 && (bassVel > 0.05 || (s.smoothBass > 0.15 && Math.random() < dt * 1.5 * diff))) {
           const cx = 40 + Math.random() * (SHP_W - 80);
           const cy = 30 + Math.random() * (SHP_H - 60);
           s.warnings.push({ x: cx, y: cy, timer: 0.35, type: "circle" });
           s.attacks.push({
             type: "circle", x: cx, y: cy,
-            radius: 0, maxRadius: 40 + bass * 30, speed: 60 + bass * 40,
+            radius: 0, maxRadius: 35 + s.smoothBass * 35, speed: 55 + s.smoothBass * 45,
             life: 2.0, hue: 0,
           });
-          s.bassAttackCD = 0.5;
+          s.bassAttackCD = Math.max(0.25, 0.5 / diff);
         }
 
         // Treble → laser beams that sweep
-        if (trebleVel > 0.08 && s.trebleAttackCD <= 0) {
+        if (s.trebleAttackCD <= 0 && (trebleVel > 0.04 || (s.smoothTreble > 0.15 && Math.random() < dt * 1.2 * diff))) {
           const horizontal = Math.random() < 0.5;
           const pos = Math.random() * (horizontal ? SHP_H : SHP_W);
           s.attacks.push({
             type: "laser", horizontal, pos,
-            width: 0, maxWidth: 12 + treble * 10,
+            width: 0, maxWidth: 10 + s.smoothTreble * 12,
             growSpeed: 80, life: 1.2, hue: 180,
           });
-          s.trebleAttackCD = 0.4;
+          s.trebleAttackCD = Math.max(0.2, 0.4 / diff);
         }
 
         // Mid → rain of small squares from top
-        if (midVel > 0.06 && s.midAttackCD <= 0) {
-          const count = 3 + Math.floor(mid * 5);
+        if (s.midAttackCD <= 0 && (midVel > 0.03 || (s.smoothMid > 0.15 && Math.random() < dt * 1.8 * diff))) {
+          const count = 2 + Math.floor(s.smoothMid * 4 * diff);
           for (let i = 0; i < count; i++) {
             s.attacks.push({
               type: "bullet", x: Math.random() * SHP_W, y: -8,
@@ -8899,18 +8902,35 @@
               size: 4 + Math.random() * 3, life: 3.0, hue: 280,
             });
           }
-          s.midAttackCD = 0.6;
+          s.midAttackCD = Math.max(0.3, 0.6 / diff);
         }
 
         // Big bass drops → screen-wide horizontal wave
-        if (bassVel > 0.20 && s.sweepCD <= 0) {
+        if (s.sweepCD <= 0 && (bassVel > 0.12 || (s.smoothBass > 0.25 && Math.random() < dt * 0.4 * diff))) {
           const fromTop = Math.random() < 0.5;
           s.attacks.push({
             type: "wave", y: fromTop ? -20 : SHP_H + 20,
             vy: fromTop ? 70 : -70,
-            height: 16 + bass * 12, life: 3.0, hue: 330,
+            height: 14 + s.smoothBass * 14, life: 3.0, hue: 330,
           });
-          s.sweepCD = 1.0;
+          s.sweepCD = Math.max(0.6, 1.2 / diff);
+        }
+
+        // Guaranteed minimum — always something on screen
+        if (s.attacks.length < 2 && Math.random() < dt * 2.0) {
+          const type = ["circle", "laser", "bullet"][Math.floor(Math.random() * 3)];
+          if (type === "circle") {
+            const cx = 40 + Math.random() * (SHP_W - 80);
+            const cy = 30 + Math.random() * (SHP_H - 60);
+            s.attacks.push({ type: "circle", x: cx, y: cy, radius: 0, maxRadius: 35, speed: 55, life: 2.0, hue: 0 });
+          } else if (type === "laser") {
+            const horizontal = Math.random() < 0.5;
+            s.attacks.push({ type: "laser", horizontal, pos: Math.random() * (horizontal ? SHP_H : SHP_W), width: 0, maxWidth: 10, growSpeed: 80, life: 1.2, hue: 180 });
+          } else {
+            for (let i = 0; i < 3; i++) {
+              s.attacks.push({ type: "bullet", x: Math.random() * SHP_W, y: -8, vx: (Math.random() - 0.5) * 20, vy: 50 + Math.random() * 60, size: 4 + Math.random() * 3, life: 3.0, hue: 280 });
+            }
+          }
         }
 
         // ── UPDATE ATTACKS ──
