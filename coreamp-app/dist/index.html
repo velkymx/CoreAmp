@@ -5575,11 +5575,11 @@
       const THREE = window.THREE;
       const t = time * 0.001;
 
-      // ── Camera: slow drift with gentle music response ──
-      s.camAngle += 0.0008 + mid * 0.002;
+      // ── Camera: drift with music response ──
+      s.camAngle += 0.002 + mid * 0.005;
       s.camera.position.x = Math.sin(s.camAngle) * 5;
       s.camera.position.z = Math.cos(s.camAngle) * 5;
-      s.camera.position.y = Math.sin(t * 0.1) * 1.2 + bass * 0.5;
+      s.camera.position.y = Math.sin(t * 0.25) * 1.2 + bass * 0.5;
       s.camera.lookAt(0, 0, 0);
 
       // ── Bloom ──
@@ -5592,7 +5592,7 @@
       const cPos = s.cloudGeo.attributes.position.array;
       const cCol = s.cloudGeo.attributes.color.array;
       const cloudExpand = 1.0 + bass * 0.4 + s.bloomDecay * 0.3;
-      const colorShift = t * 0.08;
+      const colorShift = t * 0.2;
 
       for (let i = 0; i < cPos.length / 3; i++) {
         const idx = i * 3;
@@ -5600,7 +5600,7 @@
         const layer = s.cloudLayer[i];
 
         // Billowing motion — different layers move at different speeds
-        const speed = 0.3 + layer * 0.4;
+        const speed = 0.8 + layer * 0.9;
         const bx = s.cloudBasePos[idx];
         const by = s.cloudBasePos[idx + 1];
         const bz = s.cloudBasePos[idx + 2];
@@ -5636,10 +5636,10 @@
       // ── Animate cores — orbiting, pulsing spheres ──
       for (let i = 0; i < s.cores.length; i++) {
         const core = s.cores[i];
-        const orbAngle = t * core.orbitSpeed + core.orbitPhase + bass * 0.3;
+        const orbAngle = t * core.orbitSpeed * 2.5 + core.orbitPhase + bass * 0.3;
         const r = core.orbitR * (1 + bass * 0.3);
         core.mesh.position.x = Math.cos(orbAngle) * r;
-        core.mesh.position.y = Math.sin(t * 0.4 + core.yPhase) * 1.0;
+        core.mesh.position.y = Math.sin(t * 1.0 + core.yPhase) * 1.0;
         core.mesh.position.z = Math.sin(orbAngle) * r;
 
         const coreScale = 0.8 + bass * 1.5 + s.bloomDecay * 1.0;
