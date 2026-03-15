@@ -910,20 +910,19 @@ fn read_track_artwork(path: String, max_size: Option<u32>) -> Option<TrackArtwor
         let mut data = artwork.data;
         let mut mime_type = artwork.mime_type;
 
-        if let Some(limit) = max_size {
-            if let Ok(img) = image::load_from_memory(&data) {
-                if img.width() > limit || img.height() > limit {
-                    let resized = img.thumbnail(limit, limit);
-                    let mut buffer = Vec::new();
-                    // Always encode as JPEG for simplicity/speed in transit if resizing
-                    if resized
-                        .write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Jpeg)
-                        .is_ok()
-                    {
-                        data = buffer;
-                        mime_type = String::from("image/jpeg");
-                    }
-                }
+        if let Some(limit) = max_size
+            && let Ok(img) = image::load_from_memory(&data)
+            && (img.width() > limit || img.height() > limit)
+        {
+            let resized = img.thumbnail(limit, limit);
+            let mut buffer = Vec::new();
+            // Always encode as JPEG for simplicity/speed in transit if resizing
+            if resized
+                .write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Jpeg)
+                .is_ok()
+            {
+                data = buffer;
+                mime_type = String::from("image/jpeg");
             }
         }
 

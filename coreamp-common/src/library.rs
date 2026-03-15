@@ -174,10 +174,10 @@ pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
         let path_str = file.path.to_string_lossy().to_string();
         let is_unchanged =
             matches!(cached_hashes.get(&path_str), Some(hash) if hash == &file.metadata_hash);
-        if !is_unchanged {
-            if let Some(scanned) = to_scanned_file(&file.path, file.metadata_hash.clone()) {
-                changed_files.push(scanned);
-            }
+        if !is_unchanged
+            && let Some(scanned) = to_scanned_file(&file.path, file.metadata_hash.clone())
+        {
+            changed_files.push(scanned);
         }
     }
     let files_upserted = db::upsert_scanned_files(&changed_files)?;
@@ -201,10 +201,10 @@ pub fn index_explicit_paths(paths: &[PathBuf]) -> Result<ScanSummary, String> {
         let path_str = file.path.to_string_lossy().to_string();
         let is_unchanged =
             matches!(cached_hashes.get(&path_str), Some(hash) if hash == &file.metadata_hash);
-        if !is_unchanged {
-            if let Some(scanned) = to_scanned_file(&file.path, file.metadata_hash.clone()) {
-                changed_files.push(scanned);
-            }
+        if !is_unchanged
+            && let Some(scanned) = to_scanned_file(&file.path, file.metadata_hash.clone())
+        {
+            changed_files.push(scanned);
         }
     }
     let files_upserted = db::upsert_scanned_files(&changed_files)?;
