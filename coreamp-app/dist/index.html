@@ -6285,6 +6285,63 @@
     }
     function rgbStr(c) { return `rgb(${Math.floor(c[0])},${Math.floor(c[1])},${Math.floor(c[2])})`; }
 
+    function generateGameChunk(worldX, GROUND_Y, smoothBass, smoothMid, energyAccum) {
+      const CHUNK_W = 160; // chunk width in pixels
+      const SEG_W = 5;
+      const segs = [];
+      const plats = [];
+      const coins = [];
+
+      for (let i = 0; i < CHUNK_W / SEG_W; i++) {
+        const nx = worldX + i * SEG_W;
+        const bassWave = Math.sin(nx * 0.02 + energyAccum * 2) * Math.max(smoothBass, 0.1) * 8;
+        const makePit = smoothMid > 0.2 && Math.random() < 0.06;
+        if (makePit && i > 2 && i < CHUNK_W / SEG_W - 2) {
+          const pitW = 3 + Math.floor(Math.random() * 3);
+          for (let g = 0; g < pitW && i + g < CHUNK_W / SEG_W; g++) {
+            segs.push({ x: nx + g * SEG_W, y: GROUND_Y + bassWave, gap: true, height: bassWave });
+          }
+          i += pitW - 1;
+        } else {
+          segs.push({ x: nx, y: GROUND_Y + bassWave, gap: false, height: bassWave });
+        }
+      }
+
+      // Platforms — 2-4 per chunk at different heights
+      const platCount = 2 + Math.floor(Math.random() * 3);
+      for (let p = 0; p < platCount; p++) {
+        const px = worldX + 20 + Math.random() * (CHUNK_W - 60);
+        const tier = Math.floor(Math.random() * 3); // 0=low, 1=mid, 2=high
+        const py = GROUND_Y - 22 - tier * 22 - Math.random() * 10;
+        const pw = 24 + Math.floor(Math.random() * 3) * 8;
+        plats.push({ x: px, y: py, w: pw });
+        // Coins on platforms
+        if (Math.random() < 0.6) {
+          const cc = 2 + Math.floor(Math.random() * 3);
+          for (let ci = 0; ci < cc; ci++) {
+            coins.push({
+              x: px + ci * 8 + 4, y: py - 8,
+              collected: false, animTimer: Math.random() * Math.PI * 2,
+            });
+          }
+        }
+      }
+
+      // Floating coin arcs
+      if (Math.random() < 0.5) {
+        const arcX = worldX + 30 + Math.random() * (CHUNK_W - 80);
+        const arcY = GROUND_Y - 15 - Math.random() * 40;
+        for (let ci = 0; ci < 4; ci++) {
+          coins.push({
+            x: arcX + ci * 8, y: arcY - Math.sin(ci * 0.8) * 10,
+            collected: false, animTimer: Math.random() * Math.PI * 2,
+          });
+        }
+      }
+
+      return { segs, plats, coins, left: worldX, right: worldX + CHUNK_W };
+    }
+
     function initGameVisualizer() {
       if (reactiveState) return;
       try {
@@ -6300,30 +6357,37 @@
         const ctx = canvas.getContext("2d");
         ctx.imageSmoothingEnabled = false;
 
-        // Stars
+        // Stars — fixed screen-space, parallax via camera offset
         const stars = [];
         for (let i = 0; i < 80; i++) {
           stars.push({
-            x: Math.random() * GAME_W, y: Math.random() * (GAME_H * 0.6),
+            x: Math.random() * GAME_W * 3, y: Math.random() * (GAME_H * 0.6),
             size: Math.random() < 0.3 ? 2 : 1,
-            speed: 0.1 + Math.random() * 0.3,
+            speed: 0.05 + Math.random() * 0.15,
             twinklePhase: Math.random() * Math.PI * 2,
           });
         }
 
-        // Mountains — two layers
-        const mountains1 = []; // far
-        const mountains2 = []; // near
-        for (let i = 0; i < 20; i++) {
+        // Mountains — two parallax layers (wide enough for exploration)
+        const mountains1 = [];
+        const mountains2 = [];
+        for (let i = -10; i < 30; i++) {
           mountains1.push({ x: i * 40, h: 20 + Math.random() * 25, w: 30 + Math.random() * 20 });
           mountains2.push({ x: i * 30, h: 15 + Math.random() * 20, w: 25 + Math.random() * 15 });
         }
 
-        // Terrain segments
-        const terrain = [];
         const GROUND_Y = 150;
-        for (let i = 0; i < 80; i++) {
-          terrain.push({ x: i * 5, y: GROUND_Y, gap: false, height: 0 });
+
+        // Generate initial terrain chunks
+        const terrain = [];
+        const platforms = [];
+        const coins = [];
+        const CHUNK_W = 160;
+        for (let cx = -CHUNK_W; cx < GAME_W + CHUNK_W * 2; cx += CHUNK_W) {
+          const chunk = generateGameChunk(cx, GROUND_Y, 0.1, 0.1, 0);
+          terrain.push(...chunk.segs);
+          platforms.push(...chunk.plats);
+          coins.push(...chunk.coins);
         }
 
         // Key state
@@ -6338,28 +6402,30 @@
         window.addEventListener("keydown", onKeyDown);
         window.addEventListener("keyup", onKeyUp);
 
-        const ro = new ResizeObserver(() => {
-          // Canvas internal resolution stays fixed; CSS scales it
-        });
+        const ro = new ResizeObserver(() => {});
         ro.observe(container);
 
         reactiveState = {
           canvas, ctx, ro, keys, onKeyDown, onKeyUp,
-          // Player
-          px: 50, py: GROUND_Y - 12, pvx: 0, pvy: 0, grounded: true,
+          // Player — world coordinates
+          px: 80, py: GROUND_Y - 12, pvx: 0, pvy: 0, grounded: true,
+          facingRight: true,
           ducking: false, shooting: 0, dead: false, deadTimer: 0,
           flashTimer: 0, animFrame: 0, animTimer: 0,
           runFrame: 0,
+          // Camera — smooth follow
+          camX: 0, camY: 0,
           // World
-          stars, mountains1, mountains2, terrain,
-          scrollX: 0, scrollSpeed: 1.5, GROUND_Y,
+          stars, mountains1, mountains2, terrain, platforms, coins,
+          GROUND_Y,
           enemies: [], projectiles: [], explosions: [],
-          // Coins and platforms
-          coins: [], platforms: [],
-          coinSpawnTimer: 0, platformSpawnTimer: 0,
           totalCoins: 0,
+          // Chunk tracking — how far terrain has been generated
+          terrainGenLeft: -CHUNK_W,
+          terrainGenRight: GAME_W + CHUNK_W * 2,
+          CHUNK_W,
           // Scoring
-          score: 0, distance: 0, gameOver: false, gameOverTimer: 0,
+          score: 0, distance: 0, maxX: 80, gameOver: false, gameOverTimer: 0,
           gamePaused: false,
           // Music state
           smoothBass: 0, smoothMid: 0, smoothTreble: 0,
@@ -6368,16 +6434,8 @@
           screenShake: 0, energyAccum: 0,
           shootCooldown: 0,
           spawnTimer: 0,
-          // Shooting stars
-          shootingStars: [],
-          // Ground cracks
-          cracks: [],
-          // Dust particles
-          dust: [],
-          // CRT effect intensity
-          crtIntensity: 0,
-          // Pulse ring on big beats
-          pulseRings: [],
+          shootingStars: [], cracks: [], dust: [],
+          crtIntensity: 0, pulseRings: [],
           lastTime: 0,
           mode: "game",
         };
@@ -6412,7 +6470,6 @@
       const songPaused = player && (player.paused || player.ended);
       s.gamePaused = songPaused && !s.gameOver;
       if (s.gamePaused) {
-        // Still render but show pause overlay
         ctx.fillStyle = "rgba(0,0,0,0.5)";
         ctx.fillRect(0, 0, GAME_W, GAME_H);
         drawText(ctx, "PAUSED", GAME_W / 2 - 18, GAME_H / 2 - 8, "#58a8d8", 2);
@@ -6427,8 +6484,9 @@
       s.smoothTreble += (treble - s.smoothTreble) * 0.25;
       const bassHit = s.smoothBass - s.prevBass;
       s.energyAccum += (bass + mid + treble) / 3 * dt;
+      const trebleHit = Math.max(0, treble - s.smoothTreble);
 
-      // ── Palette cycling — world mood shifts with accumulated energy ──
+      // ── Palette cycling ──
       s.palettePhase += dt * 0.02 + s.smoothBass * dt * 0.1;
       const palLen = WORLD_PALETTES.length;
       const palFloat = (s.palettePhase * 0.5) % palLen;
@@ -6439,125 +6497,164 @@
       const sky2 = lerpColor(palA.sky2, palB.sky2, palT);
       const mountColor = lerpColor(palA.mount, palB.mount, palT);
       const groundColor = lerpColor(palA.ground, palB.ground, palT);
-
-      // Brighten everything with energy
       const energyBright = s.smoothBass * 30 + s.smoothMid * 15;
       sky1[0] += energyBright; sky1[1] += energyBright * 0.5; sky1[2] += energyBright;
       sky2[0] += energyBright * 0.5; sky2[1] += energyBright * 0.3; sky2[2] += energyBright * 0.7;
 
-      // ── Screen shake on bass hits ──
-      if (bassHit > 0.04) {
-        s.screenShake = Math.min(4, s.screenShake + bassHit * 40);
-      }
+      // ── Screen shake ──
+      if (bassHit > 0.04) s.screenShake = Math.min(4, s.screenShake + bassHit * 40);
       s.screenShake = Math.max(0, s.screenShake - dt * 20);
 
-      // ── Shooting stars on treble spikes ──
-      const trebleHit = Math.max(0, treble - s.smoothTreble);
+      // ── Shooting stars ──
       if (trebleHit > 0.05 && s.smoothTreble > 0.3 && s.shootingStars.length < 5) {
         s.shootingStars.push({
-          x: GAME_W + 10, y: Math.random() * 60,
+          x: s.camX + GAME_W + 10, y: Math.random() * 60,
           vx: -(8 + Math.random() * 6), vy: 1 + Math.random() * 2,
           life: 1, trail: [],
         });
       }
 
-      // ── Ground cracks on heavy bass drops ──
+      // ── Ground cracks ──
       if (bassHit > 0.08) {
-        s.cracks.push({
-          x: s.scrollX + 100 + Math.random() * GAME_W,
-          life: 1.5, width: 10 + Math.random() * 20,
-        });
+        s.cracks.push({ x: s.px + (Math.random()-0.5) * GAME_W, life: 1.5, width: 10 + Math.random() * 20 });
       }
 
-      // ── Dust kicks on beats ──
-      if (bassHit > 0.03 && s.dust.length < 30) {
-        const dx = s.px + Math.random() * 10 - 5;
+      // ── Dust kicks ──
+      if (bassHit > 0.03 && s.grounded && s.dust.length < 30) {
         for (let i = 0; i < 3; i++) {
           s.dust.push({
-            x: dx + Math.random() * 6, y: s.GROUND_Y - 1,
+            x: s.px + Math.random() * 10 - 5, y: s.py + (s.ducking ? 8 : 12) - 1,
             vx: (Math.random() - 0.5) * 2, vy: -(1 + Math.random() * 2),
             life: 0.5 + Math.random() * 0.3,
           });
         }
       }
 
-      // ── Pulse rings on big bass ──
+      // ── Pulse rings ──
       if (bassHit > 0.06) {
         s.pulseRings.push({ x: s.px + 6, y: s.py + 6, r: 5, maxR: 30 + bassHit * 100, life: 1 });
       }
 
-      // ── CRT scanline intensity follows energy ──
+      // ── CRT ──
       s.crtIntensity += ((s.smoothBass + s.smoothTreble) * 0.5 - s.crtIntensity) * 0.1;
 
-      // ── Scroll speed — bass drives how fast you fly ──
-      s.scrollSpeed = 1.5 + s.smoothBass * 3.0 + s.smoothMid * 1.0;
+      // ── Player move speed — music-influenced ──
+      const moveAccel = 200 + s.smoothBass * 100;
+      const maxSpeed = 120 + s.smoothBass * 60;
+      const friction = 600;
 
       if (!s.gameOver && !s.dead) {
-        s.scrollX += s.scrollSpeed;
-        s.distance += s.scrollSpeed * 0.1;
-        s.score = Math.floor(s.distance);
+        // ── Horizontal movement — left/right arrows ──
+        if (s.keys["ArrowRight"]) {
+          s.pvx += moveAccel * dt;
+          s.facingRight = true;
+        } else if (s.keys["ArrowLeft"]) {
+          s.pvx -= moveAccel * dt;
+          s.facingRight = false;
+        } else {
+          // Friction
+          if (s.pvx > 0) s.pvx = Math.max(0, s.pvx - friction * dt);
+          else if (s.pvx < 0) s.pvx = Math.min(0, s.pvx + friction * dt);
+        }
+        s.pvx = Math.max(-maxSpeed, Math.min(maxSpeed, s.pvx));
+        s.px += s.pvx * dt;
 
-        // ── Player physics ──
+        // Score = furthest distance reached + coins + kills
+        if (s.px > s.maxX) {
+          s.score += Math.floor(s.px - s.maxX);
+          s.maxX = s.px;
+        }
+
+        // ── Jump ──
         const playerH = s.ducking ? 8 : 12;
         if (s.keys["ArrowUp"] && s.grounded) {
           s.pvy = -5.5;
           s.grounded = false;
-          // Jump dust
           for (let i = 0; i < 4; i++) {
             s.dust.push({
-              x: s.px + Math.random() * 8, y: s.GROUND_Y - 1,
+              x: s.px + Math.random() * 8, y: s.py + playerH - 1,
               vx: (Math.random() - 0.5) * 3, vy: -(0.5 + Math.random()),
               life: 0.4,
             });
           }
         }
         s.ducking = !!s.keys["ArrowDown"] && s.grounded;
+
+        // ── Gravity ──
         if (!s.grounded) {
-          s.pvy += 15 * dt; // gravity
+          s.pvy += 15 * dt;
           s.py += s.pvy;
-          if (s.py >= s.GROUND_Y - playerH) {
-            s.py = s.GROUND_Y - playerH;
-            s.pvy = 0;
-            s.grounded = true;
-          }
-        } else {
-          s.py = s.GROUND_Y - playerH;
         }
 
-        // Check if over a gap (pit)
-        const playerWorldX = s.scrollX + s.px;
-        let overGap = false;
+        // ── Ground collision — check terrain beneath player ──
+        let onSolidGround = false;
         for (const seg of s.terrain) {
-          if (seg.gap && playerWorldX > seg.x - 2 && playerWorldX < seg.x + 5) {
-            overGap = true;
-            break;
+          if (seg.gap) continue;
+          if (s.px + 10 > seg.x && s.px < seg.x + 5) {
+            if (s.pvy >= 0 && s.py + playerH >= seg.y && s.py + playerH <= seg.y + 8) {
+              s.py = seg.y - playerH;
+              s.pvy = 0;
+              s.grounded = true;
+              onSolidGround = true;
+              break;
+            }
           }
         }
-        // Check if on a platform (platforms override gaps)
+
+        // ── Platform collision — land on top ──
         let onPlatform = false;
-        const ph = s.ducking ? 8 : 12;
-        for (const pl of s.platforms) {
-          if (s.px + 10 > pl.x && s.px < pl.x + pl.w &&
-              s.py + ph >= pl.y - 2 && s.py + ph <= pl.y + 4) {
-            onPlatform = true;
-            break;
+        if (s.pvy >= 0) {
+          for (const pl of s.platforms) {
+            if (s.px + 10 > pl.x && s.px < pl.x + pl.w &&
+                s.py + playerH >= pl.y && s.py + playerH <= pl.y + 6) {
+              s.py = pl.y - playerH;
+              s.pvy = 0;
+              s.grounded = true;
+              onPlatform = true;
+              break;
+            }
           }
         }
-        if (overGap && s.grounded && !onPlatform) {
-          s.grounded = false;
-          s.pvy = 0.5;
+
+        // ── Check if walked off edge (gap or platform edge) ──
+        if (s.grounded && !onSolidGround && !onPlatform) {
+          // Check if still over any solid ground
+          let stillSupported = false;
+          for (const seg of s.terrain) {
+            if (!seg.gap && s.px + 10 > seg.x && s.px < seg.x + 5 &&
+                Math.abs(s.py + playerH - seg.y) < 4) {
+              stillSupported = true;
+              break;
+            }
+          }
+          if (!stillSupported) {
+            for (const pl of s.platforms) {
+              if (s.px + 10 > pl.x && s.px < pl.x + pl.w &&
+                  Math.abs(s.py + playerH - pl.y) < 4) {
+                stillSupported = true;
+                break;
+              }
+            }
+          }
+          if (!stillSupported) {
+            s.grounded = false;
+            s.pvy = 0.5;
+          }
         }
-        if (s.py > GAME_H + 20) {
+
+        // ── Fall death ──
+        if (s.py > s.GROUND_Y + 60) {
           s.dead = true;
           s.deadTimer = 0;
         }
 
-        // ── Shooting ──
+        // ── Shooting — direction matches facing ──
         s.shootCooldown = Math.max(0, s.shootCooldown - dt);
         if (s.keys[" "] && s.shootCooldown <= 0) {
+          const dir = s.facingRight ? 1 : -1;
           s.projectiles.push({
-            x: s.px + 10, y: s.py + (s.ducking ? 3 : 5),
-            vx: 6,
+            x: s.px + (s.facingRight ? 10 : -3), y: s.py + (s.ducking ? 3 : 5),
+            vx: 6 * dir,
           });
           s.shootCooldown = 0.15;
           s.shooting = 0.12;
@@ -6566,98 +6663,90 @@
 
         // ── Animation ──
         s.animTimer += dt;
-        if (s.animTimer > 0.12 / (0.5 + s.scrollSpeed * 0.3)) {
+        const speed = Math.abs(s.pvx);
+        if (speed > 10 && s.animTimer > 0.12 / (0.5 + speed * 0.01)) {
           s.animTimer = 0;
           s.runFrame = 1 - s.runFrame;
         }
 
-        // ── Spawn enemies — treble drives density ──
+        // ── Generate terrain chunks as player explores ──
+        while (s.px + GAME_W > s.terrainGenRight) {
+          const chunk = generateGameChunk(s.terrainGenRight, s.GROUND_Y, s.smoothBass, s.smoothMid, s.energyAccum);
+          s.terrain.push(...chunk.segs);
+          s.platforms.push(...chunk.plats);
+          s.coins.push(...chunk.coins);
+          s.terrainGenRight += s.CHUNK_W;
+        }
+        while (s.px - GAME_W < s.terrainGenLeft) {
+          s.terrainGenLeft -= s.CHUNK_W;
+          const chunk = generateGameChunk(s.terrainGenLeft, s.GROUND_Y, s.smoothBass, s.smoothMid, s.energyAccum);
+          s.terrain.push(...chunk.segs);
+          s.platforms.push(...chunk.plats);
+          s.coins.push(...chunk.coins);
+        }
+        // Cull far-away objects
+        const cullL = s.camX - GAME_W;
+        const cullR = s.camX + GAME_W * 2;
+        s.terrain = s.terrain.filter(t => t.x > cullL - 20 && t.x < cullR + 20);
+        s.platforms = s.platforms.filter(p => p.x + p.w > cullL - 20 && p.x < cullR + 20);
+        s.coins = s.coins.filter(c => c.x > cullL - 20 && c.x < cullR + 20);
+
+        // ── Spawn enemies — near visible edges ──
         s.spawnTimer -= dt;
-        const spawnRate = 2.0 - s.smoothTreble * 1.2 - s.smoothBass * 0.3;
+        const spawnRate = 2.5 - s.smoothTreble * 1.2 - s.smoothBass * 0.3;
         if (s.spawnTimer <= 0) {
-          s.spawnTimer = Math.max(0.4, spawnRate) + Math.random() * 0.5;
-          const ey = s.GROUND_Y - 9;
+          s.spawnTimer = Math.max(0.5, spawnRate) + Math.random() * 0.5;
+          // Spawn from left or right edge
+          const fromRight = Math.random() < 0.6;
+          const ex = fromRight ? s.camX + GAME_W + 10 : s.camX - 10;
+          const evx = fromRight ? -(0.5 + s.smoothBass * 1.0 + Math.random() * 0.5) : (0.5 + s.smoothBass * 1.0 + Math.random() * 0.5);
+          // Some enemies on platforms, some on ground
+          let ey = s.GROUND_Y - 9;
+          if (s.platforms.length > 0 && Math.random() < 0.3) {
+            const nearPlat = s.platforms.find(p => Math.abs(p.x - ex) < 80);
+            if (nearPlat) ey = nearPlat.y - 9;
+          }
           s.enemies.push({
-            x: GAME_W + 5, y: ey, vx: -(0.8 + s.smoothBass * 1.5 + Math.random()),
-            hp: 1, animFrame: 0, animTimer: 0,
-            spawnFlash: 0.2, // teleport-in effect
+            x: ex, y: ey, vx: evx,
+            patrolLeft: ex - 40, patrolRight: ex + 40,
+            hp: 1, animFrame: 0, animTimer: 0, spawnFlash: 0.2,
           });
         }
 
-        // ── Spawn platforms — mid energy drives frequency ──
-        s.platformSpawnTimer -= dt;
-        if (s.platformSpawnTimer <= 0 && s.smoothMid > 0.25) {
-          s.platformSpawnTimer = 3.0 - s.smoothMid * 1.5 + Math.random() * 2;
-          const platY = s.GROUND_Y - 25 - Math.random() * 25;
-          const platW = 24 + Math.floor(Math.random() * 3) * 8;
-          s.platforms.push({ x: GAME_W + 5, y: platY, w: platW });
-        }
-
-        // ── Spawn coins — appear in arcs or on platforms ──
-        s.coinSpawnTimer -= dt;
-        if (s.coinSpawnTimer <= 0) {
-          s.coinSpawnTimer = 1.2 - s.smoothTreble * 0.4 + Math.random() * 0.8;
-          // Sometimes place on a platform, sometimes in the air
-          const onPlatform = s.platforms.length > 0 && Math.random() < 0.4;
-          if (onPlatform) {
-            const plat = s.platforms[s.platforms.length - 1];
-            for (let ci = 0; ci < 3; ci++) {
-              s.coins.push({
-                x: plat.x + ci * 8 + 4, y: plat.y - 8,
-                collected: false, animTimer: Math.random() * Math.PI * 2,
-              });
-            }
-          } else {
-            const coinY = s.GROUND_Y - 15 - Math.random() * 30;
-            const coinCount = 2 + Math.floor(Math.random() * 3);
-            for (let ci = 0; ci < coinCount; ci++) {
-              s.coins.push({
-                x: GAME_W + 10 + ci * 8, y: coinY,
-                collected: false, animTimer: Math.random() * Math.PI * 2,
-              });
-            }
-          }
-        }
-
-        // ── Terrain generation — pits are 3-5 segments wide ──
-        if (!s.pitCooldown) s.pitCooldown = 0;
-        s.pitCooldown = Math.max(0, s.pitCooldown - dt);
-        while (s.terrain[s.terrain.length - 1].x - s.scrollX < GAME_W + 40) {
-          const last = s.terrain[s.terrain.length - 1];
-          const nx = last.x + 5;
-          const bassWave = Math.sin(nx * 0.02 + s.energyAccum * 2) * s.smoothBass * 8;
-          // Pit: create a run of 3-5 gap segments
-          if (!last.gap && s.pitCooldown <= 0 && s.smoothMid > 0.3 && Math.random() < s.smoothMid * 0.04) {
-            const pitWidth = 3 + Math.floor(Math.random() * 3); // 3-5 segments
-            for (let g = 0; g < pitWidth; g++) {
-              s.terrain.push({ x: nx + g * 5, y: s.GROUND_Y + bassWave, gap: true, height: bassWave });
-            }
-            s.pitCooldown = 2.0; // Don't spawn pits too close together
-          } else {
-            s.terrain.push({ x: nx, y: s.GROUND_Y + bassWave, gap: false, height: bassWave });
-          }
-        }
-        // Cull old terrain
-        while (s.terrain.length > 0 && s.terrain[0].x < s.scrollX - 20) {
-          s.terrain.shift();
-        }
-
-        // ── Update enemies ──
+        // ── Update enemies — patrol back and forth ──
         for (let i = s.enemies.length - 1; i >= 0; i--) {
           const e = s.enemies[i];
           e.x += e.vx;
           e.spawnFlash = Math.max(0, e.spawnFlash - dt);
           e.animTimer += dt;
           if (e.animTimer > 0.25) { e.animTimer = 0; e.animFrame = 1 - e.animFrame; }
-          // Off screen
-          if (e.x < -12) { s.enemies.splice(i, 1); continue; }
+          // Patrol: reverse direction at limits
+          if (e.x < e.patrolLeft) { e.vx = Math.abs(e.vx); }
+          if (e.x > e.patrolRight) { e.vx = -Math.abs(e.vx); }
+          // Cull far enemies
+          if (e.x < cullL - 60 || e.x > cullR + 60) { s.enemies.splice(i, 1); continue; }
           // Collision with player
           if (!s.dead && e.spawnFlash <= 0) {
             const ph = s.ducking ? 8 : 12;
             if (e.x < s.px + 10 && e.x + 8 > s.px && e.y < s.py + ph && e.y + 8 > s.py) {
-              s.dead = true;
-              s.deadTimer = 0;
-              s.explosions.push({ x: s.px, y: s.py, frame: 0, timer: 0 });
+              // Stomp from above — kill enemy
+              if (s.pvy > 0 && s.py + ph - e.y < 6) {
+                s.explosions.push({ x: e.x, y: e.y, frame: 0, timer: 0 });
+                s.enemies.splice(i, 1);
+                s.pvy = -3.5; // bounce
+                s.score += 50;
+                for (let d = 0; d < 5; d++) {
+                  s.dust.push({
+                    x: e.x + 4 + (Math.random()-0.5)*6, y: e.y + 4 + (Math.random()-0.5)*6,
+                    vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4,
+                    life: 0.3 + Math.random()*0.2,
+                  });
+                }
+              } else {
+                s.dead = true;
+                s.deadTimer = 0;
+                s.explosions.push({ x: s.px, y: s.py, frame: 0, timer: 0 });
+              }
             }
           }
         }
@@ -6666,8 +6755,7 @@
         for (let i = s.projectiles.length - 1; i >= 0; i--) {
           const p = s.projectiles[i];
           p.x += p.vx;
-          if (p.x > GAME_W + 10) { s.projectiles.splice(i, 1); continue; }
-          // Hit enemies
+          if (p.x < cullL - 20 || p.x > cullR + 20) { s.projectiles.splice(i, 1); continue; }
           for (let j = s.enemies.length - 1; j >= 0; j--) {
             const e = s.enemies[j];
             if (p.x > e.x && p.x < e.x + 8 && p.y > e.y && p.y < e.y + 8) {
@@ -6675,7 +6763,6 @@
               s.enemies.splice(j, 1);
               s.projectiles.splice(i, 1);
               s.score += 50;
-              // Kill dust
               for (let d = 0; d < 5; d++) {
                 s.dust.push({
                   x: e.x + 4 + (Math.random()-0.5)*6, y: e.y + 4 + (Math.random()-0.5)*6,
@@ -6688,35 +6775,16 @@
           }
         }
 
-        // ── Update platforms ──
-        for (let i = s.platforms.length - 1; i >= 0; i--) {
-          s.platforms[i].x -= s.scrollSpeed;
-          if (s.platforms[i].x + s.platforms[i].w < -10) { s.platforms.splice(i, 1); continue; }
-          // Player collision — land on top
-          const pl = s.platforms[i];
-          const ph = s.ducking ? 8 : 12;
-          if (!s.dead && s.pvy >= 0 && s.px + 10 > pl.x && s.px < pl.x + pl.w &&
-              s.py + ph >= pl.y && s.py + ph <= pl.y + 6) {
-            s.py = pl.y - ph;
-            s.pvy = 0;
-            s.grounded = true;
-          }
-        }
-
-        // ── Update coins ──
+        // ── Coin collection ──
         for (let i = s.coins.length - 1; i >= 0; i--) {
           const c = s.coins[i];
-          c.x -= s.scrollSpeed;
           c.animTimer += dt * 4;
-          if (c.x < -10) { s.coins.splice(i, 1); continue; }
           if (c.collected) continue;
-          // Player collision
           const ph = s.ducking ? 8 : 12;
           if (s.px + 10 > c.x && s.px < c.x + 5 && s.py + ph > c.y && s.py < c.y + 5) {
             c.collected = true;
             s.score += 25;
             s.totalCoins++;
-            // Sparkle effect
             for (let d = 0; d < 4; d++) {
               s.dust.push({
                 x: c.x + 2 + (Math.random()-0.5)*4, y: c.y + 2 + (Math.random()-0.5)*4,
@@ -6724,37 +6792,42 @@
                 life: 0.3 + Math.random()*0.2,
               });
             }
-            // Remove after a short delay so sparkle shows
             s.coins.splice(i, 1);
           }
         }
       }
 
+      // ── Camera — smooth follow player ──
+      const targetCamX = s.px - GAME_W / 2 + 5;
+      const targetCamY = Math.min(0, s.py - GAME_H / 2 + 40);
+      s.camX += (targetCamX - s.camX) * 0.1;
+      s.camY += (targetCamY - s.camY) * 0.08;
+
       // ── Dead / game over ──
       if (s.dead) {
         s.deadTimer += dt;
-        if (s.deadTimer > 1.5) {
-          s.gameOver = true;
-        }
+        if (s.deadTimer > 1.5) s.gameOver = true;
       }
       if (s.gameOver) {
         s.gameOverTimer += dt;
-        // Restart on any key
         if (s.gameOverTimer > 0.5 && (s.keys["ArrowUp"] || s.keys[" "])) {
-          // Reset
-          s.px = 50; s.py = s.GROUND_Y - 12; s.pvx = 0; s.pvy = 0;
-          s.grounded = true; s.ducking = false; s.dead = false;
+          s.px = 80; s.py = s.GROUND_Y - 12; s.pvx = 0; s.pvy = 0;
+          s.grounded = true; s.ducking = false; s.dead = false; s.facingRight = true;
           s.deadTimer = 0; s.gameOver = false; s.gameOverTimer = 0;
-          s.score = 0; s.distance = 0; s.scrollX = 0;
+          s.score = 0; s.maxX = 80; s.totalCoins = 0;
+          s.camX = 0; s.camY = 0;
           s.enemies = []; s.projectiles = []; s.explosions = [];
-          s.coins = []; s.platforms = []; s.totalCoins = 0;
-          s.coinSpawnTimer = 1; s.platformSpawnTimer = 2;
           s.shootingStars = []; s.cracks = []; s.dust = []; s.pulseRings = [];
           s.spawnTimer = 2; s.shooting = 0; s.flashTimer = 0;
-          // Regenerate terrain
-          s.terrain = [];
-          for (let i = 0; i < 80; i++) {
-            s.terrain.push({ x: i * 5, y: s.GROUND_Y, gap: false, height: 0 });
+          // Regenerate world
+          s.terrain = []; s.platforms = []; s.coins = [];
+          s.terrainGenLeft = -s.CHUNK_W;
+          s.terrainGenRight = GAME_W + s.CHUNK_W * 2;
+          for (let cx = s.terrainGenLeft; cx < s.terrainGenRight; cx += s.CHUNK_W) {
+            const chunk = generateGameChunk(cx, s.GROUND_Y, 0.1, 0.1, 0);
+            s.terrain.push(...chunk.segs);
+            s.platforms.push(...chunk.plats);
+            s.coins.push(...chunk.coins);
           }
           s.keys["ArrowUp"] = false;
           s.keys[" "] = false;
@@ -6772,10 +6845,8 @@
         const ss = s.shootingStars[i];
         ss.trail.push({ x: ss.x, y: ss.y });
         if (ss.trail.length > 8) ss.trail.shift();
-        ss.x += ss.vx;
-        ss.y += ss.vy;
-        ss.life -= dt * 1.5;
-        if (ss.life <= 0 || ss.x < -20) s.shootingStars.splice(i, 1);
+        ss.x += ss.vx; ss.y += ss.vy; ss.life -= dt * 1.5;
+        if (ss.life <= 0 || ss.x < s.camX - 20) s.shootingStars.splice(i, 1);
       }
       for (let i = s.cracks.length - 1; i >= 0; i--) {
         s.cracks[i].life -= dt;
@@ -6783,40 +6854,39 @@
       }
       for (let i = s.dust.length - 1; i >= 0; i--) {
         const d = s.dust[i];
-        d.x += d.vx * dt * 60;
-        d.y += d.vy * dt * 60;
-        d.vy += 5 * dt;
-        d.life -= dt;
+        d.x += d.vx * dt * 60; d.y += d.vy * dt * 60;
+        d.vy += 5 * dt; d.life -= dt;
         if (d.life <= 0) s.dust.splice(i, 1);
       }
       for (let i = s.pulseRings.length - 1; i >= 0; i--) {
         const pr = s.pulseRings[i];
-        pr.r += (pr.maxR - pr.r) * 0.08;
-        pr.life -= dt * 2;
+        pr.r += (pr.maxR - pr.r) * 0.08; pr.life -= dt * 2;
         if (pr.life <= 0) s.pulseRings.splice(i, 1);
       }
 
-      // ── RENDER ──
+      // ── RENDER — world-to-screen = worldPos - camX ──
+      const cx = s.camX;
+      const cy = s.camY;
       const shakeX = s.screenShake ? (Math.random() - 0.5) * s.screenShake : 0;
       const shakeY = s.screenShake ? (Math.random() - 0.5) * s.screenShake : 0;
       ctx.save();
       ctx.translate(shakeX, shakeY);
 
-      // Sky gradient — palette driven by music
+      // Sky
       const skyGrad = ctx.createLinearGradient(0, 0, 0, GAME_H * 0.7);
       skyGrad.addColorStop(0, rgbStr(sky1));
       skyGrad.addColorStop(1, rgbStr(sky2));
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, GAME_W, GAME_H);
 
-      // ── Stars ──
+      // ── Stars — parallax ──
       for (const star of s.stars) {
-        star.x -= star.speed * s.scrollSpeed * 0.3;
-        if (star.x < -2) { star.x = GAME_W + 2; star.y = Math.random() * GAME_H * 0.6; }
+        const sx = ((star.x - cx * star.speed * 0.3) % (GAME_W * 3) + GAME_W * 3) % (GAME_W * 3);
+        if (sx > GAME_W) continue;
         const twinkle = 0.4 + Math.sin(time * 0.003 + star.twinklePhase) * 0.4 + s.smoothTreble * 0.3;
         const bright = Math.floor(150 + twinkle * 105);
         ctx.fillStyle = `rgb(${bright},${bright},${Math.min(255, bright + 30)})`;
-        ctx.fillRect(Math.floor(star.x), Math.floor(star.y), star.size, star.size);
+        ctx.fillRect(Math.floor(sx), Math.floor(star.y), star.size, star.size);
       }
 
       // ── Shooting stars ──
@@ -6824,94 +6894,71 @@
         for (let i = 0; i < ss.trail.length; i++) {
           const a = (i / ss.trail.length) * ss.life;
           ctx.fillStyle = `rgba(200,220,255,${a})`;
-          ctx.fillRect(Math.floor(ss.trail[i].x), Math.floor(ss.trail[i].y), 1, 1);
+          ctx.fillRect(Math.floor(ss.trail[i].x - cx), Math.floor(ss.trail[i].y), 1, 1);
         }
         ctx.fillStyle = `rgba(255,255,255,${ss.life})`;
-        ctx.fillRect(Math.floor(ss.x), Math.floor(ss.y), 2, 2);
+        ctx.fillRect(Math.floor(ss.x - cx), Math.floor(ss.y), 2, 2);
       }
 
-      // ── Mountains far — breathe with bass ──
+      // ── Mountains far ──
       const mountBreath = 1 + s.smoothBass * 0.15;
       ctx.fillStyle = rgbStr(mountColor);
       for (const m of s.mountains1) {
-        const mx = ((m.x - s.scrollX * 0.15) % (20 * 40) + 20 * 40) % (20 * 40) - 40;
+        const mx = ((m.x - cx * 0.08) % (40 * 40) + 40 * 40) % (40 * 40) - 40;
+        if (mx > GAME_W + 40 || mx + m.w < -40) continue;
         const mh = m.h * mountBreath;
-        const my = GAME_H * 0.65 - mh;
         ctx.beginPath();
         ctx.moveTo(mx, GAME_H * 0.75);
-        ctx.lineTo(mx + m.w * 0.5, my);
+        ctx.lineTo(mx + m.w * 0.5, GAME_H * 0.65 - mh);
         ctx.lineTo(mx + m.w, GAME_H * 0.75);
         ctx.fill();
       }
-
       // Mountains near
       const nearMountColor = lerpColor(mountColor, groundColor, 0.4);
       ctx.fillStyle = rgbStr(nearMountColor);
       for (const m of s.mountains2) {
-        const mx = ((m.x - s.scrollX * 0.3) % (20 * 30) + 20 * 30) % (20 * 30) - 30;
+        const mx = ((m.x - cx * 0.15) % (30 * 30) + 30 * 30) % (30 * 30) - 30;
+        if (mx > GAME_W + 30 || mx + m.w < -30) continue;
         const mh = m.h * mountBreath * 0.9;
-        const my = GAME_H * 0.72 - mh;
         ctx.beginPath();
         ctx.moveTo(mx, GAME_H * 0.82);
-        ctx.lineTo(mx + m.w * 0.4, my);
-        ctx.lineTo(mx + m.w * 0.6, my + 3);
+        ctx.lineTo(mx + m.w * 0.4, GAME_H * 0.72 - mh);
+        ctx.lineTo(mx + m.w * 0.6, GAME_H * 0.72 - mh + 3);
         ctx.lineTo(mx + m.w, GAME_H * 0.82);
         ctx.fill();
       }
 
-      // ── Ground cracks — lava glowing beneath ──
+      // ── Ground cracks ──
       for (const crack of s.cracks) {
-        const cx = crack.x - s.scrollX;
-        if (cx < -30 || cx > GAME_W + 30) continue;
+        const crx = crack.x - cx;
+        if (crx < -30 || crx > GAME_W + 30) continue;
         const a = Math.min(1, crack.life);
         const glowR = 200 + Math.sin(time * 0.01) * 55;
         ctx.fillStyle = `rgba(${Math.floor(glowR)},60,20,${a * 0.6})`;
-        ctx.fillRect(Math.floor(cx), s.GROUND_Y - 2, crack.width, 6);
-        // Bright crack line
+        ctx.fillRect(Math.floor(crx), s.GROUND_Y - 2, crack.width, 6);
         ctx.fillStyle = `rgba(255,180,50,${a * 0.9})`;
         for (let i = 0; i < crack.width; i += 2 + Math.floor(Math.random()*3)) {
-          ctx.fillRect(Math.floor(cx + i), s.GROUND_Y - 1 + Math.floor(Math.random()*3), 1, 1);
+          ctx.fillRect(Math.floor(crx + i), s.GROUND_Y - 1 + Math.floor(Math.random()*3), 1, 1);
         }
       }
 
       // ── Terrain ──
       for (const seg of s.terrain) {
-        const sx = seg.x - s.scrollX;
+        const sx = seg.x - cx;
         if (sx < -10 || sx > GAME_W + 10) continue;
         if (seg.gap) continue;
         const brightShift = s.smoothBass * 20;
         const gc = [groundColor[0]+brightShift, groundColor[1]+brightShift*0.5, groundColor[2]+brightShift*0.3];
         ctx.fillStyle = rgbStr(gc);
         ctx.fillRect(Math.floor(sx), Math.floor(seg.y), 6, GAME_H - Math.floor(seg.y));
-        // Surface detail
         ctx.fillStyle = rgbStr([gc[0]+15, gc[1]+15, gc[2]+10]);
         ctx.fillRect(Math.floor(sx), Math.floor(seg.y), 6, 1);
       }
 
-      // ── Platforms ──
-      for (const pl of s.platforms) {
-        // Draw platform tiles
-        for (let tx = 0; tx < pl.w; tx += 8) {
-          renderSprite(ctx, PLATFORM_TILE, pl.x + tx, pl.y, SPRITE_PALETTE, false);
-        }
-      }
-
-      // ── Coins ──
-      for (const c of s.coins) {
-        if (c.collected) continue;
-        const coinFrame = Math.floor(c.animTimer) % 2;
-        const sprite = COIN_FRAMES[coinFrame];
-        renderSprite(ctx, sprite, c.x, c.y, SPRITE_PALETTE, false);
-        // Sparkle glow
-        const glow = 0.2 + Math.sin(c.animTimer * 2) * 0.15;
-        ctx.fillStyle = `rgba(248,216,48,${glow})`;
-        ctx.fillRect(Math.floor(c.x - 1), Math.floor(c.y - 1), 7, 7);
-      }
-
-      // ── Pits — lava glow in gaps ──
+      // ── Pits — lava glow ──
       for (const seg of s.terrain) {
         if (!seg.gap) continue;
-        const sx = seg.x - s.scrollX;
+        const sx = seg.x - cx;
         if (sx < -10 || sx > GAME_W + 10) continue;
         const glowR = 180 + Math.sin(time * 0.005 + sx * 0.1) * 60;
         ctx.fillStyle = `rgba(${Math.floor(glowR)},40,10,0.7)`;
@@ -6920,111 +6967,160 @@
         ctx.fillRect(Math.floor(sx), Math.floor(seg.y) + 1, 6, 2);
       }
 
+      // ── Platforms ──
+      for (const pl of s.platforms) {
+        const plx = pl.x - cx;
+        if (plx + pl.w < -10 || plx > GAME_W + 10) continue;
+        for (let tx = 0; tx < pl.w; tx += 8) {
+          renderSprite(ctx, PLATFORM_TILE, plx + tx, pl.y, SPRITE_PALETTE, false);
+        }
+      }
+
+      // ── Coins ──
+      for (const c of s.coins) {
+        if (c.collected) continue;
+        const coinX = c.x - cx;
+        if (coinX < -10 || coinX > GAME_W + 10) continue;
+        const coinFrame = Math.floor(c.animTimer) % 2;
+        renderSprite(ctx, COIN_FRAMES[coinFrame], coinX, c.y, SPRITE_PALETTE, false);
+        const glow = 0.2 + Math.sin(c.animTimer * 2) * 0.15;
+        ctx.fillStyle = `rgba(248,216,48,${glow})`;
+        ctx.fillRect(Math.floor(coinX - 1), Math.floor(c.y - 1), 7, 7);
+      }
+
       // ── Pulse rings ──
       for (const pr of s.pulseRings) {
         ctx.strokeStyle = `rgba(100,180,255,${pr.life * 0.3})`;
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(Math.floor(pr.x), Math.floor(pr.y), Math.floor(pr.r), 0, Math.PI * 2);
+        ctx.arc(Math.floor(pr.x - cx), Math.floor(pr.y), Math.floor(pr.r), 0, Math.PI * 2);
         ctx.stroke();
       }
 
       // ── Enemies ──
       for (const e of s.enemies) {
+        const ex = e.x - cx;
+        if (ex < -12 || ex > GAME_W + 12) continue;
         if (e.spawnFlash > 0) {
-          // Teleport-in: vertical scan lines
           ctx.fillStyle = `rgba(100,255,100,${e.spawnFlash * 3})`;
-          ctx.fillRect(Math.floor(e.x + 3), Math.floor(e.y - 4), 2, 16);
+          ctx.fillRect(Math.floor(ex + 3), Math.floor(e.y - 4), 2, 16);
         } else {
           const sprite = e.animFrame === 0 ? ENEMY_BLOB1 : ENEMY_BLOB2;
-          renderSprite(ctx, sprite, e.x, e.y, SPRITE_PALETTE, false);
+          renderSprite(ctx, sprite, ex, e.y, SPRITE_PALETTE, false);
         }
       }
 
       // ── Projectiles ──
       for (const p of s.projectiles) {
-        // Glow
+        const px = p.x - cx;
         ctx.fillStyle = "rgba(255,200,100,0.3)";
-        ctx.fillRect(Math.floor(p.x - 1), Math.floor(p.y - 1), 5, 3);
-        // Bolt
+        ctx.fillRect(Math.floor(px - 1), Math.floor(p.y - 1), 5, 3);
         ctx.fillStyle = "#ffe060";
-        ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 3, 1);
+        ctx.fillRect(Math.floor(px), Math.floor(p.y), 3, 1);
       }
 
-      // ── Player ──
+      // ── Player — flip sprite if facing left ──
       if (!s.dead || Math.floor(s.deadTimer * 10) % 2 === 0) {
         let sprite;
         if (s.dead) sprite = CHICKEN_JUMP;
         else if (!s.grounded) sprite = CHICKEN_JUMP;
         else if (s.ducking) sprite = CHICKEN_DUCK;
         else if (s.shooting > 0) sprite = CHICKEN_SHOOT;
-        else sprite = s.runFrame === 0 ? CHICKEN_RUN1 : CHICKEN_RUN2;
-        renderSprite(ctx, sprite, s.px, s.py, SPRITE_PALETTE, s.dead && s.deadTimer < 0.3);
+        else if (Math.abs(s.pvx) > 10) sprite = s.runFrame === 0 ? CHICKEN_RUN1 : CHICKEN_RUN2;
+        else sprite = CHICKEN_RUN1; // idle
+        const screenPX = s.px - cx;
+        if (s.facingRight) {
+          renderSprite(ctx, sprite, screenPX, s.py, SPRITE_PALETTE, s.dead && s.deadTimer < 0.3);
+        } else {
+          // Mirror horizontally
+          ctx.save();
+          ctx.translate(Math.floor(screenPX) + 5, 0);
+          ctx.scale(-1, 1);
+          renderSprite(ctx, sprite, -5, s.py, SPRITE_PALETTE, s.dead && s.deadTimer < 0.3);
+          ctx.restore();
+        }
       }
 
-      // ── Dust particles ──
+      // ── Dust ──
       for (const d of s.dust) {
         const a = Math.min(1, d.life * 2);
         ctx.fillStyle = `rgba(200,180,140,${a})`;
-        ctx.fillRect(Math.floor(d.x), Math.floor(d.y), 1, 1);
+        ctx.fillRect(Math.floor(d.x - cx), Math.floor(d.y), 1, 1);
       }
 
       // ── Explosions ──
       for (const ex of s.explosions) {
+        const exx = ex.x - cx;
         const r = 3 + ex.frame * 2;
         const colors = ["#fff", "#ffe060", "#ff8020", "#d83838", "#881818"];
-        const c = colors[Math.min(ex.frame, colors.length - 1)];
-        ctx.fillStyle = c;
-        // Pixel explosion pattern
+        ctx.fillStyle = colors[Math.min(ex.frame, colors.length - 1)];
         for (let i = 0; i < 8; i++) {
           const angle = (i / 8) * Math.PI * 2 + ex.frame * 0.3;
           const dist = r * (0.5 + Math.random() * 0.5);
           ctx.fillRect(
-            Math.floor(ex.x + 4 + Math.cos(angle) * dist),
-            Math.floor(ex.y + 4 + Math.sin(angle) * dist),
-            2, 2
+            Math.floor(exx + 4 + Math.cos(angle) * dist),
+            Math.floor(ex.y + 4 + Math.sin(angle) * dist), 2, 2
           );
         }
       }
 
-      // ── CRT scanline overlay ──
+      // ── RAVE EFFECTS ──
+      // Bass strobe flash — full screen color wash
+      if (bassHit > 0.06) {
+        const raveColors = ["rgba(255,0,100,","rgba(0,200,255,","rgba(255,200,0,","rgba(100,255,50,","rgba(200,50,255,"];
+        const raveColor = raveColors[Math.floor(Math.random() * raveColors.length)];
+        ctx.fillStyle = raveColor + (bassHit * 3).toFixed(2) + ")";
+        ctx.fillRect(0, 0, GAME_W, GAME_H);
+      }
+      // Neon glow around player
+      if (s.smoothBass > 0.2 && !s.dead) {
+        const glowColors = [`rgba(255,50,150,`, `rgba(50,200,255,`, `rgba(255,255,50,`];
+        const gc = glowColors[Math.floor(s.energyAccum * 2) % glowColors.length];
+        const intensity = s.smoothBass * 0.4;
+        const screenPX2 = s.px - cx;
+        ctx.fillStyle = gc + intensity.toFixed(2) + ")";
+        ctx.fillRect(Math.floor(screenPX2 - 3), Math.floor(s.py - 3), 16, (s.ducking ? 14 : 18));
+      }
+      // Beat bars — vertical neon lines that flash on beats across the screen
+      if (bassHit > 0.04) {
+        const barCount = Math.floor(bassHit * 30);
+        for (let i = 0; i < barCount; i++) {
+          const bx = Math.floor(Math.random() * GAME_W);
+          const bh = 10 + Math.random() * 30;
+          const hue = Math.floor(Math.random() * 360);
+          ctx.fillStyle = `hsla(${hue},100%,60%,${0.15 + bassHit})`;
+          ctx.fillRect(bx, GAME_H - bh, 1, bh);
+        }
+      }
+      // Energy particles — floating neon dots
+      if (s.smoothTreble > 0.3 && Math.random() < 0.3) {
+        const epx = s.px + (Math.random() - 0.5) * GAME_W * 0.8;
+        s.dust.push({
+          x: epx, y: s.py - 20 - Math.random() * 40,
+          vx: (Math.random() - 0.5) * 0.5, vy: -(0.3 + Math.random() * 0.5),
+          life: 1 + Math.random() * 0.5,
+        });
+      }
+
+      // ── CRT ──
       if (s.crtIntensity > 0.05) {
         const scanAlpha = s.crtIntensity * 0.12;
         ctx.fillStyle = `rgba(0,0,0,${scanAlpha})`;
-        for (let y = 0; y < GAME_H; y += 2) {
-          ctx.fillRect(0, y, GAME_W, 1);
-        }
+        for (let y = 0; y < GAME_H; y += 2) ctx.fillRect(0, y, GAME_W, 1);
       }
 
       // ── HUD ──
       drawText(ctx, `SCORE:${s.score}`, 4, 4, "#fff", 1);
-      if (s.totalCoins > 0) {
-        drawText(ctx, `COINS:${s.totalCoins}`, 4, 12, "#f8d830", 1);
-      }
+      if (s.totalCoins > 0) drawText(ctx, `COINS:${s.totalCoins}`, 4, 12, "#f8d830", 1);
 
-      // Speed indicator — more bars = faster
-      const speedBars = Math.min(10, Math.floor(s.scrollSpeed * 2));
-      for (let i = 0; i < speedBars; i++) {
-        const barHue = i / 10;
-        const r = Math.floor(100 + barHue * 155);
-        const g = Math.floor(255 - barHue * 200);
-        ctx.fillStyle = `rgb(${r},${g},50)`;
-        ctx.fillRect(GAME_W - 14, GAME_H - 8 - i * 3, 10, 2);
-      }
-
-      // ── Game over screen ──
+      // ── Game over ──
       if (s.gameOver) {
-        // Darken
         ctx.fillStyle = "rgba(0,0,0,0.6)";
         ctx.fillRect(0, 0, GAME_W, GAME_H);
-
         drawText(ctx, "GAME OVER", GAME_W / 2 - 27, GAME_H / 2 - 20, "#d83838", 2);
         drawText(ctx, `SCORE:${s.score}`, GAME_W / 2 - 30, GAME_H / 2 + 5, "#e8c848", 1);
-        if (s.gameOverTimer > 0.5) {
-          const blink = Math.floor(time * 0.003) % 2 === 0;
-          if (blink) {
-            drawText(ctx, "PRESS JUMP TO RETRY", GAME_W / 2 - 55, GAME_H / 2 + 20, "#888", 1);
-          }
+        if (s.gameOverTimer > 0.5 && Math.floor(time * 0.003) % 2 === 0) {
+          drawText(ctx, "PRESS JUMP TO RETRY", GAME_W / 2 - 55, GAME_H / 2 + 20, "#888", 1);
         }
       }
 
