@@ -2838,6 +2838,9 @@
     let nativeAudioAvailable = false;
     let nativeWatchHandle = null;
     let allTracks = [];
+    let libraryPageSize = 200;
+    let libraryHasMore = false;
+    let libraryTotalCount = 0;
     let currentSearchTerm = "";
     let currentGenre = "";
     let likedOnly = false;
@@ -10099,6 +10102,23 @@
         fragment.appendChild(section);
       }
       rowsEl.appendChild(fragment);
+
+      // "Load More" button for pagination
+      const existingLoadMore = rowsEl.querySelector(".library-load-more");
+      if (existingLoadMore) existingLoadMore.remove();
+
+      if (libraryHasMore) {
+        const loadMoreBtn = document.createElement("button");
+        loadMoreBtn.className = "secondary library-load-more";
+        loadMoreBtn.type = "button";
+        loadMoreBtn.style.cssText = "display:block;margin:12px auto;padding:8px 24px;";
+        const remaining = libraryTotalCount > allTracks.length
+          ? ` (${libraryTotalCount - allTracks.length} remaining)`
+          : "";
+        loadMoreBtn.textContent = `Load more tracks${remaining}`;
+        loadMoreBtn.addEventListener("click", loadMoreLibrary);
+        rowsEl.appendChild(loadMoreBtn);
+      }
     }
 
 
@@ -10345,23 +10365,51 @@
 
     async function refreshLibrary() {
       try {
-        setBusy(true, "Syncing indexed tracks...");
+        setBusy(true, "Loading library...");
         setStatus("Loading library...");
-        
-        // Use backend search and a reasonable limit for immediate display
+
+        libraryTotalCount = await invoke("library_count").catch(() => 0);
+
         const tracks = await invoke("list_library", {
-          limit: 1000,
+          limit: libraryPageSize,
+          offset: 0,
           genre: currentGenre || null,
           likedOnly: likedOnly || null,
           search: currentSearchTerm || null
         });
-        
+
         allTracks = tracks;
+        libraryHasMore = tracks.length >= libraryPageSize;
         applyLibraryView();
         await refreshGenres();
-        setStatus(`Library loaded: ${tracks.length} track(s) shown.`, true);
+        const countInfo = libraryTotalCount > 0 ? ` of ${libraryTotalCount}` : "";
+        setStatus(`Showing ${tracks.length}${countInfo} tracks.`, true);
       } catch (error) {
         setStatus(`Library load failed: ${String(error)}`);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function loadMoreLibrary() {
+      if (!libraryHasMore) return;
+      try {
+        setBusy(true, "Loading more tracks...");
+        const moreTracks = await invoke("list_library", {
+          limit: libraryPageSize,
+          offset: allTracks.length,
+          genre: currentGenre || null,
+          likedOnly: likedOnly || null,
+          search: currentSearchTerm || null
+        });
+
+        allTracks = allTracks.concat(moreTracks);
+        libraryHasMore = moreTracks.length >= libraryPageSize;
+        applyLibraryView();
+        const countInfo = libraryTotalCount > 0 ? ` of ${libraryTotalCount}` : "";
+        setStatus(`Showing ${allTracks.length}${countInfo} tracks.`, true);
+      } catch (error) {
+        setStatus(`Failed to load more tracks: ${String(error)}`);
       } finally {
         setBusy(false);
       }

@@ -192,6 +192,7 @@ pub fn upsert_scanned_files(files: &[ScannedFile]) -> Result<usize, String> {
 
 pub fn list_library_files(
     limit: usize,
+    offset: usize,
     genre_filter: Option<String>,
     liked_only: bool,
     search_term: Option<String>,
@@ -223,7 +224,7 @@ pub fn list_library_files(
             COALESCE(artist, ''),
             COALESCE(album, ''),
             filename
-        LIMIT ?1
+        LIMIT ?1 OFFSET ?4
         "#,
     );
 
@@ -236,7 +237,8 @@ pub fn list_library_files(
             params![
                 limit as i64,
                 genre_filter.unwrap_or_default(),
-                search_pattern
+                search_pattern,
+                offset as i64,
             ],
             |row| {
                 Ok(LibraryRow {

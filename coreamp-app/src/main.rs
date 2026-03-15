@@ -637,12 +637,14 @@ fn scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
 #[tauri::command]
 fn list_library(
     limit: Option<usize>,
+    offset: Option<usize>,
     genre: Option<String>,
     liked_only: Option<bool>,
     search: Option<String>,
 ) -> Result<Vec<LibraryTrack>, String> {
     let rows = db::list_library_files(
         limit.unwrap_or(300),
+        offset.unwrap_or(0),
         genre,
         liked_only.unwrap_or(false),
         search,
@@ -1661,7 +1663,7 @@ fn main() {
             return;
         }
         CliMode::List { limit } => {
-            match list_library(Some(limit), None, None, None) {
+            match list_library(Some(limit), None, None, None, None) {
                 Ok(tracks) => {
                     for track in tracks {
                         println!(
