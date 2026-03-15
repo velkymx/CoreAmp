@@ -4546,22 +4546,15 @@
     // ── Spectrum mode (audioMotion-analyzer) ──
 
     const SPECTRUM_SUB_MODES = [
-      { mode: 6, name: "1/3 Octave" },
-      { mode: 3, name: "1/12 Octave" },
       { mode: 4, name: "1/8 Octave" },
-      { mode: 5, name: "1/6 Octave" },
-      { mode: 7, name: "1/2 Octave" },
-      { mode: 8, name: "Full Octave" },
       { mode: 10, name: "Graph" },
       { mode: 0, name: "Discrete" },
-      { mode: 2, name: "1/24 Octave", ledBars: false },
       { mode: 6, name: "Mirror", mirror: 1 },
       { mode: 3, name: "Mirror Split", mirror: 2 },
       { mode: 6, name: "Radial", radial: true },
       { mode: 10, name: "Radial Graph", radial: true },
       { mode: 8, name: "Lumi Bars", lumiBars: true },
       { mode: 6, name: "LED Bars", ledBars: true },
-      { mode: 0, name: "Reflex", reflexRatio: 0.4, reflexAlpha: 0.2 },
     ];
 
     function initSpectrumVisualizer() {
