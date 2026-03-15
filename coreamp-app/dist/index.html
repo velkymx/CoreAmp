@@ -1602,6 +1602,34 @@
       background: var(--accent);
       color: #ffffff;
     }
+    .visualizer-sub-label {
+      min-height: 28px;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      color: var(--text-secondary);
+      font-size: 0.7rem;
+      font-weight: 500;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+    .viz-toggle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 16px;
+    }
+    .viz-toggle-grid label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .viz-toggle-grid input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
     .audio-visualizer:fullscreen .visualizer-toolbar,
     .audio-visualizer:-webkit-full-screen .visualizer-toolbar,
     .audio-visualizer.is-fullscreen .visualizer-toolbar {
@@ -2234,6 +2262,7 @@
               <div class="visualizer-toolbar">
                 <button id="visualizerSpectrumBtn" class="visualizer-mode-btn active" type="button" aria-label="Switch to spectrum visualizer">Spectrum</button>
                 <button id="visualizerReactiveBtn" class="visualizer-mode-btn" type="button" aria-label="Switch to reactive 3D visualizer">Reactive</button>
+                <span id="visualizerSubLabel" class="visualizer-sub-label"></span>
                 <button id="visualizerFullscreenBtn" class="visualizer-mode-btn" type="button">Full</button>
               </div>
               <div id="visualizerContainer"></div>
@@ -2570,6 +2599,16 @@
                 Drop files or folders here to scan them.
               </div>
             </div>
+            <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Visualizer Modes</h3>
+            <p style="margin:0 0 8px;font-size:0.8rem;color:var(--text-secondary);">Uncheck modes you don't want in the rotation. Click Spectrum/Reactive buttons to cycle through enabled modes.</p>
+            <div style="margin-bottom:12px;">
+              <h4 style="margin:0 0 6px;font-size:0.82rem;font-weight:600;color:var(--text-secondary);">Spectrum</h4>
+              <div id="spectrumToggleGrid" class="viz-toggle-grid"></div>
+            </div>
+            <div style="margin-bottom:20px;">
+              <h4 style="margin:0 0 6px;font-size:0.82rem;font-weight:600;color:var(--text-secondary);">Reactive</h4>
+              <div id="reactiveToggleGrid" class="viz-toggle-grid"></div>
+            </div>
             <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Library Settings</h3>
             <div class="metadata-field" style="margin-bottom: 16px;">
               <label for="scanIntervalInput">Scan interval (seconds)</label>
@@ -2661,7 +2700,10 @@
     const visualizerContainerEl = document.getElementById("visualizerContainer");
     const visualizerSpectrumBtn = document.getElementById("visualizerSpectrumBtn");
     const visualizerReactiveBtn = document.getElementById("visualizerReactiveBtn");
+    const visualizerSubLabel = document.getElementById("visualizerSubLabel");
     const visualizerFullscreenBtn = document.getElementById("visualizerFullscreenBtn");
+    const spectrumToggleGrid = document.getElementById("spectrumToggleGrid");
+    const reactiveToggleGrid = document.getElementById("reactiveToggleGrid");
     const playerShowcaseEl = document.getElementById("playerShowcase");
     const artworkFrameEl = document.getElementById("artworkFrame");
     const artworkImageEl = document.getElementById("artworkImage");
@@ -2838,7 +2880,10 @@
     let visualizerPseudoFullscreen = false;
     let spectrumSubMode = Number(window.localStorage.getItem("coreamp.spectrumSubMode") || 0);
     let reactiveSubMode = Number(window.localStorage.getItem("coreamp.reactiveSubMode") || 0);
-    const REACTIVE_SUB_MODE_COUNT = 5; // 0 = Orb, 1 = Vortex, 2 = Nebula, 3 = Storm, 4 = Game
+    const REACTIVE_SUB_MODE_COUNT = 5;
+    const REACTIVE_SUB_MODE_NAMES = ["Orb", "Vortex", "Nebula", "Storm", "Game"];
+    let enabledSpectrumModes = JSON.parse(window.localStorage.getItem("coreamp.enabledSpectrumModes") || "null");
+    let enabledReactiveModes = JSON.parse(window.localStorage.getItem("coreamp.enabledReactiveModes") || "null");
     let audioMotionInstance = null;
     let reactiveState = null;
     let smoothedBass = 0;
@@ -4563,16 +4608,19 @@
     }
 
     function cycleSpectrumSubMode() {
-      spectrumSubMode = (spectrumSubMode + 1) % SPECTRUM_SUB_MODES.length;
+      const enabled = enabledSpectrumModes || SPECTRUM_SUB_MODES.map((_, i) => i);
+      if (enabled.length === 0) return;
+      const cur = enabled.indexOf(spectrumSubMode);
+      spectrumSubMode = enabled[(cur + 1) % enabled.length];
       window.localStorage.setItem("coreamp.spectrumSubMode", spectrumSubMode);
       if (audioMotionInstance) {
-        // Reset all special options before applying new mode
         audioMotionInstance.setOptions({
           mirror: 0, radial: false, lumiBars: false, ledBars: false,
           reflexRatio: 0.15, reflexAlpha: 0.15,
           ...SPECTRUM_SUB_MODES[spectrumSubMode],
         });
       }
+      updateVisualizerSubLabel();
     }
 
     // ── Reactive mode (Three.js) ──
@@ -6770,9 +6818,58 @@
 
     function cycleReactiveSubMode() {
       destroyCurrentReactiveMode();
-      reactiveSubMode = (reactiveSubMode + 1) % REACTIVE_SUB_MODE_COUNT;
+      const enabled = enabledReactiveModes || Array.from({length: REACTIVE_SUB_MODE_COUNT}, (_, i) => i);
+      if (enabled.length === 0) return;
+      const cur = enabled.indexOf(reactiveSubMode);
+      reactiveSubMode = enabled[(cur + 1) % enabled.length];
       window.localStorage.setItem("coreamp.reactiveSubMode", reactiveSubMode);
       initCurrentReactiveMode();
+      updateVisualizerSubLabel();
+    }
+
+    function updateVisualizerSubLabel() {
+      if (!visualizerSubLabel) return;
+      if (visualizerMode === "spectrum") {
+        visualizerSubLabel.textContent = SPECTRUM_SUB_MODES[spectrumSubMode]?.name || "";
+      } else {
+        visualizerSubLabel.textContent = REACTIVE_SUB_MODE_NAMES[reactiveSubMode] || "";
+      }
+    }
+
+    function renderVisualizerToggles() {
+      if (!spectrumToggleGrid || !reactiveToggleGrid) return;
+      const allSpectrum = enabledSpectrumModes || SPECTRUM_SUB_MODES.map((_, i) => i);
+      const allReactive = enabledReactiveModes || REACTIVE_SUB_MODE_NAMES.map((_, i) => i);
+      spectrumToggleGrid.innerHTML = SPECTRUM_SUB_MODES.map((m, i) => {
+        const checked = allSpectrum.includes(i) ? "checked" : "";
+        return `<label><input type="checkbox" data-viz-type="spectrum" data-viz-index="${i}" ${checked}>${m.name}</label>`;
+      }).join("");
+      reactiveToggleGrid.innerHTML = REACTIVE_SUB_MODE_NAMES.map((name, i) => {
+        const checked = allReactive.includes(i) ? "checked" : "";
+        return `<label><input type="checkbox" data-viz-type="reactive" data-viz-index="${i}" ${checked}>${name}</label>`;
+      }).join("");
+      spectrumToggleGrid.addEventListener("change", handleVizToggle);
+      reactiveToggleGrid.addEventListener("change", handleVizToggle);
+    }
+
+    function handleVizToggle(e) {
+      const cb = e.target;
+      if (!cb.dataset.vizType) return;
+      const type = cb.dataset.vizType;
+      const idx = Number(cb.dataset.vizIndex);
+      if (type === "spectrum") {
+        let enabled = enabledSpectrumModes || SPECTRUM_SUB_MODES.map((_, i) => i);
+        if (cb.checked) { if (!enabled.includes(idx)) enabled.push(idx); enabled.sort((a, b) => a - b); }
+        else { enabled = enabled.filter(i => i !== idx); if (enabled.length === 0) { cb.checked = true; return; } }
+        enabledSpectrumModes = enabled;
+        window.localStorage.setItem("coreamp.enabledSpectrumModes", JSON.stringify(enabled));
+      } else {
+        let enabled = enabledReactiveModes || REACTIVE_SUB_MODE_NAMES.map((_, i) => i);
+        if (cb.checked) { if (!enabled.includes(idx)) enabled.push(idx); enabled.sort((a, b) => a - b); }
+        else { enabled = enabled.filter(i => i !== idx); if (enabled.length === 0) { cb.checked = true; return; } }
+        enabledReactiveModes = enabled;
+        window.localStorage.setItem("coreamp.enabledReactiveModes", JSON.stringify(enabled));
+      }
     }
 
     // ── Audio energy computation ──
@@ -6818,6 +6915,7 @@
       setButtonState(visualizerSpectrumBtn, visualizerMode === "spectrum", "Switch to spectrum visualizer");
       setButtonState(visualizerReactiveBtn, visualizerMode === "reactive", "Switch to reactive 3D visualizer");
       window.localStorage.setItem("coreamp.visualizerMode", visualizerMode);
+      updateVisualizerSubLabel();
     }
 
     function updateVisualizerFullscreenButton() {
@@ -8504,6 +8602,7 @@
         const settings = await invoke("get_settings");
         scanIntervalInput.value = String(settings.scan_interval_secs || 300);
         apiProxyInput.value = settings.api_proxy || "";
+        renderVisualizerToggles();
       } catch (error) {
         setStatus(`Failed to load settings: ${String(error)}`);
       } finally {
