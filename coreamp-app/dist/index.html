@@ -3592,16 +3592,34 @@
       }
     }
 
-    function updateTrackPlaylistFormState() {
+    async function updateTrackPlaylistFormState() {
       const hasSelection = Boolean(trackPlaylistSelectEl.value);
       const hasNewName = Boolean(String(trackPlaylistNameInputEl.value || "").trim());
       trackPlaylistSaveBtn.disabled = !playlistTrackPath || (!hasSelection && !hasNewName);
+
+      // Check if track already exists in selected playlist
+      if (hasSelection && playlistTrackPath && !hasNewName) {
+        try {
+          const exists = await invoke("playlist_contains", {
+            playlistPath: trackPlaylistSelectEl.value,
+            trackPath: playlistTrackPath,
+          });
+          if (exists) {
+            trackPlaylistSaveBtn.disabled = true;
+            trackPlaylistSaveBtn.textContent = "Already added";
+            trackPlaylistCopyEl.textContent = "This track is already in the selected playlist.";
+            return;
+          }
+        } catch (_) {}
+      }
+      trackPlaylistSaveBtn.textContent = "Add track";
     }
 
     function closeTrackPlaylistDialog() {
       playlistTrackPath = null;
       trackPlaylistFormEl.reset();
       trackPlaylistSelectEl.innerHTML = '<option value="">Choose a playlist</option>';
+      trackPlaylistSaveBtn.textContent = "Add track";
       if (trackPlaylistDialogEl.open) {
         trackPlaylistDialogEl.close();
       }
@@ -6129,100 +6147,81 @@
 
     const GAME_W = 320, GAME_H = 180;
 
-    // Procedural sprite data (1=body,2=helmet,3=cannon,4=eye,5=leg,6=beak,7=jetpack)
-    // Bigger, fatter chicken (16x16)
+    // Procedural sprite data — Flying Saucer
+    // 1=hull(silver), 2=dome(cyan), 3=cannon(red), 4=window(white), 5=thruster(orange), 6=beam(green), 7=antenna
+    // Hover frame 1 (16x10)
     const CHICKEN_RUN1 = [
-      "....2222........",
-      "...222222.......",
-      "..22242222......",
-      "..22226222......",
-      "..2222222.......",
-      "..11111111......",
-      ".111111111......",
-      ".11117111111....",
-      "333111111111....",
-      ".111111111......",
-      ".111111111......",
-      "..11....11......",
-      "..55....55......",
-      "..55....55......",
-      ".555...555......",
+      "......77........",
+      ".....2222.......",
+      "....222422......",
+      "...22222222.....",
+      "..1111111111....",
+      ".111141141111...",
+      "1111111111111...",
+      ".111111111111...",
+      "..5........5....",
+      "...5......5.....",
     ];
+    // Hover frame 2 — slight thruster flicker
     const CHICKEN_RUN2 = [
-      "....2222........",
-      "...222222.......",
-      "..22242222......",
-      "..22226222......",
-      "..2222222.......",
-      "..11111111......",
-      ".111111111......",
-      ".11117111111....",
-      "333111111111....",
-      ".111111111......",
-      ".111111111......",
-      "..11....11......",
-      ".55......55.....",
-      ".55......55.....",
-      "555.....555.....",
+      "......77........",
+      ".....2222.......",
+      "....222422......",
+      "...22222222.....",
+      "..1111111111....",
+      ".111141141111...",
+      "1111111111111...",
+      ".111111111111...",
+      "..5........5....",
+      "..55......55....",
     ];
+    // Jump — tilted up, thrusters firing
     const CHICKEN_JUMP = [
+      ".....77.........",
       "....2222........",
-      "...222222.......",
-      "..22242222......",
-      "..22226222......",
-      "..2222222.......",
-      "..11111111......",
-      ".111111111......",
-      ".11117111111....",
-      "333111111111....",
-      ".111111111......",
-      ".111111111......",
-      ".55......55.....",
-      "55........55....",
+      "...222422.......",
+      "..22222222......",
+      ".1111111111.....",
+      "111141141111....",
+      "1111111111111...",
+      ".111111111111...",
+      "..555....555....",
+      "..555....555....",
     ];
+    // Flap — big thruster burst
     const CHICKEN_FLAP = [
-      "....2222........",
-      "...222222.......",
-      "..22242222......",
-      "..22226222......",
-      "..2222222.......",
-      "1.11111111.1....",
-      "1111111111.1....",
-      "111171111111....",
-      "3331111111......",
-      ".111111111......",
-      ".111111111......",
-      "..55....55......",
-      "..55....55......",
+      "......77........",
+      ".....2222.......",
+      "....222422......",
+      "...22222222.....",
+      "..1111111111....",
+      ".111141141111...",
+      "1111111111111...",
+      ".111111111111...",
+      ".5555....5555...",
+      ".5555....5555...",
+      "..555....555....",
     ];
+    // Duck — flat profile, low
     const CHICKEN_DUCK = [
-      "...2222.........",
-      "..222222........",
-      ".22242222.......",
-      ".22226222.......",
-      ".2222222........",
-      "1111111111......",
-      "1111111111......",
-      "1111711111......",
-      "333111111.......",
-      ".555...555......",
+      "..1111111111....",
+      ".111141141111...",
+      "1111111111111...",
+      ".111111111111...",
+      "..5........5....",
     ];
+    // Shoot — cannon extended right
     const CHICKEN_SHOOT = [
-      "....2222........",
-      "...222222.......",
-      "..22242222......",
-      "..22226222......",
-      "..2222222.......",
-      "..11111111......",
-      ".111111111......",
-      ".111171111133...",
-      "333111111111....",
-      ".111111111......",
-      ".111111111......",
-      "..11....11......",
-      "..55....55......",
-      "..55....55......",
-      ".555...555......",
+      "......77........",
+      ".....2222.......",
+      "....222422......",
+      "...22222222.....",
+      "..1111111111....",
+      ".111141141111333",
+      "1111111111111...",
+      ".111111111111...",
+      "..5........5....",
+      "...5......5.....",
     ];
 
     const ENEMY_BLOB1 = [
@@ -6247,13 +6246,13 @@
     ];
 
     const SPRITE_PALETTE = {
-      "1": "#e8c848", // chicken body (gold)
-      "2": "#58a8d8", // helmet (cyan)
+      "1": "#b8c0d0", // hull (silver)
+      "2": "#58a8d8", // dome (cyan)
       "3": "#d83838", // cannon (red)
-      "4": "#ffffff", // eye
-      "5": "#d87828", // legs (orange)
-      "6": "#d85838", // beak
-      "7": "#3888c8", // jetpack
+      "4": "#ffffff", // window (white)
+      "5": "#d87828", // thruster (orange)
+      "6": "#48d858", // beam (green)
+      "7": "#888888", // antenna (grey)
       "8": "#48d858", // enemy body (green)
       "9": "#ffffff", // enemy eye
       "A": "#183818", // enemy pupil
@@ -6564,7 +6563,7 @@
       if (bassHit > 0.03 && s.grounded && s.dust.length < 30) {
         for (let i = 0; i < 3; i++) {
           s.dust.push({
-            x: s.px + Math.random() * 10 - 5, y: s.py + (s.ducking ? 10 : 15) - 1,
+            x: s.px + Math.random() * 10 - 5, y: s.py + (s.ducking ? 5 : 10) - 1,
             vx: (Math.random() - 0.5) * 2, vy: -(1 + Math.random() * 2),
             life: 0.5 + Math.random() * 0.3,
           });
@@ -6607,7 +6606,7 @@
         }
 
         // ── Jump / Flap ──
-        const playerH = s.ducking ? 10 : 15;
+        const playerH = s.ducking ? 5 : 10;
         s.flapCooldown = Math.max(0, s.flapCooldown - dt);
         if (s.keys["ArrowUp"] && s.grounded) {
           s.pvy = -5.5;
@@ -6651,7 +6650,7 @@
         let onSolidGround = false;
         for (const seg of s.terrain) {
           if (seg.gap) continue;
-          if (s.px + 12 > seg.x && s.px < seg.x + 5) {
+          if (s.px + 13 > seg.x && s.px < seg.x + 5) {
             if (s.pvy >= 0 && s.py + playerH >= seg.y && s.py + playerH <= seg.y + 8) {
               s.py = seg.y - playerH;
               s.pvy = 0;
@@ -6666,7 +6665,7 @@
         let onPlatform = false;
         if (s.pvy >= 0) {
           for (const pl of s.platforms) {
-            if (s.px + 12 > pl.x && s.px < pl.x + pl.w &&
+            if (s.px + 13 > pl.x && s.px < pl.x + pl.w &&
                 s.py + playerH >= pl.y && s.py + playerH <= pl.y + 6) {
               s.py = pl.y - playerH;
               s.pvy = 0;
@@ -6682,7 +6681,7 @@
           // Check if still over any solid ground
           let stillSupported = false;
           for (const seg of s.terrain) {
-            if (!seg.gap && s.px + 12 > seg.x && s.px < seg.x + 5 &&
+            if (!seg.gap && s.px + 13 > seg.x && s.px < seg.x + 5 &&
                 Math.abs(s.py + playerH - seg.y) < 4) {
               stillSupported = true;
               break;
@@ -6690,7 +6689,7 @@
           }
           if (!stillSupported) {
             for (const pl of s.platforms) {
-              if (s.px + 12 > pl.x && s.px < pl.x + pl.w &&
+              if (s.px + 13 > pl.x && s.px < pl.x + pl.w &&
                   Math.abs(s.py + playerH - pl.y) < 4) {
                 stillSupported = true;
                 break;
@@ -6788,8 +6787,8 @@
           if (e.x < cullL - 60 || e.x > cullR + 60) { s.enemies.splice(i, 1); continue; }
           // Collision with player
           if (!s.dead && e.spawnFlash <= 0) {
-            const ph = s.ducking ? 10 : 15;
-            if (e.x < s.px + 12 && e.x + 8 > s.px && e.y < s.py + ph && e.y + 8 > s.py) {
+            const ph = s.ducking ? 5 : 10;
+            if (e.x < s.px + 13 && e.x + 8 > s.px && e.y < s.py + ph && e.y + 8 > s.py) {
               // Stomp from above — kill enemy
               if (s.pvy > 0 && s.py + ph - e.y < 6) {
                 s.explosions.push({ x: e.x, y: e.y, frame: 0, timer: 0 });
@@ -6841,8 +6840,8 @@
           const c = s.coins[i];
           c.animTimer += dt * 4;
           if (c.collected) continue;
-          const ph = s.ducking ? 10 : 15;
-          if (s.px + 12 > c.x && s.px < c.x + 5 && s.py + ph > c.y && s.py < c.y + 5) {
+          const ph = s.ducking ? 5 : 10;
+          if (s.px + 13 > c.x && s.px < c.x + 5 && s.py + ph > c.y && s.py < c.y + 5) {
             c.collected = true;
             s.score += 25;
             s.totalCoins++;
@@ -9626,6 +9625,33 @@
           copy.appendChild(count);
         }
 
+        const btnGroup = document.createElement("div");
+        btnGroup.className = "playlist-item-actions";
+        btnGroup.style.cssText = "display:flex;gap:4px;align-items:center;";
+
+        const dedupBtn = document.createElement("button");
+        dedupBtn.className = "secondary playlist-delete-btn";
+        dedupBtn.type = "button";
+        dedupBtn.ariaLabel = `Remove duplicates from ${playlist.name}`;
+        dedupBtn.title = "Remove duplicates";
+        dedupBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M16 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V8l-5-5z"/><path d="M15 3v5h5"/><line x1="9" y1="15" x2="15" y2="15"/></svg>';
+        dedupBtn.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          try {
+            const before = playlist.track_count;
+            const updated = await invoke("dedup_playlist", { playlistPath: playlist.path });
+            const removed = before - updated.track_count;
+            if (removed > 0) {
+              setStatus(`Removed ${removed} duplicate(s) from ${playlist.name}.`, true);
+            } else {
+              setStatus(`No duplicates found in ${playlist.name}.`, true);
+            }
+            await refreshPlaylists();
+          } catch (err) {
+            setStatus(`Failed to de-dup: ${String(err)}`);
+          }
+        });
+
         const deleteBtn = document.createElement("button");
         deleteBtn.className = "secondary playlist-delete-btn";
         deleteBtn.type = "button";
@@ -9644,10 +9670,13 @@
           }
         });
 
+        btnGroup.appendChild(dedupBtn);
+        btnGroup.appendChild(deleteBtn);
+
         meta.appendChild(marker);
         meta.appendChild(copy);
         item.appendChild(meta);
-        item.appendChild(deleteBtn);
+        item.appendChild(btnGroup);
         playlistListEl.appendChild(item);
       }
     }
@@ -10359,12 +10388,16 @@
       scanBtn.disabled = true;
       refreshBtn.disabled = true;
       try {
-        setBusy(true, "Scanning configured paths...");
-        setStatus("Scanning configured library...");
+        setBusy(true, "Scanning library...");
+        setStatus("Scanning library for new tracks...");
         const result = await invoke("scan_library");
         await refreshLibrary();
+        const added = result.files_upserted || 0;
+        const found = result.files_discovered || 0;
         setStatus(
-          `Scan complete. roots=${result.roots_scanned}, discovered=${result.files_discovered}, upserted=${result.files_upserted}`,
+          added > 0
+            ? `Scan complete! Found ${found} tracks, added ${added} new track${added === 1 ? "" : "s"} to library.`
+            : `Scan complete. ${found} tracks found, library is up to date.`,
           true
         );
       } catch (error) {
@@ -10390,12 +10423,16 @@
       }
       importPathBtn.disabled = true;
       try {
-        setBusy(true, "Scanning selected paths...");
-        setStatus("Scanning explicit path(s)...");
+        setBusy(true, "Importing tracks...");
+        setStatus("Scanning for tracks...");
         const result = await invoke("scan_paths", { paths });
         await refreshLibrary();
+        const added = result.files_upserted || 0;
+        const found = result.files_discovered || 0;
         setStatus(
-          `Path scan complete. paths=${result.roots_scanned}, discovered=${result.files_discovered}, upserted=${result.files_upserted}`,
+          added > 0
+            ? `Import complete! Found ${found} tracks, added ${added} new track${added === 1 ? "" : "s"} to library.`
+            : `Import complete. ${found} tracks found, all already in library.`,
           true
         );
       } catch (error) {

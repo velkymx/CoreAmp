@@ -1010,6 +1010,32 @@ fn delete_playlist(playlist_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn dedup_playlist(playlist_path: String) -> Result<PlaylistSummary, String> {
+    let target = PathBuf::from(&playlist_path);
+    let entries = playlist::read_playlist(&target).map_err(|err| err.to_string())?;
+    let mut seen = std::collections::HashSet::new();
+    let deduped: Vec<PathBuf> = entries
+        .into_iter()
+        .filter(|p| seen.insert(p.clone()))
+        .collect();
+    let target_name = target
+        .file_stem()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| String::from("playlist"));
+    let written_path =
+        playlist::write_playlist(&target_name, &deduped).map_err(|err| err.to_string())?;
+    playlist_summary_from_path(&written_path)
+}
+
+#[tauri::command]
+fn playlist_contains(playlist_path: String, track_path: String) -> Result<bool, String> {
+    let target = PathBuf::from(&playlist_path);
+    let entries = playlist::read_playlist(&target).map_err(|err| err.to_string())?;
+    let check = PathBuf::from(&track_path);
+    Ok(entries.contains(&check))
+}
+
+#[tauri::command]
 fn write_missing_tags_for_path(path: String) -> Result<bool, String> {
     let row = db::get_library_file(&path)?
         .ok_or_else(|| format!("Track not found in library: {path}"))?;
@@ -1770,6 +1796,8 @@ fn main() {
             load_playlist,
             import_playlist_file,
             delete_playlist,
+            dedup_playlist,
+            playlist_contains,
             read_track_artwork,
             read_track_signal_details,
             write_missing_tags_for_path,
