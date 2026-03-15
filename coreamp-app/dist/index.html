@@ -414,19 +414,18 @@
     }
     .library-head {
       display: flex;
-      justify-content: space-between;
-      align-items: start;
+      align-items: center;
       gap: 14px;
       flex-wrap: wrap;
     }
     .library-tabs {
-      margin-top: 14px;
       display: flex;
       flex-wrap: nowrap;
       overflow-x: auto;
       gap: 4px;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
+      margin-right: auto;
     }
     .library-tabs::-webkit-scrollbar {
       display: none;
@@ -434,8 +433,9 @@
     .library-tab {
       flex: 0 0 auto;
       white-space: nowrap;
-      min-height: 48px;
-      font-size: 0.9rem;
+      min-height: 32px;
+      font-size: 0.82rem;
+      padding: 4px 12px;
     }
     .library-tab[aria-selected="true"] {
       background: var(--accent);
@@ -2365,15 +2365,15 @@
     <section class="panel" id="libraryPanel">
       <div class="library-head">
         <div><h2>Library</h2></div>
+        <div class="library-tabs" role="tablist" aria-label="Library sections">
+          <button id="libraryDashboardTab" class="secondary library-tab active" type="button" role="tab" aria-selected="true" aria-controls="libraryDashboardPanel">Home</button>
+          <button id="libraryBrowseTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryBrowsePanel">Library</button>
+          <button id="libraryLikedTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryBrowsePanel">Liked</button>
+          <button id="libraryPlaylistsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryPlaylistsPanel">Playlists</button>
+          <button id="libraryAudioTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryAudioPanel">Audio</button>
+          <button id="librarySettingsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="librarySettingsPanel">Settings</button>
+        </div>
         <button id="resetHistoryBtn" class="secondary" type="button">Reset History</button>
-      </div>
-      <div class="library-tabs" role="tablist" aria-label="Library sections">
-        <button id="libraryDashboardTab" class="secondary library-tab active" type="button" role="tab" aria-selected="true" aria-controls="libraryDashboardPanel">Home</button>
-        <button id="libraryBrowseTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryBrowsePanel">Library</button>
-        <button id="libraryLikedTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryBrowsePanel">Liked</button>
-        <button id="libraryPlaylistsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryPlaylistsPanel">Playlists</button>
-        <button id="libraryAudioTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="libraryAudioPanel">Audio</button>
-        <button id="librarySettingsTab" class="secondary library-tab" type="button" role="tab" aria-selected="false" aria-controls="librarySettingsPanel">Settings</button>
       </div>
       <div class="library-panels">
         <section id="libraryDashboardPanel" class="library-panel" role="tabpanel" aria-labelledby="libraryDashboardTab">
