@@ -6932,8 +6932,9 @@
       updatePreampNode();
       updateLimiterNode();
       updateCrossfeedGraph();
-      if (audioMotionInstance && gainNode) {
-        audioMotionInstance.connectInput(gainNode);
+      if (visualizerMode === "spectrum") {
+        destroySpectrumVisualizer();
+        initSpectrumVisualizer();
       }
     }
 
