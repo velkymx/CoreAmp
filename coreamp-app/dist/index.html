@@ -1653,38 +1653,46 @@
     }
     .summary-grid {
       display: grid;
-      gap: 0;
-      padding: 2px 0;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 16px;
+      padding: 8px 0;
       align-content: start;
     }
     .summary-card {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0;
       background: transparent;
       border: 0;
-      border-bottom: 1px solid var(--line-soft);
-      border-radius: 0;
+      border-radius: 8px;
       box-shadow: none;
       cursor: pointer;
-      transition: background 0.12s;
+      transition: transform 0.12s, background 0.12s;
     }
     .summary-card:hover {
-      background: var(--accent-soft);
-      transform: none;
+      transform: scale(1.03);
       box-shadow: none;
     }
     .summary-card:active {
-      transform: none;
-      background: var(--accent-soft);
+      transform: scale(0.98);
     }
     .summary-art-placeholder {
-      display: none;
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      background: var(--surface-2, rgba(255,255,255,0.06));
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .summary-art-placeholder svg {
-      display: none;
+      width: 32px;
+      height: 32px;
+      color: var(--text-tertiary);
+      opacity: 0.3;
     }
     .summary-art-image {
       position: absolute;
@@ -1692,13 +1700,11 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      border-radius: var(--radius-small);
+      border-radius: 8px;
       opacity: 0;
-      transition: opacity 0.2s ease;
-      display: none;
+      transition: opacity 0.25s ease;
     }
     .summary-art-image.loaded {
-      display: block;
       opacity: 1;
     }
     .summary-art-placeholder.has-art svg {
@@ -1709,27 +1715,40 @@
       flex-direction: column;
       gap: 2px;
       min-width: 0;
+      padding: 0 2px;
     }
     .summary-title {
       font-weight: 600;
-      font-size: 0.92rem;
+      font-size: 0.82rem;
       color: var(--text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .summary-subtitle {
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       color: var(--text-secondary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .summary-count {
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       color: var(--text-tertiary);
       white-space: nowrap;
-      flex-shrink: 0;
+    }
+    .dashboard-view {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      padding: 8px 0;
+    }
+    .dashboard-section-title {
+      margin: 0 0 12px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
     }
     .player-signal-details {
       color: var(--text-tertiary);
@@ -6973,23 +6992,21 @@
 
     function renderDashboard(topArtists, recentTracks) {
       dashboardContainerEl.innerHTML = "";
-      
+
       const dashboard = document.createElement("div");
       dashboard.className = "dashboard-view";
-      dashboard.style.display = "flex";
-      dashboard.style.flexDirection = "column";
-      dashboard.style.gap = "32px";
-      dashboard.style.padding = "10px 0";
 
       const fragment = document.createDocumentFragment();
 
-      // Top Artists Section
       if (topArtists.length > 0) {
         const artistsSection = document.createElement("div");
-        artistsSection.innerHTML = '<h3 style="margin-bottom: 16px;">Top Artists</h3>';
+        artistsSection.className = "dashboard-section";
+        const heading = document.createElement("h3");
+        heading.className = "dashboard-section-title";
+        heading.textContent = "Top Artists";
+        artistsSection.appendChild(heading);
         const grid = document.createElement("div");
         grid.className = "summary-grid";
-        
         for (const artist of topArtists) {
           const card = createSummaryCard(artist, "artists");
           grid.appendChild(card);
@@ -6998,23 +7015,26 @@
         dashboard.appendChild(artistsSection);
       }
 
-      // Recently Played Section
       if (recentTracks.length > 0) {
         const recentSection = document.createElement("div");
-        recentSection.innerHTML = '<h3 style="margin-bottom: 16px;">Recently Played</h3>';
+        recentSection.className = "dashboard-section";
+        const heading = document.createElement("h3");
+        heading.className = "dashboard-section-title";
+        heading.textContent = "Recently Played";
+        recentSection.appendChild(heading);
         const grid = document.createElement("div");
         grid.className = "summary-grid";
-        
+
         for (const track of recentTracks) {
           const card = document.createElement("div");
           card.className = "summary-card";
-          
+
           const art = document.createElement("div");
           art.className = "summary-art-placeholder";
           art.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-music"></use></svg>';
-          
           const img = document.createElement("img");
           img.className = "summary-art-image";
+          img.alt = "";
           art.appendChild(img);
 
           const info = document.createElement("div");
@@ -7025,17 +7045,17 @@
           const subtitle = document.createElement("div");
           subtitle.className = "summary-subtitle";
           subtitle.textContent = track.artist || "Unknown artist";
-          
+
           info.appendChild(title);
           info.appendChild(subtitle);
           card.appendChild(art);
           card.appendChild(info);
-          
+
           card.addEventListener("click", () => {
             setQueue([track]);
             playNext();
           });
-          
+
           grid.appendChild(card);
           populateSummaryArtwork(track.path, art, img);
         }
@@ -7058,29 +7078,40 @@
       const card = document.createElement("div");
       card.className = "summary-card";
 
+      const art = document.createElement("div");
+      art.className = "summary-art-placeholder";
+      art.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-music"></use></svg>';
+      const img = document.createElement("img");
+      img.className = "summary-art-image";
+      img.alt = "";
+      art.appendChild(img);
+      card.appendChild(art);
+
+      if (item.representative_path) {
+        populateSummaryArtwork(item.representative_path, art, img);
+      }
+
       const info = document.createElement("div");
       info.className = "summary-info";
 
       const title = document.createElement("div");
       title.className = "summary-title";
       title.textContent = type === "albums" ? item.title : item.name;
+      info.appendChild(title);
 
       if (type === "albums" && item.artist) {
         const subtitle = document.createElement("div");
         subtitle.className = "summary-subtitle";
         subtitle.textContent = item.artist;
-        info.appendChild(title);
         info.appendChild(subtitle);
-      } else {
-        info.appendChild(title);
       }
 
       const count = document.createElement("div");
       count.className = "summary-count";
       count.textContent = `${item.track_count} track${item.track_count === 1 ? "" : "s"}`;
+      info.appendChild(count);
 
       card.appendChild(info);
-      card.appendChild(count);
 
       const activate = () => {
         if (type === "artists") {
@@ -7091,7 +7122,8 @@
           currentGenre = item.name;
           genreFilterSelect.value = item.name;
         }
-        setLibraryTab("browse");
+        setLibrarySegment("tracks");
+        if (activeLibraryTab !== "browse") setLibraryTab("browse");
       };
       card.addEventListener("click", activate);
       makeActivatable(card, activate);
