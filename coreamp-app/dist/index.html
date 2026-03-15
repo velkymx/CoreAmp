@@ -6122,66 +6122,99 @@
     const GAME_W = 320, GAME_H = 180;
 
     // Procedural sprite data (1=body,2=helmet,3=cannon,4=eye,5=leg,6=beak,7=jetpack)
+    // Bigger, fatter chicken (16x16)
     const CHICKEN_RUN1 = [
-      "..222.....",
-      ".22222....",
-      ".224222...",
-      ".222622...",
-      ".111111...",
-      ".1117111..",
-      "3331111...",
-      ".111111...",
-      "..1..1....",
-      "..5..5....",
-      "..55.55...",
+      "....2222........",
+      "...222222.......",
+      "..22242222......",
+      "..22226222......",
+      "..2222222.......",
+      "..11111111......",
+      ".111111111......",
+      ".11117111111....",
+      "333111111111....",
+      ".111111111......",
+      ".111111111......",
+      "..11....11......",
+      "..55....55......",
+      "..55....55......",
+      ".555...555......",
     ];
     const CHICKEN_RUN2 = [
-      "..222.....",
-      ".22222....",
-      ".224222...",
-      ".222622...",
-      ".111111...",
-      ".1117111..",
-      "3331111...",
-      ".111111...",
-      "..1..1....",
-      ".5....5...",
-      ".55...55..",
+      "....2222........",
+      "...222222.......",
+      "..22242222......",
+      "..22226222......",
+      "..2222222.......",
+      "..11111111......",
+      ".111111111......",
+      ".11117111111....",
+      "333111111111....",
+      ".111111111......",
+      ".111111111......",
+      "..11....11......",
+      ".55......55.....",
+      ".55......55.....",
+      "555.....555.....",
     ];
     const CHICKEN_JUMP = [
-      "..222.....",
-      ".22222....",
-      ".224222...",
-      ".222622...",
-      ".111111...",
-      ".1117111..",
-      "3331111...",
-      ".111111...",
-      ".5....5...",
-      "55....55..",
+      "....2222........",
+      "...222222.......",
+      "..22242222......",
+      "..22226222......",
+      "..2222222.......",
+      "..11111111......",
+      ".111111111......",
+      ".11117111111....",
+      "333111111111....",
+      ".111111111......",
+      ".111111111......",
+      ".55......55.....",
+      "55........55....",
+    ];
+    const CHICKEN_FLAP = [
+      "....2222........",
+      "...222222.......",
+      "..22242222......",
+      "..22226222......",
+      "..2222222.......",
+      "1.11111111.1....",
+      "1111111111.1....",
+      "111171111111....",
+      "3331111111......",
+      ".111111111......",
+      ".111111111......",
+      "..55....55......",
+      "..55....55......",
     ];
     const CHICKEN_DUCK = [
-      ".222......",
-      "22222.....",
-      "224222....",
-      "222622....",
-      "11111111..",
-      "11171111..",
-      "3331111...",
-      ".55..55...",
+      "...2222.........",
+      "..222222........",
+      ".22242222.......",
+      ".22226222.......",
+      ".2222222........",
+      "1111111111......",
+      "1111111111......",
+      "1111711111......",
+      "333111111.......",
+      ".555...555......",
     ];
     const CHICKEN_SHOOT = [
-      "..222.....",
-      ".22222....",
-      ".224222...",
-      ".222622...",
-      ".111111...",
-      ".1117111..",
-      "33311113..",
-      ".111111...",
-      "..1..1....",
-      "..5..5....",
-      "..55.55...",
+      "....2222........",
+      "...222222.......",
+      "..22242222......",
+      "..22226222......",
+      "..2222222.......",
+      "..11111111......",
+      ".111111111......",
+      ".111171111133...",
+      "333111111111....",
+      ".111111111......",
+      ".111111111......",
+      "..11....11......",
+      "..55....55......",
+      "..55....55......",
+      ".555...555......",
     ];
 
     const ENEMY_BLOB1 = [
@@ -6408,8 +6441,8 @@
         reactiveState = {
           canvas, ctx, ro, keys, onKeyDown, onKeyUp,
           // Player — world coordinates
-          px: 80, py: GROUND_Y - 12, pvx: 0, pvy: 0, grounded: true,
-          facingRight: true,
+          px: 80, py: GROUND_Y - 15, pvx: 0, pvy: 0, grounded: true,
+          facingRight: true, flapping: false, flapTimer: 0, flapCooldown: 0,
           ducking: false, shooting: 0, dead: false, deadTimer: 0,
           flashTimer: 0, animFrame: 0, animTimer: 0,
           runFrame: 0,
@@ -6523,7 +6556,7 @@
       if (bassHit > 0.03 && s.grounded && s.dust.length < 30) {
         for (let i = 0; i < 3; i++) {
           s.dust.push({
-            x: s.px + Math.random() * 10 - 5, y: s.py + (s.ducking ? 8 : 12) - 1,
+            x: s.px + Math.random() * 10 - 5, y: s.py + (s.ducking ? 10 : 15) - 1,
             vx: (Math.random() - 0.5) * 2, vy: -(1 + Math.random() * 2),
             life: 0.5 + Math.random() * 0.3,
           });
@@ -6565,24 +6598,44 @@
           s.maxX = s.px;
         }
 
-        // ── Jump ──
-        const playerH = s.ducking ? 8 : 12;
+        // ── Jump / Flap ──
+        const playerH = s.ducking ? 10 : 15;
+        s.flapCooldown = Math.max(0, s.flapCooldown - dt);
         if (s.keys["ArrowUp"] && s.grounded) {
           s.pvy = -5.5;
           s.grounded = false;
+          s.flapTimer = 0;
           for (let i = 0; i < 4; i++) {
             s.dust.push({
-              x: s.px + Math.random() * 8, y: s.py + playerH - 1,
+              x: s.px + Math.random() * 10, y: s.py + playerH - 1,
               vx: (Math.random() - 0.5) * 3, vy: -(0.5 + Math.random()),
               life: 0.4,
             });
           }
+        } else if (s.keys["ArrowUp"] && !s.grounded && s.flapCooldown <= 0 && s.pvy > -2) {
+          // Flap — short upward boost in the air
+          s.pvy = -3.2;
+          s.flapping = true;
+          s.flapTimer = 0.2;
+          s.flapCooldown = 0.35;
+          // Flap dust puffs
+          for (let i = 0; i < 3; i++) {
+            s.dust.push({
+              x: s.px + 4 + (Math.random()-0.5) * 8, y: s.py + playerH,
+              vx: (Math.random() - 0.5) * 2, vy: 1 + Math.random(),
+              life: 0.3,
+            });
+          }
+          s.keys["ArrowUp"] = false; // require re-press
         }
+        s.flapTimer = Math.max(0, s.flapTimer - dt);
+        if (s.flapTimer <= 0) s.flapping = false;
         s.ducking = !!s.keys["ArrowDown"] && s.grounded;
 
-        // ── Gravity ──
+        // ── Gravity — lighter when flapping ──
         if (!s.grounded) {
-          s.pvy += 15 * dt;
+          const grav = s.flapping ? 10 : 15;
+          s.pvy += grav * dt;
           s.py += s.pvy;
         }
 
@@ -6590,7 +6643,7 @@
         let onSolidGround = false;
         for (const seg of s.terrain) {
           if (seg.gap) continue;
-          if (s.px + 10 > seg.x && s.px < seg.x + 5) {
+          if (s.px + 12 > seg.x && s.px < seg.x + 5) {
             if (s.pvy >= 0 && s.py + playerH >= seg.y && s.py + playerH <= seg.y + 8) {
               s.py = seg.y - playerH;
               s.pvy = 0;
@@ -6605,7 +6658,7 @@
         let onPlatform = false;
         if (s.pvy >= 0) {
           for (const pl of s.platforms) {
-            if (s.px + 10 > pl.x && s.px < pl.x + pl.w &&
+            if (s.px + 12 > pl.x && s.px < pl.x + pl.w &&
                 s.py + playerH >= pl.y && s.py + playerH <= pl.y + 6) {
               s.py = pl.y - playerH;
               s.pvy = 0;
@@ -6621,7 +6674,7 @@
           // Check if still over any solid ground
           let stillSupported = false;
           for (const seg of s.terrain) {
-            if (!seg.gap && s.px + 10 > seg.x && s.px < seg.x + 5 &&
+            if (!seg.gap && s.px + 12 > seg.x && s.px < seg.x + 5 &&
                 Math.abs(s.py + playerH - seg.y) < 4) {
               stillSupported = true;
               break;
@@ -6629,7 +6682,7 @@
           }
           if (!stillSupported) {
             for (const pl of s.platforms) {
-              if (s.px + 10 > pl.x && s.px < pl.x + pl.w &&
+              if (s.px + 12 > pl.x && s.px < pl.x + pl.w &&
                   Math.abs(s.py + playerH - pl.y) < 4) {
                 stillSupported = true;
                 break;
@@ -6653,7 +6706,7 @@
         if (s.keys[" "] && s.shootCooldown <= 0) {
           const dir = s.facingRight ? 1 : -1;
           s.projectiles.push({
-            x: s.px + (s.facingRight ? 10 : -3), y: s.py + (s.ducking ? 3 : 5),
+            x: s.px + (s.facingRight ? 14 : -3), y: s.py + (s.ducking ? 5 : 8),
             vx: 6 * dir,
           });
           s.shootCooldown = 0.15;
@@ -6727,8 +6780,8 @@
           if (e.x < cullL - 60 || e.x > cullR + 60) { s.enemies.splice(i, 1); continue; }
           // Collision with player
           if (!s.dead && e.spawnFlash <= 0) {
-            const ph = s.ducking ? 8 : 12;
-            if (e.x < s.px + 10 && e.x + 8 > s.px && e.y < s.py + ph && e.y + 8 > s.py) {
+            const ph = s.ducking ? 10 : 15;
+            if (e.x < s.px + 12 && e.x + 8 > s.px && e.y < s.py + ph && e.y + 8 > s.py) {
               // Stomp from above — kill enemy
               if (s.pvy > 0 && s.py + ph - e.y < 6) {
                 s.explosions.push({ x: e.x, y: e.y, frame: 0, timer: 0 });
@@ -6780,8 +6833,8 @@
           const c = s.coins[i];
           c.animTimer += dt * 4;
           if (c.collected) continue;
-          const ph = s.ducking ? 8 : 12;
-          if (s.px + 10 > c.x && s.px < c.x + 5 && s.py + ph > c.y && s.py < c.y + 5) {
+          const ph = s.ducking ? 10 : 15;
+          if (s.px + 12 > c.x && s.px < c.x + 5 && s.py + ph > c.y && s.py < c.y + 5) {
             c.collected = true;
             s.score += 25;
             s.totalCoins++;
@@ -6811,8 +6864,9 @@
       if (s.gameOver) {
         s.gameOverTimer += dt;
         if (s.gameOverTimer > 0.5 && (s.keys["ArrowUp"] || s.keys[" "])) {
-          s.px = 80; s.py = s.GROUND_Y - 12; s.pvx = 0; s.pvy = 0;
+          s.px = 80; s.py = s.GROUND_Y - 15; s.pvx = 0; s.pvy = 0;
           s.grounded = true; s.ducking = false; s.dead = false; s.facingRight = true;
+          s.flapping = false; s.flapTimer = 0; s.flapCooldown = 0;
           s.deadTimer = 0; s.gameOver = false; s.gameOverTimer = 0;
           s.score = 0; s.maxX = 80; s.totalCoins = 0;
           s.camX = 0; s.camY = 0;
@@ -6955,16 +7009,13 @@
         ctx.fillRect(Math.floor(sx), Math.floor(seg.y), 6, 1);
       }
 
-      // ── Pits — lava glow ──
+      // ── Pits — black void ──
       for (const seg of s.terrain) {
         if (!seg.gap) continue;
         const sx = seg.x - cx;
         if (sx < -10 || sx > GAME_W + 10) continue;
-        const glowR = 180 + Math.sin(time * 0.005 + sx * 0.1) * 60;
-        ctx.fillStyle = `rgba(${Math.floor(glowR)},40,10,0.7)`;
-        ctx.fillRect(Math.floor(sx), Math.floor(seg.y) + 2, 6, GAME_H - Math.floor(seg.y));
-        ctx.fillStyle = `rgba(255,120,30,0.5)`;
-        ctx.fillRect(Math.floor(sx), Math.floor(seg.y) + 1, 6, 2);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(Math.floor(sx), Math.floor(seg.y), 6, GAME_H - Math.floor(seg.y));
       }
 
       // ── Platforms ──
@@ -7023,6 +7074,7 @@
       if (!s.dead || Math.floor(s.deadTimer * 10) % 2 === 0) {
         let sprite;
         if (s.dead) sprite = CHICKEN_JUMP;
+        else if (s.flapping) sprite = CHICKEN_FLAP;
         else if (!s.grounded) sprite = CHICKEN_JUMP;
         else if (s.ducking) sprite = CHICKEN_DUCK;
         else if (s.shooting > 0) sprite = CHICKEN_SHOOT;
@@ -7034,9 +7086,9 @@
         } else {
           // Mirror horizontally
           ctx.save();
-          ctx.translate(Math.floor(screenPX) + 5, 0);
+          ctx.translate(Math.floor(screenPX) + 8, 0);
           ctx.scale(-1, 1);
-          renderSprite(ctx, sprite, -5, s.py, SPRITE_PALETTE, s.dead && s.deadTimer < 0.3);
+          renderSprite(ctx, sprite, -8, s.py, SPRITE_PALETTE, s.dead && s.deadTimer < 0.3);
           ctx.restore();
         }
       }
@@ -7065,41 +7117,103 @@
       }
 
       // ── RAVE EFFECTS ──
-      // Bass strobe flash — full screen color wash
-      if (bassHit > 0.06) {
-        const raveColors = ["rgba(255,0,100,","rgba(0,200,255,","rgba(255,200,0,","rgba(100,255,50,","rgba(200,50,255,"];
+      // Bass strobe — full screen color flash
+      if (bassHit > 0.05) {
+        const raveColors = ["rgba(255,0,100,","rgba(0,200,255,","rgba(255,200,0,","rgba(100,255,50,","rgba(200,50,255,","rgba(255,100,0,"];
         const raveColor = raveColors[Math.floor(Math.random() * raveColors.length)];
-        ctx.fillStyle = raveColor + (bassHit * 3).toFixed(2) + ")";
+        ctx.fillStyle = raveColor + Math.min(0.4, bassHit * 4).toFixed(2) + ")";
         ctx.fillRect(0, 0, GAME_W, GAME_H);
       }
-      // Neon glow around player
-      if (s.smoothBass > 0.2 && !s.dead) {
-        const glowColors = [`rgba(255,50,150,`, `rgba(50,200,255,`, `rgba(255,255,50,`];
-        const gc = glowColors[Math.floor(s.energyAccum * 2) % glowColors.length];
-        const intensity = s.smoothBass * 0.4;
-        const screenPX2 = s.px - cx;
-        ctx.fillStyle = gc + intensity.toFixed(2) + ")";
-        ctx.fillRect(Math.floor(screenPX2 - 3), Math.floor(s.py - 3), 16, (s.ducking ? 14 : 18));
-      }
-      // Beat bars — vertical neon lines that flash on beats across the screen
-      if (bassHit > 0.04) {
-        const barCount = Math.floor(bassHit * 30);
-        for (let i = 0; i < barCount; i++) {
-          const bx = Math.floor(Math.random() * GAME_W);
-          const bh = 10 + Math.random() * 30;
-          const hue = Math.floor(Math.random() * 360);
-          ctx.fillStyle = `hsla(${hue},100%,60%,${0.15 + bassHit})`;
-          ctx.fillRect(bx, GAME_H - bh, 1, bh);
+
+      // Laser beams — diagonal neon lines that sweep across on treble
+      if (trebleHit > 0.03 || s.smoothTreble > 0.4) {
+        const laserCount = Math.floor(s.smoothTreble * 6) + (trebleHit > 0.05 ? 3 : 0);
+        for (let i = 0; i < laserCount; i++) {
+          const hue = (Math.floor(s.energyAccum * 60) + i * 50) % 360;
+          const alpha = 0.2 + s.smoothTreble * 0.5;
+          ctx.strokeStyle = `hsla(${hue},100%,60%,${alpha})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          const angle = (s.energyAccum * 2 + i * 0.7) % (Math.PI * 2);
+          const originX = GAME_W / 2 + Math.sin(s.energyAccum * 3 + i) * GAME_W * 0.3;
+          const originY = -10;
+          ctx.moveTo(originX, originY);
+          ctx.lineTo(originX + Math.cos(angle) * 400, originY + Math.sin(angle) * 400);
+          ctx.stroke();
         }
       }
-      // Energy particles — floating neon dots
-      if (s.smoothTreble > 0.3 && Math.random() < 0.3) {
-        const epx = s.px + (Math.random() - 0.5) * GAME_W * 0.8;
+
+      // Beat bars — vertical neon lines from bottom, thicker and brighter
+      if (bassHit > 0.03) {
+        const barCount = Math.floor(bassHit * 50);
+        for (let i = 0; i < barCount; i++) {
+          const bx = Math.floor(Math.random() * GAME_W);
+          const bh = 15 + Math.random() * 50;
+          const hue = Math.floor(Math.random() * 360);
+          ctx.fillStyle = `hsla(${hue},100%,60%,${0.2 + bassHit * 2})`;
+          ctx.fillRect(bx, GAME_H - bh, 2, bh);
+        }
+      }
+
+      // Spotlight sweeps — rotating colored cones from top
+      if (s.smoothBass > 0.15) {
+        const spotCount = 3;
+        for (let i = 0; i < spotCount; i++) {
+          const spotAngle = Math.sin(s.energyAccum * 1.5 + i * 2.1) * 0.8;
+          const spotX = GAME_W * (0.2 + i * 0.3);
+          const hue = (Math.floor(s.energyAccum * 40) + i * 120) % 360;
+          const grad = ctx.createLinearGradient(spotX, 0, spotX + Math.sin(spotAngle) * 120, GAME_H);
+          grad.addColorStop(0, `hsla(${hue},100%,70%,${s.smoothBass * 0.25})`);
+          grad.addColorStop(1, `hsla(${hue},100%,50%,0)`);
+          ctx.fillStyle = grad;
+          ctx.save();
+          ctx.translate(spotX, 0);
+          ctx.transform(1, 0, Math.sin(spotAngle) * 0.5, 1, 0, 0);
+          ctx.fillRect(-20, 0, 40, GAME_H);
+          ctx.restore();
+        }
+      }
+
+      // Glowing coin trails — coins emit light
+      for (const c of s.coins) {
+        if (c.collected) continue;
+        const coinScreenX = c.x - cx;
+        if (coinScreenX < -20 || coinScreenX > GAME_W + 20) continue;
+        const glowPulse = 0.15 + Math.sin(c.animTimer * 3) * 0.1;
+        ctx.fillStyle = `rgba(248,216,48,${glowPulse})`;
+        ctx.fillRect(Math.floor(coinScreenX - 3), Math.floor(c.y - 3), 11, 11);
+      }
+
+      // Horizon glow — neon line at the ground level
+      {
+        const horizY = s.GROUND_Y;
+        const hue = (Math.floor(s.energyAccum * 30)) % 360;
+        const alpha = 0.1 + s.smoothBass * 0.3;
+        const grad = ctx.createLinearGradient(0, horizY - 8, 0, horizY + 4);
+        grad.addColorStop(0, `hsla(${hue},100%,70%,0)`);
+        grad.addColorStop(0.5, `hsla(${hue},100%,60%,${alpha})`);
+        grad.addColorStop(1, `hsla(${hue},100%,70%,0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, horizY - 8, GAME_W, 12);
+      }
+
+      // Energy particles — floating neon sparks everywhere
+      if (s.smoothTreble > 0.2 && Math.random() < 0.5) {
+        const epx = s.px + (Math.random() - 0.5) * GAME_W;
         s.dust.push({
-          x: epx, y: s.py - 20 - Math.random() * 40,
-          vx: (Math.random() - 0.5) * 0.5, vy: -(0.3 + Math.random() * 0.5),
-          life: 1 + Math.random() * 0.5,
+          x: epx, y: s.py - 10 - Math.random() * 60,
+          vx: (Math.random() - 0.5) * 1, vy: -(0.5 + Math.random()),
+          life: 1.5 + Math.random(),
         });
+      }
+
+      // Platform glow — platforms emit colored light
+      for (const pl of s.platforms) {
+        const plScreenX = pl.x - cx;
+        if (plScreenX + pl.w < -20 || plScreenX > GAME_W + 20) continue;
+        const hue = (Math.floor(s.energyAccum * 20 + pl.x * 0.1)) % 360;
+        ctx.fillStyle = `hsla(${hue},100%,60%,${0.08 + s.smoothMid * 0.1})`;
+        ctx.fillRect(Math.floor(plScreenX - 2), Math.floor(pl.y - 2), pl.w + 4, 7);
       }
 
       // ── CRT ──
