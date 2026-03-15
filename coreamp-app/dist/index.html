@@ -5749,8 +5749,8 @@
         scene.add(dirLight);
 
         // ── Lightning flash light ──
-        const flashLight = new THREE.PointLight(0x5566bb, 0, 600, 2);
-        flashLight.position.set(0, 200, -100);
+        const flashLight = new THREE.PointLight(0x7799ff, 0, 1200, 1.5);
+        flashLight.position.set(0, 250, -100);
         scene.add(flashLight);
 
         // ── Cloud planes — textured flat meshes at different heights/depths ──
@@ -5809,35 +5809,77 @@
         scene.add(rain);
 
         // ── Lightning bolt geometry (line segments) ──
-        const maxBolts = 5;
-        const boltSegments = 25;
+        const maxBolts = 8;
+        const boltSegments = 35;
         const bolts = [];
         for (let b = 0; b < maxBolts; b++) {
           const geo = new THREE.BufferGeometry();
           const pos = new Float32Array(boltSegments * 3);
           geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
           const mat = new THREE.LineBasicMaterial({
-            color: 0xddeeff,
+            color: 0xeeffff,
             transparent: true,
             opacity: 0,
             blending: THREE.AdditiveBlending,
+            linewidth: 2,
           });
           const line = new THREE.Line(geo, mat);
           line.visible = false;
           scene.add(line);
-          // Branch bolts
+          // Glow line — thicker, dimmer duplicate for glow effect
+          const glowGeo = new THREE.BufferGeometry();
+          const glowPos = new Float32Array(boltSegments * 3);
+          glowGeo.setAttribute("position", new THREE.BufferAttribute(glowPos, 3));
+          const glowMat = new THREE.LineBasicMaterial({
+            color: 0x8899ff,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending,
+            linewidth: 4,
+          });
+          const glowLine = new THREE.Line(glowGeo, glowMat);
+          glowLine.visible = false;
+          scene.add(glowLine);
+          // Branch bolts — more segments
           const branchGeo = new THREE.BufferGeometry();
-          const branchPos = new Float32Array(12 * 3);
+          const branchPos = new Float32Array(18 * 3);
           branchGeo.setAttribute("position", new THREE.BufferAttribute(branchPos, 3));
           const branchMat = new THREE.LineBasicMaterial({
-            color: 0xbbccee, transparent: true, opacity: 0,
+            color: 0xccddff, transparent: true, opacity: 0,
             blending: THREE.AdditiveBlending,
           });
           const branchLine = new THREE.Line(branchGeo, branchMat);
           branchLine.visible = false;
           scene.add(branchLine);
-          bolts.push({ geo, pos, mat, line, branchGeo, branchPos, branchMat, branchLine, life: 0, maxLife: 0 });
+          // Second branch
+          const branch2Geo = new THREE.BufferGeometry();
+          const branch2Pos = new Float32Array(14 * 3);
+          branch2Geo.setAttribute("position", new THREE.BufferAttribute(branch2Pos, 3));
+          const branch2Mat = new THREE.LineBasicMaterial({
+            color: 0xaabbee, transparent: true, opacity: 0,
+            blending: THREE.AdditiveBlending,
+          });
+          const branch2Line = new THREE.Line(branch2Geo, branch2Mat);
+          branch2Line.visible = false;
+          scene.add(branch2Line);
+          bolts.push({
+            geo, pos, mat, line,
+            glowGeo, glowPos, glowMat, glowLine,
+            branchGeo, branchPos, branchMat, branchLine,
+            branch2Geo, branch2Pos, branch2Mat, branch2Line,
+            life: 0, maxLife: 0,
+          });
         }
+        // Full-screen flash plane behind camera
+        const flashPlaneGeo = new THREE.PlaneGeometry(2000, 2000);
+        const flashPlaneMat = new THREE.MeshBasicMaterial({
+          color: 0xddeeff, transparent: true, opacity: 0,
+          blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+        const flashPlane = new THREE.Mesh(flashPlaneGeo, flashPlaneMat);
+        flashPlane.position.set(0, 200, -200);
+        scene.add(flashPlane);
 
         const ro = new ResizeObserver(() => {
           const cw = container.clientWidth;
@@ -5853,10 +5895,11 @@
         reactiveState = {
           scene, camera, renderer, ro,
           ambient, dirLight, flashLight,
+          flashPlane, flashPlaneMat, flashPlaneGeo,
           clouds, cloudPlaneGeo, cloudTextures,
           rain, rainGeo, rainPos, rainVel, rainMat, rainCount,
           bolts, boltSegments, maxBolts,
-          boltCooldown: 0, flashDecay: 0,
+          boltCooldown: 0, flashDecay: 0, screenFlash: 0,
           smoothBass: 0, smoothMid: 0, smoothTreble: 0,
           camAngle: 0,
           mode: "storm",
@@ -5879,9 +5922,13 @@
         reactiveState.clouds.forEach(c => c.mat.dispose());
         reactiveState.rainGeo.dispose();
         reactiveState.rainMat.dispose();
+        reactiveState.flashPlaneGeo.dispose();
+        reactiveState.flashPlaneMat.dispose();
         reactiveState.bolts.forEach(b => {
           b.geo.dispose(); b.mat.dispose();
+          b.glowGeo.dispose(); b.glowMat.dispose();
           b.branchGeo.dispose(); b.branchMat.dispose();
+          b.branch2Geo.dispose(); b.branch2Mat.dispose();
         });
         if (reactiveState.renderer.domElement.parentNode) {
           reactiveState.renderer.domElement.parentNode.removeChild(reactiveState.renderer.domElement);
@@ -5895,44 +5942,65 @@
       for (const b of s.bolts) { if (b.life <= 0) { slot = b; break; } }
       if (!slot) return;
 
-      const startX = (Math.random() - 0.5) * 300;
-      const startZ = (Math.random() - 0.5) * 300 - 50;
-      const startY = 300 + Math.random() * 100;
+      const startX = (Math.random() - 0.5) * 400;
+      const startZ = (Math.random() - 0.5) * 400 - 50;
+      const startY = 350 + Math.random() * 100;
       let x = startX, y = startY, z = startZ;
 
+      // Main bolt — jagged, powerful
       for (let i = 0; i < s.boltSegments; i++) {
         const idx = i * 3;
         slot.pos[idx] = x;
         slot.pos[idx + 1] = y;
         slot.pos[idx + 2] = z;
-        x += (Math.random() - 0.5) * 30;
-        y -= (12 + Math.random() * 15);
-        z += (Math.random() - 0.5) * 15;
+        slot.glowPos[idx] = x;
+        slot.glowPos[idx + 1] = y;
+        slot.glowPos[idx + 2] = z;
+        x += (Math.random() - 0.5) * 40;
+        y -= (10 + Math.random() * 16);
+        z += (Math.random() - 0.5) * 20;
       }
       slot.geo.attributes.position.needsUpdate = true;
+      slot.glowGeo.attributes.position.needsUpdate = true;
 
-      // Branch from midpoint
-      const midIdx = Math.floor(s.boltSegments * 0.4) * 3;
+      // Branch 1 from ~40%
+      const midIdx = Math.floor(s.boltSegments * 0.35) * 3;
       let bx = slot.pos[midIdx], by = slot.pos[midIdx+1], bz = slot.pos[midIdx+2];
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 18; i++) {
         slot.branchPos[i*3] = bx; slot.branchPos[i*3+1] = by; slot.branchPos[i*3+2] = bz;
-        bx += (Math.random() - 0.3) * 25;
-        by -= (8 + Math.random() * 10);
-        bz += (Math.random() - 0.5) * 10;
+        bx += (Math.random() - 0.3) * 30;
+        by -= (7 + Math.random() * 12);
+        bz += (Math.random() - 0.5) * 15;
       }
       slot.branchGeo.attributes.position.needsUpdate = true;
 
-      slot.life = 1.0;
-      slot.maxLife = 0.12 + Math.random() * 0.15;
-      slot.line.visible = true;
-      slot.branchLine.visible = true;
-      slot.mat.opacity = 1.0;
-      slot.branchMat.opacity = 0.6;
+      // Branch 2 from ~65%
+      const mid2Idx = Math.floor(s.boltSegments * 0.65) * 3;
+      let b2x = slot.pos[mid2Idx], b2y = slot.pos[mid2Idx+1], b2z = slot.pos[mid2Idx+2];
+      for (let i = 0; i < 14; i++) {
+        slot.branch2Pos[i*3] = b2x; slot.branch2Pos[i*3+1] = b2y; slot.branch2Pos[i*3+2] = b2z;
+        b2x += (Math.random() - 0.7) * 28;
+        b2y -= (6 + Math.random() * 10);
+        b2z += (Math.random() - 0.5) * 12;
+      }
+      slot.branch2Geo.attributes.position.needsUpdate = true;
 
-      // Flash the light at bolt position
-      s.flashLight.position.set(startX, startY - 50, startZ);
-      s.flashLight.power = 300 + Math.random() * 300;
+      slot.life = 1.0;
+      slot.maxLife = 0.18 + Math.random() * 0.2;
+      slot.line.visible = true;
+      slot.glowLine.visible = true;
+      slot.branchLine.visible = true;
+      slot.branch2Line.visible = true;
+      slot.mat.opacity = 1.0;
+      slot.glowMat.opacity = 0.6;
+      slot.branchMat.opacity = 0.8;
+      slot.branch2Mat.opacity = 0.6;
+
+      // Massive flash
+      s.flashLight.position.set(startX, startY - 80, startZ);
+      s.flashLight.power = 800 + Math.random() * 600;
       s.flashDecay = 1.0;
+      s.screenFlash = 1.0;
     }
 
     function tickStormVisualizer(bass, mid, treble, time) {
@@ -5964,9 +6032,9 @@
         if (cloud.mesh.position.x > 400) cloud.mesh.position.x = -400;
         if (cloud.mesh.position.x < -400) cloud.mesh.position.x = 400;
 
-        // Illuminate on flash
+        // Illuminate on flash — dramatically
         const baseOpacity = 0.3 + s.smoothBass * 0.15;
-        cloud.mat.opacity = baseOpacity + s.flashDecay * 0.4;
+        cloud.mat.opacity = baseOpacity + s.flashDecay * 0.6 + s.screenFlash * 0.3;
       }
 
       // ── Ambient light shifts with music ──
@@ -5990,20 +6058,25 @@
       s.rainMat.opacity = 0.2 + s.smoothMid * 0.3;
       s.rainMat.size = 0.3 + s.smoothBass * 0.4;
 
-      // ── Lightning — bass triggers ──
+      // ── Lightning — bass triggers, more aggressive ──
       s.boltCooldown = Math.max(0, s.boltCooldown - dt);
-      if (bassVelocity > 0.05 && s.smoothBass > 0.3 && s.boltCooldown <= 0) {
+      if (bassVelocity > 0.04 && s.smoothBass > 0.2 && s.boltCooldown <= 0) {
         spawnBolt(s);
-        if (bassVelocity > 0.1) {
-          setTimeout(() => { if (reactiveState === s) spawnBolt(s); }, 50 + Math.random() * 100);
+        // Multi-bolt volleys on strong hits
+        if (bassVelocity > 0.08) {
+          setTimeout(() => { if (reactiveState === s) spawnBolt(s); }, 30 + Math.random() * 60);
         }
-        s.boltCooldown = 0.2 + Math.random() * 0.3;
+        if (bassVelocity > 0.15) {
+          setTimeout(() => { if (reactiveState === s) spawnBolt(s); }, 80 + Math.random() * 80);
+        }
+        s.boltCooldown = 0.12 + Math.random() * 0.2;
       }
-      // Random ambient flashes on moderate energy
-      if (Math.random() > 0.993 && s.smoothBass > 0.15) {
-        s.flashLight.position.set((Math.random()-0.5)*300, 250+Math.random()*100, (Math.random()-0.5)*200);
-        s.flashLight.power = 50 + Math.random() * 150;
-        s.flashDecay = Math.max(s.flashDecay, 0.3);
+      // Random ambient flashes — more frequent
+      if (Math.random() > 0.985 && s.smoothBass > 0.1) {
+        s.flashLight.position.set((Math.random()-0.5)*400, 250+Math.random()*150, (Math.random()-0.5)*300);
+        s.flashLight.power = 200 + Math.random() * 400;
+        s.flashDecay = Math.max(s.flashDecay, 0.5);
+        s.screenFlash = Math.max(s.screenFlash, 0.3);
       }
 
       for (const bolt of s.bolts) {
@@ -6011,20 +6084,41 @@
           bolt.life -= dt / bolt.maxLife;
           if (bolt.life <= 0) {
             bolt.line.visible = false;
+            bolt.glowLine.visible = false;
             bolt.branchLine.visible = false;
+            bolt.branch2Line.visible = false;
             bolt.mat.opacity = 0;
+            bolt.glowMat.opacity = 0;
             bolt.branchMat.opacity = 0;
+            bolt.branch2Mat.opacity = 0;
           } else {
-            const flicker = bolt.life > 0.5 ? 1.0 : (Math.random() > 0.3 ? bolt.life * 2 : 0);
-            bolt.mat.opacity = flicker;
-            bolt.branchMat.opacity = flicker * 0.5;
+            // Aggressive strobe flicker
+            const strobe = bolt.life > 0.6 ? 1.0 :
+              (bolt.life > 0.3 ? (Math.random() > 0.2 ? 1.0 : 0) :
+              (Math.random() > 0.4 ? bolt.life * 3 : 0));
+            bolt.mat.opacity = strobe;
+            bolt.glowMat.opacity = strobe * 0.5;
+            bolt.branchMat.opacity = strobe * 0.7;
+            bolt.branch2Mat.opacity = strobe * 0.5;
+            // Color shift — brighter white at peak
+            if (strobe > 0.8) {
+              bolt.mat.color.setHex(0xffffff);
+              bolt.glowMat.color.setHex(0xaabbff);
+            } else {
+              bolt.mat.color.setHex(0xeeffff);
+              bolt.glowMat.color.setHex(0x8899ff);
+            }
           }
         }
       }
 
-      // Flash decay
-      s.flashDecay = Math.max(0, s.flashDecay - 0.03);
-      s.flashLight.power = s.flashDecay * 500;
+      // Flash decay — slower for more drama
+      s.flashDecay = Math.max(0, s.flashDecay - 0.02);
+      s.flashLight.power = s.flashDecay * 1200;
+      // Screen flash overlay
+      s.screenFlash = Math.max(0, s.screenFlash - 0.025);
+      s.flashPlaneMat.opacity = s.screenFlash * 0.35;
+      s.flashPlane.lookAt(s.camera.position);
 
       // ── Render ──
       s.renderer.render(s.scene, s.camera);
