@@ -6129,6 +6129,10 @@
       "8": "#48d858", // enemy body (green)
       "9": "#ffffff", // enemy eye
       "A": "#183818", // enemy pupil
+      "C": "#f8d830", // coin gold
+      "D": "#c8a020", // coin dark
+      "P": "#7888a8", // platform light
+      "p": "#586878", // platform dark
     };
 
     function renderSprite(ctx, spriteData, x, y, palette, flash) {
@@ -6174,6 +6178,19 @@
       { sky1: [10,25,50], sky2: [15,40,70], mount: [10,30,50], ground: [20,35,30], name: "deep ocean" },
       { sky1: [30,10,50], sky2: [50,15,70], mount: [25,15,45], ground: [35,20,30], name: "synthwave" },
       { sky1: [5,30,25], sky2: [10,50,40], mount: [8,35,30], ground: [15,40,20], name: "toxic" },
+    ];
+
+    // Coin sprite (5x5)
+    const COIN_FRAMES = [
+      ["..C..","CCCCC","CCDCC","CCCCC","..C.."], // full
+      [".....","..C..",".CDC.",".CCC.","..C.."], // thin
+    ];
+
+    // Platform sprite tile (8x3)
+    const PLATFORM_TILE = [
+      "PPPPPPPP",
+      "PpPpPpPp",
+      "pppppppp",
     ];
 
     function lerpColor(a, b, t) {
@@ -6250,8 +6267,13 @@
           stars, mountains1, mountains2, terrain,
           scrollX: 0, scrollSpeed: 1.5, GROUND_Y,
           enemies: [], projectiles: [], explosions: [],
+          // Coins and platforms
+          coins: [], platforms: [],
+          coinSpawnTimer: 0, platformSpawnTimer: 0,
+          totalCoins: 0,
           // Scoring
           score: 0, distance: 0, gameOver: false, gameOverTimer: 0,
+          gamePaused: false,
           // Music state
           smoothBass: 0, smoothMid: 0, smoothTreble: 0,
           prevBass: 0, beatAccum: 0,
@@ -6297,6 +6319,19 @@
       const ctx = s.ctx;
       const dt = s.lastTime ? Math.min((time - s.lastTime) / 1000, 0.05) : 0.016;
       s.lastTime = time;
+
+      // ── Pause when song is paused ──
+      const player = playbackPlayer();
+      const songPaused = player && (player.paused || player.ended);
+      s.gamePaused = songPaused && !s.gameOver;
+      if (s.gamePaused) {
+        // Still render but show pause overlay
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(0, 0, GAME_W, GAME_H);
+        drawText(ctx, "PAUSED", GAME_W / 2 - 18, GAME_H / 2 - 8, "#58a8d8", 2);
+        drawText(ctx, "PLAY MUSIC TO CONTINUE", GAME_W / 2 - 63, GAME_H / 2 + 12, "#888", 1);
+        return;
+      }
 
       // ── Smooth audio ──
       s.prevBass = s.smoothBass;
@@ -6402,16 +6437,26 @@
           s.py = s.GROUND_Y - playerH;
         }
 
-        // Check if over a gap
+        // Check if over a gap (pit)
         const playerWorldX = s.scrollX + s.px;
         let overGap = false;
         for (const seg of s.terrain) {
-          if (seg.gap && playerWorldX > seg.x && playerWorldX < seg.x + 5) {
+          if (seg.gap && playerWorldX > seg.x - 2 && playerWorldX < seg.x + 5) {
             overGap = true;
             break;
           }
         }
-        if (overGap && s.grounded) {
+        // Check if on a platform (platforms override gaps)
+        let onPlatform = false;
+        const ph = s.ducking ? 8 : 12;
+        for (const pl of s.platforms) {
+          if (s.px + 10 > pl.x && s.px < pl.x + pl.w &&
+              s.py + ph >= pl.y - 2 && s.py + ph <= pl.y + 4) {
+            onPlatform = true;
+            break;
+          }
+        }
+        if (overGap && s.grounded && !onPlatform) {
           s.grounded = false;
           s.pvy = 0.5;
         }
@@ -6452,23 +6497,58 @@
           });
         }
 
-        // ── Terrain generation ──
-        const lastSeg = s.terrain[s.terrain.length - 1];
-        while (lastSeg.x - s.scrollX < GAME_W + 40) {
-          const nx = lastSeg.x + 5;
-          const makeGap = s.smoothMid > 0.4 && Math.random() < s.smoothMid * 0.08;
-          const bassWave = Math.sin(nx * 0.02 + s.energyAccum * 2) * s.smoothBass * 8;
-          s.terrain.push({ x: nx, y: s.GROUND_Y + bassWave, gap: makeGap, height: bassWave });
-          s.terrain[s.terrain.length - 1]; // update lastSeg ref
-          break;
+        // ── Spawn platforms — mid energy drives frequency ──
+        s.platformSpawnTimer -= dt;
+        if (s.platformSpawnTimer <= 0 && s.smoothMid > 0.25) {
+          s.platformSpawnTimer = 3.0 - s.smoothMid * 1.5 + Math.random() * 2;
+          const platY = s.GROUND_Y - 25 - Math.random() * 25;
+          const platW = 24 + Math.floor(Math.random() * 3) * 8;
+          s.platforms.push({ x: GAME_W + 5, y: platY, w: platW });
         }
-        // Re-check and keep generating
+
+        // ── Spawn coins — appear in arcs or on platforms ──
+        s.coinSpawnTimer -= dt;
+        if (s.coinSpawnTimer <= 0) {
+          s.coinSpawnTimer = 1.2 - s.smoothTreble * 0.4 + Math.random() * 0.8;
+          // Sometimes place on a platform, sometimes in the air
+          const onPlatform = s.platforms.length > 0 && Math.random() < 0.4;
+          if (onPlatform) {
+            const plat = s.platforms[s.platforms.length - 1];
+            for (let ci = 0; ci < 3; ci++) {
+              s.coins.push({
+                x: plat.x + ci * 8 + 4, y: plat.y - 8,
+                collected: false, animTimer: Math.random() * Math.PI * 2,
+              });
+            }
+          } else {
+            const coinY = s.GROUND_Y - 15 - Math.random() * 30;
+            const coinCount = 2 + Math.floor(Math.random() * 3);
+            for (let ci = 0; ci < coinCount; ci++) {
+              s.coins.push({
+                x: GAME_W + 10 + ci * 8, y: coinY,
+                collected: false, animTimer: Math.random() * Math.PI * 2,
+              });
+            }
+          }
+        }
+
+        // ── Terrain generation — pits are 3-5 segments wide ──
+        if (!s.pitCooldown) s.pitCooldown = 0;
+        s.pitCooldown = Math.max(0, s.pitCooldown - dt);
         while (s.terrain[s.terrain.length - 1].x - s.scrollX < GAME_W + 40) {
           const last = s.terrain[s.terrain.length - 1];
           const nx = last.x + 5;
-          const makeGap = s.smoothMid > 0.4 && Math.random() < s.smoothMid * 0.06;
           const bassWave = Math.sin(nx * 0.02 + s.energyAccum * 2) * s.smoothBass * 8;
-          s.terrain.push({ x: nx, y: s.GROUND_Y + bassWave, gap: makeGap, height: bassWave });
+          // Pit: create a run of 3-5 gap segments
+          if (!last.gap && s.pitCooldown <= 0 && s.smoothMid > 0.3 && Math.random() < s.smoothMid * 0.04) {
+            const pitWidth = 3 + Math.floor(Math.random() * 3); // 3-5 segments
+            for (let g = 0; g < pitWidth; g++) {
+              s.terrain.push({ x: nx + g * 5, y: s.GROUND_Y + bassWave, gap: true, height: bassWave });
+            }
+            s.pitCooldown = 2.0; // Don't spawn pits too close together
+          } else {
+            s.terrain.push({ x: nx, y: s.GROUND_Y + bassWave, gap: false, height: bassWave });
+          }
         }
         // Cull old terrain
         while (s.terrain.length > 0 && s.terrain[0].x < s.scrollX - 20) {
@@ -6520,6 +6600,47 @@
             }
           }
         }
+
+        // ── Update platforms ──
+        for (let i = s.platforms.length - 1; i >= 0; i--) {
+          s.platforms[i].x -= s.scrollSpeed;
+          if (s.platforms[i].x + s.platforms[i].w < -10) { s.platforms.splice(i, 1); continue; }
+          // Player collision — land on top
+          const pl = s.platforms[i];
+          const ph = s.ducking ? 8 : 12;
+          if (!s.dead && s.pvy >= 0 && s.px + 10 > pl.x && s.px < pl.x + pl.w &&
+              s.py + ph >= pl.y && s.py + ph <= pl.y + 6) {
+            s.py = pl.y - ph;
+            s.pvy = 0;
+            s.grounded = true;
+          }
+        }
+
+        // ── Update coins ──
+        for (let i = s.coins.length - 1; i >= 0; i--) {
+          const c = s.coins[i];
+          c.x -= s.scrollSpeed;
+          c.animTimer += dt * 4;
+          if (c.x < -10) { s.coins.splice(i, 1); continue; }
+          if (c.collected) continue;
+          // Player collision
+          const ph = s.ducking ? 8 : 12;
+          if (s.px + 10 > c.x && s.px < c.x + 5 && s.py + ph > c.y && s.py < c.y + 5) {
+            c.collected = true;
+            s.score += 25;
+            s.totalCoins++;
+            // Sparkle effect
+            for (let d = 0; d < 4; d++) {
+              s.dust.push({
+                x: c.x + 2 + (Math.random()-0.5)*4, y: c.y + 2 + (Math.random()-0.5)*4,
+                vx: (Math.random()-0.5)*3, vy: -(1 + Math.random()*2),
+                life: 0.3 + Math.random()*0.2,
+              });
+            }
+            // Remove after a short delay so sparkle shows
+            s.coins.splice(i, 1);
+          }
+        }
       }
 
       // ── Dead / game over ──
@@ -6539,6 +6660,8 @@
           s.deadTimer = 0; s.gameOver = false; s.gameOverTimer = 0;
           s.score = 0; s.distance = 0; s.scrollX = 0;
           s.enemies = []; s.projectiles = []; s.explosions = [];
+          s.coins = []; s.platforms = []; s.totalCoins = 0;
+          s.coinSpawnTimer = 1; s.platformSpawnTimer = 2;
           s.shootingStars = []; s.cracks = []; s.dust = []; s.pulseRings = [];
           s.spawnTimer = 2; s.shooting = 0; s.flashTimer = 0;
           // Regenerate terrain
@@ -6678,6 +6801,38 @@
         ctx.fillRect(Math.floor(sx), Math.floor(seg.y), 6, 1);
       }
 
+      // ── Platforms ──
+      for (const pl of s.platforms) {
+        // Draw platform tiles
+        for (let tx = 0; tx < pl.w; tx += 8) {
+          renderSprite(ctx, PLATFORM_TILE, pl.x + tx, pl.y, SPRITE_PALETTE, false);
+        }
+      }
+
+      // ── Coins ──
+      for (const c of s.coins) {
+        if (c.collected) continue;
+        const coinFrame = Math.floor(c.animTimer) % 2;
+        const sprite = COIN_FRAMES[coinFrame];
+        renderSprite(ctx, sprite, c.x, c.y, SPRITE_PALETTE, false);
+        // Sparkle glow
+        const glow = 0.2 + Math.sin(c.animTimer * 2) * 0.15;
+        ctx.fillStyle = `rgba(248,216,48,${glow})`;
+        ctx.fillRect(Math.floor(c.x - 1), Math.floor(c.y - 1), 7, 7);
+      }
+
+      // ── Pits — lava glow in gaps ──
+      for (const seg of s.terrain) {
+        if (!seg.gap) continue;
+        const sx = seg.x - s.scrollX;
+        if (sx < -10 || sx > GAME_W + 10) continue;
+        const glowR = 180 + Math.sin(time * 0.005 + sx * 0.1) * 60;
+        ctx.fillStyle = `rgba(${Math.floor(glowR)},40,10,0.7)`;
+        ctx.fillRect(Math.floor(sx), Math.floor(seg.y) + 2, 6, GAME_H - Math.floor(seg.y));
+        ctx.fillStyle = `rgba(255,120,30,0.5)`;
+        ctx.fillRect(Math.floor(sx), Math.floor(seg.y) + 1, 6, 2);
+      }
+
       // ── Pulse rings ──
       for (const pr of s.pulseRings) {
         ctx.strokeStyle = `rgba(100,180,255,${pr.life * 0.3})`;
@@ -6756,6 +6911,9 @@
 
       // ── HUD ──
       drawText(ctx, `SCORE:${s.score}`, 4, 4, "#fff", 1);
+      if (s.totalCoins > 0) {
+        drawText(ctx, `COINS:${s.totalCoins}`, 4, 12, "#f8d830", 1);
+      }
 
       // Speed indicator — more bars = faster
       const speedBars = Math.min(10, Math.floor(s.scrollSpeed * 2));
