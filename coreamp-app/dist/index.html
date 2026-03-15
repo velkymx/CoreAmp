@@ -2880,8 +2880,8 @@
     let visualizerPseudoFullscreen = false;
     let spectrumSubMode = Number(window.localStorage.getItem("coreamp.spectrumSubMode") || 0);
     let reactiveSubMode = Number(window.localStorage.getItem("coreamp.reactiveSubMode") || 0);
-    const REACTIVE_SUB_MODE_COUNT = 5;
-    const REACTIVE_SUB_MODE_NAMES = ["Orb", "Vortex", "Nebula", "Storm", "Game"];
+    const REACTIVE_SUB_MODE_COUNT = 6;
+    const REACTIVE_SUB_MODE_NAMES = ["Orb", "Vortex", "Nebula", "Storm", "Game", "Fishing"];
     let enabledSpectrumModes = JSON.parse(window.localStorage.getItem("coreamp.enabledSpectrumModes") || "null");
     let enabledReactiveModes = JSON.parse(window.localStorage.getItem("coreamp.enabledReactiveModes") || "null");
     let audioMotionInstance = null;
@@ -7241,6 +7241,938 @@
       ctx.restore();
     }
 
+    // ══════════════════════════════════════════════════════════════════
+    // ██  FISHING MINI-GAME — Neon 90s Fake-3D Pokémon-Style Fishing ██
+    // ══════════════════════════════════════════════════════════════════
+
+    const FISH_W = 320, FISH_H = 180;
+
+    // Fish types: name, points, rarity (0-1, lower=rarer), size, color, fightStrength
+    const FISH_TYPES = [
+      { name: "NEON MINNOW",     pts: 10,  rarity: 0.40, size: 6,  color: "#00ff88", fight: 0.3 },
+      { name: "BASS DROP",       pts: 50,  rarity: 0.25, size: 10, color: "#ff00ff", fight: 0.6 },
+      { name: "DISCO JELLYFISH", pts: 100, rarity: 0.15, size: 8,  color: "#00ffff", fight: 0.5 },
+      { name: "SYNTH SHARK",     pts: 200, rarity: 0.12, size: 14, color: "#ff3333", fight: 0.85 },
+      { name: "GOLDEN BEATFISH", pts: 500, rarity: 0.08, size: 12, color: "#ffd700", fight: 1.0 },
+    ];
+
+    // Fish pixel sprites (small, neon outlines)
+    const FISH_SPRITES = [
+      // Minnow (6x3)
+      [".@@@@.","@@@@@@","..@@.."],
+      // Bass Drop (10x5)
+      ["...@@@@...","..@@@@@@..","@@@@@@@@@@","..@@@@@@..","...@@@@..."],
+      // Jellyfish (8x6)
+      ["..@@@@..","@@@@@@@@","@@@@@@@@","..@..@..","..@..@..",".@....@."],
+      // Shark (14x5)
+      ["@.............",".@@@@@........","..@@@@@@@@@@@@",".@@@@@........","@............."],
+      // Beatfish (12x6)
+      ["....@@@@....","..@@@@@@@@..","@@@@@@@@@@@@","@@@@@@@@@@@@","..@@@@@@@@..","....@@@@...."],
+    ];
+
+    // Fishing game states
+    const FS_IDLE = 0, FS_CASTING = 1, FS_WAITING = 2, FS_BITE = 3, FS_FIGHTING = 4, FS_CAUGHT = 5, FS_LOST = 6;
+
+    function initFishingVisualizer() {
+      if (reactiveState) return;
+      try {
+        const container = visualizerContainerEl;
+        const canvas = document.createElement("canvas");
+        canvas.width = FISH_W;
+        canvas.height = FISH_H;
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.imageRendering = "pixelated";
+        canvas.style.imageRendering = "crisp-edges";
+        container.appendChild(canvas);
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+
+        const keys = {};
+        const onKeyDown = (e) => {
+          if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) {
+            e.preventDefault();
+            if (!keys[e.key]) keys[e.key + "_pressed"] = true;
+            keys[e.key] = true;
+          }
+        };
+        const onKeyUp = (e) => { keys[e.key] = false; };
+        window.addEventListener("keydown", onKeyDown);
+        window.addEventListener("keyup", onKeyUp);
+
+        const ro = new ResizeObserver(() => {});
+        ro.observe(container);
+
+        // Water grid lines for fake 3D perspective
+        const gridLines = [];
+        for (let i = 0; i < 20; i++) {
+          gridLines.push({ z: i / 20, phase: Math.random() * Math.PI * 2 });
+        }
+
+        // Ambient fish swimming in water (decorative)
+        const ambientFish = [];
+        for (let i = 0; i < 8; i++) {
+          ambientFish.push({
+            x: Math.random() * FISH_W, z: 0.2 + Math.random() * 0.7,
+            speed: 0.3 + Math.random() * 0.5, type: Math.floor(Math.random() * 3),
+            phase: Math.random() * Math.PI * 2, dir: Math.random() < 0.5 ? 1 : -1,
+          });
+        }
+
+        reactiveState = {
+          canvas, ctx, ro, keys, onKeyDown, onKeyUp,
+          mode: "fishing",
+          // Game state
+          state: FS_IDLE,
+          score: 0, totalCaught: 0, combo: 0,
+          // Cast
+          castPower: 0, castCharging: false, castDistance: 0,
+          bobberX: FISH_W / 2, bobberY: 60,
+          lineEndX: FISH_W / 2, lineEndY: 60,
+          // Wait / bite
+          waitTimer: 0, biteTimer: 0, nibbleCount: 0,
+          exclamationFlash: 0,
+          // Current fish on hook
+          hookedFish: null, hookedFishType: -1,
+          // Fighting
+          tension: 50, tensionMax: 100, reelProgress: 0,
+          fishPullDir: 0, fishPullForce: 0, fishPullTimer: 0,
+          fightFlashTimer: 0, lineSnap: false,
+          reelHoldTimer: 0, fishStamina: 100, fishRunning: false, fishRunTimer: 0,
+          // Visual
+          rodTipX: FISH_W / 2, rodTipY: 30,
+          rodAngle: 0,
+          // Caught display
+          caughtTimer: 0, lostTimer: 0, caughtFishName: "", caughtFishPts: 0,
+          // Perspective water
+          gridLines, ambientFish,
+          waterPhase: 0, horizonY: 55,
+          // Decorative
+          sparkles: [], ripples: [],
+          neonPulse: 0, strobeTimer: 0,
+          // Music
+          smoothBass: 0, smoothMid: 0, smoothTreble: 0,
+          energyAccum: 0, beatAccum: 0, prevBass: 0,
+          lastTime: 0,
+          // Paused
+          gamePaused: false,
+        };
+      } catch (error) {
+        console.error("Fishing init failed", error);
+        reactiveState = null;
+      }
+    }
+
+    function destroyFishingVisualizer() {
+      if (!reactiveState) return;
+      try {
+        window.removeEventListener("keydown", reactiveState.onKeyDown);
+        window.removeEventListener("keyup", reactiveState.onKeyUp);
+        reactiveState.ro.disconnect();
+        if (reactiveState.canvas.parentNode) {
+          reactiveState.canvas.parentNode.removeChild(reactiveState.canvas);
+        }
+      } catch (_) {}
+      reactiveState = null;
+    }
+
+    function tickFishingVisualizer(bass, mid, treble, time) {
+      if (!reactiveState || reactiveState.mode !== "fishing") return;
+      const s = reactiveState;
+      const ctx = s.ctx;
+      const dt = s.lastTime ? Math.min((time - s.lastTime) / 1000, 0.05) : 0.016;
+      s.lastTime = time;
+
+      // Pause check
+      const audioEl = playbackPlayer();
+      if (audioEl && (audioEl.paused || audioEl.ended)) {
+        s.gamePaused = true;
+      } else {
+        s.gamePaused = false;
+      }
+
+      // Smooth audio values
+      s.smoothBass += (bass - s.smoothBass) * 0.25;
+      s.smoothMid += (mid - s.smoothMid) * 0.2;
+      s.smoothTreble += (treble - s.smoothTreble) * 0.2;
+      s.energyAccum += dt;
+      s.beatAccum += dt;
+      s.neonPulse = Math.sin(time * 0.003) * 0.5 + 0.5;
+
+      // Beat detection
+      const bassVel = bass - s.prevBass;
+      s.prevBass = bass;
+      const beatHit = bassVel > 0.15;
+      if (beatHit) s.strobeTimer = 0.1;
+      s.strobeTimer = Math.max(0, s.strobeTimer - dt);
+
+      // Consume pressed flags
+      const spacePressed = s.keys[" _pressed"]; s.keys[" _pressed"] = false;
+      const upPressed = s.keys["ArrowUp_pressed"]; s.keys["ArrowUp_pressed"] = false;
+      const downPressed = s.keys["ArrowDown_pressed"]; s.keys["ArrowDown_pressed"] = false;
+
+      // ═══ UPDATE ═══
+      if (!s.gamePaused) {
+
+        // --- State machine ---
+        if (s.state === FS_IDLE) {
+          // Space to start charging cast
+          if (s.keys[" "]) {
+            s.castCharging = true;
+            s.castPower = Math.min(s.castPower + dt * 80, 100);
+          } else if (s.castCharging) {
+            // Released — cast!
+            s.castCharging = false;
+            s.state = FS_CASTING;
+            s.castDistance = s.castPower;
+            s.castPower = 0;
+            s.bobberX = FISH_W / 2;
+            s.bobberY = s.horizonY;
+            s.lineEndX = FISH_W / 2;
+            s.lineEndY = s.horizonY;
+            s.ripples.push({ x: FISH_W / 2, y: s.horizonY + s.castDistance * 0.6, r: 0, life: 1.5 });
+          }
+        }
+
+        else if (s.state === FS_CASTING) {
+          // Animate bobber flying out
+          const targetY = s.horizonY + s.castDistance * 0.6;
+          s.bobberY += (targetY - s.bobberY) * 0.12;
+          s.lineEndX = s.bobberX;
+          s.lineEndY = s.bobberY;
+          if (Math.abs(s.bobberY - targetY) < 1) {
+            s.bobberY = targetY;
+            s.state = FS_WAITING;
+            s.waitTimer = 2 + Math.random() * 4 - s.smoothTreble * 2;
+            s.nibbleCount = 0;
+          }
+        }
+
+        else if (s.state === FS_WAITING) {
+          // Bobber bobs with bass
+          s.bobberY += Math.sin(time * 0.005 + s.smoothBass * 3) * 0.3;
+          s.lineEndX = s.bobberX + Math.sin(time * 0.002) * 2;
+          s.lineEndY = s.bobberY;
+
+          s.waitTimer -= dt;
+          // Nibbles — fake bites to build tension (Black Bass style)
+          if (s.waitTimer < 1.5 && s.nibbleCount < 2 && Math.random() < dt * 0.8) {
+            s.nibbleCount++;
+            s.exclamationFlash = 0.3;
+            s.bobberY -= 3;
+          }
+          if (s.waitTimer <= 0) {
+            s.state = FS_BITE;
+            s.biteTimer = 1.2 + s.smoothBass * 0.5;
+            s.exclamationFlash = 1.0;
+            // Pick a fish — rarer fish in deeper casts (Black Bass lake depth mechanic)
+            const depthBonus = s.castDistance / 100; // 0-1
+            const roll = Math.random() * (1 - depthBonus * 0.3); // deeper = better odds
+            let cumulative = 0;
+            s.hookedFishType = 0;
+            for (let i = 0; i < FISH_TYPES.length; i++) {
+              cumulative += FISH_TYPES[i].rarity;
+              if (roll < cumulative) { s.hookedFishType = i; break; }
+            }
+            s.hookedFish = FISH_TYPES[s.hookedFishType];
+          }
+          // Reel in empty (Down arrow)
+          if (downPressed) {
+            s.state = FS_IDLE;
+          }
+        }
+
+        else if (s.state === FS_BITE) {
+          // Fish is biting! Player must press Space to hook — timing is critical (Black Bass)
+          s.biteTimer -= dt;
+          s.exclamationFlash = Math.max(0, s.exclamationFlash - dt * 0.5);
+          s.bobberY += Math.sin(time * 0.02) * 1.5;
+
+          if (spacePressed || upPressed) {
+            // Hooked! Start fight
+            s.state = FS_FIGHTING;
+            s.tension = 40;
+            s.reelProgress = 0;
+            s.fishPullDir = Math.random() < 0.5 ? -1 : 1;
+            s.fishPullForce = s.hookedFish.fight * 40;
+            s.fishPullTimer = 0;
+            s.fightFlashTimer = 0;
+            s.lineSnap = false;
+            s.reelHoldTimer = 0;
+            s.fishStamina = 100; // fish tires over time (Black Bass)
+            s.fishRunning = false;
+            s.fishRunTimer = 0;
+          }
+          if (s.biteTimer <= 0) {
+            // Missed the bite — too slow!
+            s.state = FS_LOST;
+            s.lostTimer = 2;
+            s.hookedFish = null;
+          }
+        }
+
+        else if (s.state === FS_FIGHTING) {
+          // Black Bass inspired fight — timing-based reeling, fish stamina, line management
+          const fish = s.hookedFish;
+          const fightIntensity = (fish.fight + s.smoothBass * 0.3) * (s.fishStamina / 100);
+
+          // Fish stamina slowly drains — it gets tired (core Black Bass mechanic)
+          s.fishStamina = Math.max(10, s.fishStamina - dt * (3 + s.smoothMid * 2));
+
+          // Fish pulls — changes direction periodically, harder when stamina is high
+          s.fishPullTimer -= dt;
+          if (s.fishPullTimer <= 0) {
+            s.fishPullDir = Math.random() < 0.5 ? -1 : 1;
+            s.fishPullTimer = 0.3 + Math.random() * 1.2;
+            s.fishPullForce = fightIntensity * (25 + Math.random() * 25);
+          }
+
+          // Fish "runs" — sudden burst (Black Bass signature mechanic)
+          s.fishRunTimer -= dt;
+          if (s.fishRunTimer <= 0 && s.fishStamina > 30 && Math.random() < dt * 0.3) {
+            s.fishRunning = true;
+            s.fishRunTimer = 1 + Math.random() * 1.5;
+            s.fishPullForce *= 2.5;
+          }
+          if (s.fishRunning && s.fishRunTimer <= 0) {
+            s.fishRunning = false;
+            s.fishStamina -= 15; // runs tire the fish faster
+          }
+
+          // Fish pulls on tension
+          s.tension += s.fishPullForce * dt * 0.8;
+          // Reel progress slowly decays (fish pulls away)
+          s.reelProgress -= fightIntensity * 2.5 * dt;
+
+          // Player controls — Black Bass style: reel too long = line snaps, timing matters
+          if (s.keys["ArrowUp"]) {
+            s.reelHoldTimer += dt;
+            // Reeling rate increases then becomes dangerous (Black Bass timing mechanic)
+            const reelRate = s.fishRunning ? 15 : 35;
+            s.reelProgress += reelRate * dt;
+            // Tension rises the longer you hold reel — must pump, not hold!
+            const tensionRate = 10 + s.reelHoldTimer * 20;
+            s.tension += tensionRate * dt;
+          } else {
+            s.reelHoldTimer = 0; // reset when released
+          }
+
+          if (s.keys["ArrowDown"]) {
+            // Release line — eases tension but gives fish distance
+            s.tension -= 35 * dt;
+            s.reelProgress -= 8 * dt;
+          }
+          if (s.keys["ArrowLeft"]) {
+            // Counter left pull — reduces tension if fish pulling left
+            if (s.fishPullDir < 0) {
+              s.tension -= 25 * dt;
+              s.fishStamina -= dt * 5; // tires fish when countered correctly
+            } else {
+              s.tension += 8 * dt;
+            }
+          }
+          if (s.keys["ArrowRight"]) {
+            // Counter right pull
+            if (s.fishPullDir > 0) {
+              s.tension -= 25 * dt;
+              s.fishStamina -= dt * 5;
+            } else {
+              s.tension += 8 * dt;
+            }
+          }
+
+          // Natural tension decay — line relaxes slightly when not fighting
+          if (!s.keys["ArrowUp"]) s.tension -= 5 * dt;
+
+          // Clamp tension
+          s.tension = Math.max(0, Math.min(s.tensionMax, s.tension));
+          s.reelProgress = Math.max(0, Math.min(100, s.reelProgress));
+
+          // Bobber moves with fight
+          s.bobberX = FISH_W / 2 + s.fishPullDir * (s.fishPullForce * 0.5) * Math.sin(time * 0.005);
+          s.bobberY = s.horizonY + s.castDistance * 0.6 + Math.sin(time * 0.008) * 3;
+          s.lineEndX = s.bobberX;
+          s.lineEndY = s.bobberY;
+
+          // Flash on high tension
+          if (s.tension > 80) s.fightFlashTimer = 0.05;
+          s.fightFlashTimer = Math.max(0, s.fightFlashTimer - dt);
+
+          // Line snaps — fish escapes
+          if (s.tension >= s.tensionMax) {
+            s.state = FS_LOST;
+            s.lostTimer = 2.5;
+            s.lineSnap = true;
+            s.hookedFish = null;
+            s.combo = 0;
+          }
+
+          // Reeled in fully — caught!
+          if (s.reelProgress >= 100) {
+            s.state = FS_CAUGHT;
+            s.caughtTimer = 3;
+            s.combo++;
+            const comboMult = Math.min(s.combo, 5);
+            s.caughtFishPts = fish.pts * comboMult;
+            s.caughtFishName = fish.name;
+            s.score += s.caughtFishPts;
+            s.totalCaught++;
+            // Big ripple
+            s.ripples.push({ x: s.bobberX, y: s.bobberY, r: 0, life: 2 });
+            // Sparkle burst
+            for (let i = 0; i < 16; i++) {
+              s.sparkles.push({
+                x: FISH_W / 2, y: FISH_H / 2,
+                vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5,
+                life: 1.5 + Math.random(), color: fish.color,
+              });
+            }
+          }
+        }
+
+        else if (s.state === FS_CAUGHT) {
+          s.caughtTimer -= dt;
+          if (s.caughtTimer <= 0) {
+            s.state = FS_IDLE;
+            s.hookedFish = null;
+          }
+        }
+
+        else if (s.state === FS_LOST) {
+          s.lostTimer -= dt;
+          if (s.lostTimer <= 0) {
+            s.state = FS_IDLE;
+          }
+        }
+
+        // Update ambient fish
+        for (const af of s.ambientFish) {
+          af.x += af.speed * af.dir * (1 + s.smoothBass);
+          af.phase += dt * 2;
+          if (af.x > FISH_W + 20) { af.x = -15; af.z = 0.2 + Math.random() * 0.7; }
+          if (af.x < -20) { af.x = FISH_W + 15; af.z = 0.2 + Math.random() * 0.7; }
+        }
+
+        // Update sparkles
+        for (let i = s.sparkles.length - 1; i >= 0; i--) {
+          const sp = s.sparkles[i];
+          sp.x += sp.vx; sp.y += sp.vy;
+          sp.life -= dt;
+          if (sp.life <= 0) s.sparkles.splice(i, 1);
+        }
+
+        // Update ripples
+        for (let i = s.ripples.length - 1; i >= 0; i--) {
+          const rp = s.ripples[i];
+          rp.r += 20 * dt;
+          rp.life -= dt;
+          if (rp.life <= 0) s.ripples.splice(i, 1);
+        }
+
+        // Water phase
+        s.waterPhase += dt * (1 + s.smoothBass * 2);
+
+        // Spawn new ambient fish based on treble
+        if (s.smoothTreble > 0.3 && Math.random() < dt * 0.5) {
+          s.ambientFish.push({
+            x: Math.random() < 0.5 ? -10 : FISH_W + 10,
+            z: 0.2 + Math.random() * 0.7,
+            speed: 0.3 + Math.random() * 0.5,
+            type: Math.floor(Math.random() * FISH_TYPES.length),
+            phase: 0, dir: Math.random() < 0.5 ? 1 : -1,
+          });
+          if (s.ambientFish.length > 15) s.ambientFish.shift();
+        }
+      }
+
+      // ═══ RENDER ═══
+      ctx.save();
+
+      // Sky gradient — neon dark
+      const skyHue = (s.energyAccum * 10 + s.smoothBass * 60) % 360;
+      const grd = ctx.createLinearGradient(0, 0, 0, s.horizonY);
+      grd.addColorStop(0, `hsl(${skyHue}, 60%, 3%)`);
+      grd.addColorStop(1, `hsl(${(skyHue + 40) % 360}, 80%, 8%)`);
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, FISH_W, s.horizonY);
+
+      // Stars
+      ctx.fillStyle = "#fff";
+      for (let i = 0; i < 40; i++) {
+        const sx = (i * 37 + s.energyAccum * 2) % FISH_W;
+        const sy = (i * 13 + Math.sin(i + time * 0.001) * 3) % (s.horizonY - 5);
+        const bright = 0.3 + Math.sin(time * 0.002 + i) * 0.3 + s.smoothTreble * 0.3;
+        ctx.globalAlpha = Math.min(1, bright);
+        ctx.fillRect(Math.floor(sx), Math.floor(sy), 1, 1);
+      }
+      ctx.globalAlpha = 1;
+
+      // Horizon glow line
+      const horizGlow = 0.3 + s.smoothBass * 0.5;
+      ctx.strokeStyle = `hsla(${(skyHue + 180) % 360}, 100%, 60%, ${horizGlow})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, s.horizonY);
+      ctx.lineTo(FISH_W, s.horizonY);
+      ctx.stroke();
+      // Thick glow
+      ctx.strokeStyle = `hsla(${(skyHue + 180) % 360}, 100%, 50%, ${horizGlow * 0.3})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, s.horizonY);
+      ctx.lineTo(FISH_W, s.horizonY);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+
+      // ── Water ── Fake 3D perspective grid (Tron style)
+      const waterGrd = ctx.createLinearGradient(0, s.horizonY, 0, FISH_H);
+      waterGrd.addColorStop(0, `hsla(${(skyHue + 200) % 360}, 80%, 10%, 0.95)`);
+      waterGrd.addColorStop(1, `hsla(${(skyHue + 220) % 360}, 90%, 5%, 0.98)`);
+      ctx.fillStyle = waterGrd;
+      ctx.fillRect(0, s.horizonY, FISH_W, FISH_H - s.horizonY);
+
+      // Horizontal grid lines (perspective — closer lines spaced further apart)
+      const gridHue = (skyHue + 180) % 360;
+      for (let i = 0; i < 16; i++) {
+        const t = i / 16;
+        const perspY = s.horizonY + Math.pow(t, 1.8) * (FISH_H - s.horizonY);
+        const wave = Math.sin(s.waterPhase * 2 + i * 0.8) * (1 + s.smoothBass * 2) * (1 - t * 0.5);
+        const alpha = 0.1 + t * 0.2 + s.smoothMid * 0.1;
+        ctx.strokeStyle = `hsla(${gridHue}, 100%, 50%, ${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(0, perspY + wave);
+        ctx.lineTo(FISH_W, perspY + wave);
+        ctx.stroke();
+      }
+
+      // Vertical grid lines (converge to vanishing point)
+      const vpX = FISH_W / 2 + Math.sin(s.waterPhase * 0.5) * 10;
+      for (let i = -8; i <= 8; i++) {
+        const bottomX = vpX + i * 30;
+        const alpha = 0.08 + Math.abs(i) * 0.01;
+        ctx.strokeStyle = `hsla(${gridHue}, 100%, 50%, ${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(vpX, s.horizonY);
+        ctx.lineTo(bottomX, FISH_H);
+        ctx.stroke();
+      }
+
+      // ── Ambient fish under water ──
+      for (const af of s.ambientFish) {
+        const depth = af.z;
+        const fishY = s.horizonY + depth * (FISH_H - s.horizonY - 10) + Math.sin(af.phase) * 3;
+        const fishAlpha = 0.2 + depth * 0.3;
+        const fishScale = 0.5 + depth * 0.5;
+        const fishSprite = FISH_SPRITES[af.type % FISH_SPRITES.length];
+        const fishColor = FISH_TYPES[af.type % FISH_TYPES.length].color;
+
+        ctx.globalAlpha = fishAlpha;
+        ctx.fillStyle = fishColor;
+        for (let row = 0; row < fishSprite.length; row++) {
+          for (let col = 0; col < fishSprite[row].length; col++) {
+            if (fishSprite[row][col] === "@") {
+              const px = Math.floor(af.x + col * fishScale);
+              const py = Math.floor(fishY + row * fishScale);
+              ctx.fillRect(px, py, Math.ceil(fishScale), Math.ceil(fishScale));
+            }
+          }
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // ── Ripples ──
+      for (const rp of s.ripples) {
+        const alpha = rp.life * 0.4;
+        ctx.strokeStyle = `hsla(${gridHue}, 100%, 70%, ${alpha})`;
+        ctx.beginPath();
+        ctx.ellipse(Math.floor(rp.x), Math.floor(rp.y), rp.r, rp.r * 0.3, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // ── Rod + Line ──
+      const rodBaseX = FISH_W / 2 - 5;
+      const rodBaseY = FISH_H - 5;
+      s.rodTipX = FISH_W / 2 + Math.sin(time * 0.002) * 3;
+      s.rodTipY = 25 + Math.sin(time * 0.003) * 2;
+
+      // Rod angle tilts during fight — bends more with tension (Black Bass rod flex)
+      if (s.state === FS_FIGHTING) {
+        const bendAmount = (s.tension / s.tensionMax);
+        s.rodTipX += s.fishPullDir * (5 + bendAmount * 12);
+        s.rodTipY += bendAmount * 10;
+      }
+
+      // Rod body — thicker with neon glow
+      ctx.strokeStyle = "#bbb";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(rodBaseX, rodBaseY);
+      ctx.lineTo(Math.floor(s.rodTipX), Math.floor(s.rodTipY));
+      ctx.stroke();
+      // Rod neon glow
+      ctx.strokeStyle = `hsla(${gridHue}, 100%, 70%, 0.15)`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(rodBaseX, rodBaseY);
+      ctx.lineTo(Math.floor(s.rodTipX), Math.floor(s.rodTipY));
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      // Rod tip
+      ctx.fillStyle = `hsla(${gridHue}, 100%, 70%, ${0.5 + s.neonPulse * 0.3})`;
+      ctx.fillRect(Math.floor(s.rodTipX) - 1, Math.floor(s.rodTipY) - 1, 3, 3);
+
+      // Fishing line from rod tip to bobber
+      if (s.state !== FS_IDLE && !(s.state === FS_LOST && s.lineSnap)) {
+        // Line color indicates tension level during fight
+        let lineAlpha = 0.6;
+        let lineColor = "200, 200, 200";
+        if (s.state === FS_FIGHTING) {
+          const tFill = s.tension / s.tensionMax;
+          if (tFill > 0.8) { lineColor = "255, 80, 80"; lineAlpha = 0.9; }
+          else if (tFill > 0.6) { lineColor = "255, 200, 80"; lineAlpha = 0.8; }
+        }
+        ctx.strokeStyle = `rgba(${lineColor}, ${lineAlpha})`;
+        ctx.beginPath();
+        ctx.moveTo(Math.floor(s.rodTipX), Math.floor(s.rodTipY));
+        ctx.lineTo(Math.floor(s.lineEndX), Math.floor(s.lineEndY));
+        ctx.stroke();
+      }
+
+      // ── Bobber ──
+      if (s.state >= FS_CASTING && s.state <= FS_FIGHTING) {
+        const bobCol = s.state === FS_BITE ? "#ff0" : (s.state === FS_FIGHTING ? "#f33" : "#f80");
+        ctx.fillStyle = bobCol;
+        ctx.fillRect(Math.floor(s.bobberX) - 1, Math.floor(s.bobberY) - 2, 3, 4);
+        ctx.globalAlpha = 0.3 + s.neonPulse * 0.2;
+        ctx.fillRect(Math.floor(s.bobberX) - 3, Math.floor(s.bobberY) - 4, 7, 8);
+        ctx.globalAlpha = 1;
+      }
+
+      // ── Hooked fish silhouette (during fight) ──
+      if (s.state === FS_FIGHTING && s.hookedFish) {
+        const fishSprite = FISH_SPRITES[s.hookedFishType];
+        const fishColor = s.hookedFish.color;
+        const fightWobble = Math.sin(time * 0.01) * 5 * s.hookedFish.fight;
+        const fishOpacity = s.fishRunning ? 0.8 : 0.5;
+        ctx.globalAlpha = fishOpacity;
+        ctx.fillStyle = fishColor;
+        for (let row = 0; row < fishSprite.length; row++) {
+          for (let col = 0; col < fishSprite[row].length; col++) {
+            if (fishSprite[row][col] === "@") {
+              ctx.fillRect(
+                Math.floor(s.bobberX - fishSprite[row].length / 2 + col + fightWobble),
+                Math.floor(s.bobberY + 5 + row), 1, 1
+              );
+            }
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // ═══ INSTRUCTION PANEL (Wii-style — always visible, context-sensitive) ═══
+      // Semi-transparent instruction box at bottom of screen
+      const instrY = FISH_H - 38;
+      const instrH = 36;
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(0, instrY, FISH_W, instrH);
+      // Top border line
+      ctx.fillStyle = `hsla(${gridHue}, 100%, 50%, 0.3)`;
+      ctx.fillRect(0, instrY, FISH_W, 1);
+
+      if (s.state === FS_IDLE && !s.castCharging) {
+        // ── IDLE instructions ──
+        drawText(ctx, "HOLD SPACE", 8, instrY + 4, "#0ff", 1);
+        drawText(ctx, "CHARGE YOUR CAST", 8, instrY + 13, "#888", 1);
+        drawText(ctx, "RELEASE", 8, instrY + 22, "#0ff", 1);
+        drawText(ctx, "TO THROW LINE", 65, instrY + 22, "#888", 1);
+        // Cast distance hint
+        drawText(ctx, "LONGER HOLD", FISH_W - 85, instrY + 4, "#666", 1);
+        drawText(ctx, "DEEPER WATER", FISH_W - 85, instrY + 13, "#666", 1);
+        drawText(ctx, "RARER FISH!", FISH_W - 75, instrY + 22, "#f80", 1);
+
+      } else if (s.state === FS_IDLE && s.castCharging) {
+        // ── CHARGING instructions ──
+        // Power bar
+        const barW = 100, barH = 8;
+        const barX = FISH_W / 2 - barW / 2, barY = instrY + 4;
+        ctx.fillStyle = "#111";
+        ctx.fillRect(barX, barY, barW, barH);
+        const fill = s.castPower / 100;
+        const barColor = fill > 0.8 ? "#f33" : (fill > 0.5 ? "#ff0" : "#0f0");
+        ctx.fillStyle = barColor;
+        ctx.fillRect(barX + 1, barY + 1, (barW - 2) * fill, barH - 2);
+        // Power label
+        drawText(ctx, "CAST POWER", FISH_W / 2 - 30, instrY + 15, "#fff", 1);
+        // Depth zones
+        const zone = fill > 0.7 ? "DEEP" : (fill > 0.35 ? "MEDIUM" : "SHALLOW");
+        const zoneColor = fill > 0.7 ? "#f80" : (fill > 0.35 ? "#ff0" : "#0f0");
+        drawText(ctx, zone, FISH_W / 2 - zone.length * 3, instrY + 25, zoneColor, 1);
+        // Release hint
+        drawText(ctx, "RELEASE SPACE!", 8, instrY + 25, "#0ff", 1);
+
+      } else if (s.state === FS_CASTING) {
+        // ── CASTING animation ──
+        drawText(ctx, "CASTING...", FISH_W / 2 - 30, instrY + 12, "#0ff", 1);
+
+      } else if (s.state === FS_WAITING) {
+        // ── WAITING instructions ──
+        const dots = ".".repeat(1 + Math.floor(time * 0.002) % 3);
+        drawText(ctx, `WAITING FOR A BITE${dots}`, FISH_W / 2 - 55, instrY + 4, "#888", 1);
+        drawText(ctx, "WATCH THE BOBBER!", FISH_W / 2 - 50, instrY + 13, "#666", 1);
+        drawText(ctx, "DOWN", 8, instrY + 25, "#0ff", 1);
+        drawText(ctx, "REEL IN EMPTY", 40, instrY + 25, "#666", 1);
+        // Nibble indicator
+        if (s.nibbleCount > 0) {
+          drawText(ctx, "NIBBLE!", FISH_W - 55, instrY + 13, "#ff0", 1);
+        }
+
+      } else if (s.state === FS_BITE) {
+        // ── BITE! — urgent prompt ──
+        const flash = Math.sin(time * 0.015) > 0;
+        // Big exclamation above bobber
+        if (flash) {
+          drawText(ctx, "!", Math.floor(s.bobberX) - 2, Math.floor(s.bobberY) - 16, "#ff0", 3);
+        }
+        // Instruction panel
+        ctx.fillStyle = "rgba(80,60,0,0.4)";
+        ctx.fillRect(0, instrY, FISH_W, instrH);
+        drawText(ctx, "FISH ON THE LINE!", FISH_W / 2 - 50, instrY + 4, "#ff0", 1);
+        if (flash) {
+          drawText(ctx, "PRESS SPACE NOW!", FISH_W / 2 - 48, instrY + 15, "#fff", 1);
+        }
+        // Timer bar shows remaining time to react
+        const timeLeft = s.biteTimer / (1.2 + s.smoothBass * 0.5);
+        const tbW = 80;
+        ctx.fillStyle = "#111";
+        ctx.fillRect(FISH_W / 2 - tbW / 2, instrY + 27, tbW, 4);
+        ctx.fillStyle = timeLeft > 0.3 ? "#0f0" : "#f33";
+        ctx.fillRect(FISH_W / 2 - tbW / 2 + 1, instrY + 28, (tbW - 2) * Math.max(0, timeLeft), 2);
+        drawText(ctx, "TIMING!", FISH_W / 2 + tbW / 2 + 4, instrY + 25, "#888", 1);
+
+      } else if (s.state === FS_FIGHTING) {
+        // ── FIGHTING instructions — full Black Bass style HUD ──
+        const fish = s.hookedFish;
+        const tFill = s.tension / s.tensionMax;
+        const staminaFill = s.fishStamina / 100;
+
+        // Fish name + type (top left)
+        drawText(ctx, fish.name, 4, 4, fish.color, 1);
+        drawText(ctx, `${fish.pts} PTS`, 4, 12, "#888", 1);
+
+        // Tension bar (top, wide)
+        const tBarW = 100, tBarH = 5;
+        const tBarX = 4, tBarY = 22;
+        ctx.fillStyle = "#111";
+        ctx.fillRect(tBarX, tBarY, tBarW, tBarH);
+        const tColor = tFill > 0.8 ? "#f33" : (tFill > 0.6 ? "#ff0" : "#0f8");
+        ctx.fillStyle = tColor;
+        ctx.fillRect(tBarX + 1, tBarY + 1, (tBarW - 2) * tFill, tBarH - 2);
+        drawText(ctx, "LINE TENSION", tBarX, tBarY - 7, tFill > 0.8 ? "#f33" : "#aaa", 1);
+        // Danger zone markers on tension bar
+        ctx.fillStyle = "rgba(255,0,0,0.3)";
+        ctx.fillRect(tBarX + (tBarW - 2) * 0.8, tBarY + 1, (tBarW - 2) * 0.2, tBarH - 2);
+
+        // Reel progress bar
+        const rBarX = 4, rBarY = 37;
+        ctx.fillStyle = "#111";
+        ctx.fillRect(rBarX, rBarY, tBarW, tBarH);
+        ctx.fillStyle = "#0af";
+        ctx.fillRect(rBarX + 1, rBarY + 1, (tBarW - 2) * (s.reelProgress / 100), tBarH - 2);
+        drawText(ctx, "REEL PROGRESS", rBarX, rBarY - 7, "#aaa", 1);
+
+        // Fish stamina bar (shows how tired the fish is)
+        const sBarX = 4, sBarY = 52;
+        ctx.fillStyle = "#111";
+        ctx.fillRect(sBarX, sBarY, tBarW, tBarH);
+        ctx.fillStyle = staminaFill > 0.5 ? "#f80" : "#0f0";
+        ctx.fillRect(sBarX + 1, sBarY + 1, (tBarW - 2) * staminaFill, tBarH - 2);
+        drawText(ctx, "FISH STAMINA", sBarX, sBarY - 7, "#aaa", 1);
+
+        // Direction indicator with large arrow
+        const pullLabel = s.fishPullDir < 0 ? "PULLING LEFT" : "PULLING RIGHT";
+        const pullArrow = s.fishPullDir < 0 ? "<<" : ">>";
+        const countering = (s.keys["ArrowLeft"] && s.fishPullDir < 0) || (s.keys["ArrowRight"] && s.fishPullDir > 0);
+        drawText(ctx, pullArrow, FISH_W / 2 - 6, s.horizonY - 8, countering ? "#0f0" : "#f80", 2);
+
+        // Fish running warning
+        if (s.fishRunning) {
+          const runFlash = Math.sin(time * 0.02) > 0;
+          if (runFlash) {
+            drawText(ctx, "FISH IS RUNNING!", FISH_W / 2 - 48, s.horizonY + 3, "#f33", 1);
+            drawText(ctx, "DONT REEL! LET IT GO!", FISH_W / 2 - 60, s.horizonY + 12, "#ff0", 1);
+          }
+        }
+
+        // High tension warning
+        if (tFill > 0.8 && Math.floor(time * 0.008) % 2 === 0) {
+          ctx.fillStyle = "rgba(255,0,0,0.12)";
+          ctx.fillRect(0, 0, FISH_W, FISH_H);
+        }
+
+        // Instruction panel — context-sensitive fight tips
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(0, instrY, FISH_W, instrH);
+        ctx.fillStyle = `hsla(${gridHue}, 100%, 50%, 0.3)`;
+        ctx.fillRect(0, instrY, FISH_W, 1);
+
+        // Controls column left
+        drawText(ctx, "UP", 8, instrY + 4, "#0ff", 1);
+        drawText(ctx, "REEL IN", 24, instrY + 4, "#aaa", 1);
+        drawText(ctx, "DOWN", 8, instrY + 13, "#0ff", 1);
+        drawText(ctx, "RELEASE LINE", 38, instrY + 13, "#aaa", 1);
+
+        // Controls column right
+        const dirKey = s.fishPullDir < 0 ? "LEFT" : "RIGHT";
+        drawText(ctx, dirKey, FISH_W - 100, instrY + 4, "#0ff", 1);
+        drawText(ctx, "COUNTER PULL", FISH_W - 100 + dirKey.length * 6 + 4, instrY + 4, "#aaa", 1);
+
+        // Dynamic tip based on situation
+        let tip = "";
+        let tipColor = "#888";
+        if (s.fishRunning) {
+          tip = "WAIT! LET THE FISH TIRE OUT";
+          tipColor = "#f33";
+        } else if (tFill > 0.75) {
+          tip = "TENSION HIGH! PRESS DOWN!";
+          tipColor = "#f33";
+        } else if (tFill < 0.25 && !s.fishRunning) {
+          tip = "SAFE TO REEL! HOLD UP!";
+          tipColor = "#0f0";
+        } else if (countering) {
+          tip = "GOOD! COUNTERING THE PULL!";
+          tipColor = "#0f0";
+        } else if (s.fishPullForce > 20) {
+          tip = `PRESS ${dirKey} TO COUNTER!`;
+          tipColor = "#ff0";
+        } else {
+          tip = "PUMP THE ROD! TAP UP!";
+          tipColor = "#aaa";
+        }
+        drawText(ctx, tip, 8, instrY + 25, tipColor, 1);
+
+      } else if (s.state === FS_CAUGHT) {
+        // ── CAUGHT celebration ──
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillRect(0, 0, FISH_W, FISH_H);
+
+        // Fish sprite big in center
+        const caughtSprite = FISH_SPRITES[s.hookedFishType];
+        const caughtColor = FISH_TYPES[s.hookedFishType].color;
+        const scale = 3;
+        ctx.fillStyle = caughtColor;
+        for (let row = 0; row < caughtSprite.length; row++) {
+          for (let col = 0; col < caughtSprite[row].length; col++) {
+            if (caughtSprite[row][col] === "@") {
+              ctx.fillRect(
+                FISH_W / 2 - (caughtSprite[row].length * scale) / 2 + col * scale,
+                FISH_H / 2 - (caughtSprite.length * scale) / 2 + row * scale - 15,
+                scale, scale
+              );
+            }
+          }
+        }
+        // Glow behind fish
+        ctx.globalAlpha = 0.2 + Math.sin(time * 0.005) * 0.1;
+        ctx.fillStyle = caughtColor;
+        ctx.fillRect(FISH_W / 2 - 25, FISH_H / 2 - 25, 50, 35);
+        ctx.globalAlpha = 1;
+
+        drawText(ctx, "CAUGHT!", FISH_W / 2 - 21, FISH_H / 2 - 32, "#0f0", 2);
+        drawText(ctx, s.caughtFishName, FISH_W / 2 - s.caughtFishName.length * 3, FISH_H / 2 + 10, caughtColor, 1);
+        drawText(ctx, `+${s.caughtFishPts} PTS`, FISH_W / 2 - 25, FISH_H / 2 + 22, "#ff0", 1);
+        if (s.combo > 1) {
+          drawText(ctx, `COMBO X${s.combo}!`, FISH_W / 2 - 25, FISH_H / 2 + 32, "#f80", 1);
+        }
+
+        // Bottom instruction
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(0, instrY, FISH_W, instrH);
+        drawText(ctx, "NICE CATCH!", FISH_W / 2 - 32, instrY + 8, "#0f0", 1);
+        drawText(ctx, "GET READY TO CAST AGAIN...", FISH_W / 2 - 75, instrY + 20, "#888", 1);
+
+      } else if (s.state === FS_LOST) {
+        // ── LOST display ──
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(0, instrY, FISH_W, instrH);
+        if (s.lineSnap) {
+          drawText(ctx, "LINE SNAPPED!", FISH_W / 2 - 38, FISH_H / 2 - 10, "#f33", 2);
+          drawText(ctx, "REELED TOO HARD!", FISH_W / 2 - 48, instrY + 8, "#f33", 1);
+          drawText(ctx, "EASE TENSION WITH DOWN", FISH_W / 2 - 65, instrY + 20, "#888", 1);
+        } else {
+          drawText(ctx, "GOT AWAY!", FISH_W / 2 - 27, FISH_H / 2 - 10, "#f80", 2);
+          drawText(ctx, "TOO SLOW ON THE HOOK!", FISH_W / 2 - 60, instrY + 8, "#f80", 1);
+          drawText(ctx, "PRESS SPACE FASTER NEXT TIME", FISH_W / 2 - 85, instrY + 20, "#888", 1);
+        }
+      }
+
+      // ── Sparkles ──
+      for (const sp of s.sparkles) {
+        ctx.globalAlpha = Math.min(1, sp.life);
+        ctx.fillStyle = sp.color;
+        ctx.fillRect(Math.floor(sp.x), Math.floor(sp.y), 2, 2);
+      }
+      ctx.globalAlpha = 1;
+
+      // ── Rave effects ──
+      // Bass strobe flash
+      if (s.strobeTimer > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${s.strobeTimer * 1.5})`;
+        ctx.fillRect(0, 0, FISH_W, FISH_H);
+      }
+
+      // Neon laser beams on treble
+      if (s.smoothTreble > 0.25) {
+        const laserCount = Math.floor(s.smoothTreble * 6);
+        for (let i = 0; i < laserCount; i++) {
+          const lHue = (skyHue + i * 60 + time * 0.1) % 360;
+          const lx1 = (Math.sin(time * 0.003 + i * 2.1) * 0.5 + 0.5) * FISH_W;
+          const lx2 = (Math.cos(time * 0.002 + i * 1.7) * 0.5 + 0.5) * FISH_W;
+          ctx.strokeStyle = `hsla(${lHue}, 100%, 50%, ${0.12 + s.smoothTreble * 0.15})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(lx1, 0);
+          ctx.lineTo(lx2, FISH_H);
+          ctx.stroke();
+        }
+        ctx.lineWidth = 1;
+      }
+
+      // Water surface shimmer
+      for (let y = s.horizonY; y < FISH_H; y += 4) {
+        const shimmer = Math.sin(y * 0.3 + s.waterPhase * 3) * 0.5 + 0.5;
+        if (shimmer > 0.7) {
+          ctx.fillStyle = `hsla(${gridHue}, 100%, 60%, ${(shimmer - 0.7) * 0.12})`;
+          ctx.fillRect(0, y, FISH_W, 1);
+        }
+      }
+
+      // ── HUD — Score (top-right, always visible) ──
+      // Background for score
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.fillRect(FISH_W - 82, 0, 82, 30);
+      ctx.fillStyle = `hsla(${gridHue}, 100%, 50%, 0.2)`;
+      ctx.fillRect(FISH_W - 82, 29, 82, 1);
+      drawText(ctx, `SCORE:${s.score}`, FISH_W - 78, 4, "#fff", 1);
+      drawText(ctx, `FISH:${s.totalCaught}`, FISH_W - 65, 13, "#0ff", 1);
+      if (s.combo > 1) {
+        drawText(ctx, `X${s.combo}`, FISH_W - 30, 22, "#f80", 1);
+      }
+
+      // ── Paused overlay ──
+      if (s.gamePaused) {
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        ctx.fillRect(0, 0, FISH_W, FISH_H);
+        drawText(ctx, "PAUSED", FISH_W / 2 - 18, FISH_H / 2 - 15, "#fff", 2);
+        drawText(ctx, "PLAY A SONG TO FISH", FISH_W / 2 - 57, FISH_H / 2 + 5, "#888", 1);
+      }
+
+      // CRT scanlines
+      ctx.fillStyle = "rgba(0,0,0,0.05)";
+      for (let y = 0; y < FISH_H; y += 2) ctx.fillRect(0, y, FISH_W, 1);
+
+      ctx.restore();
+    }
+
     // ── Reactive mode dispatching ──
 
     function initCurrentReactiveMode() {
@@ -7248,6 +8180,7 @@
       else if (reactiveSubMode === 2) initNebulaVisualizer();
       else if (reactiveSubMode === 3) initStormVisualizer();
       else if (reactiveSubMode === 4) initGameVisualizer();
+      else if (reactiveSubMode === 5) initFishingVisualizer();
       else initReactiveVisualizer();
     }
 
@@ -7258,6 +8191,7 @@
       else if (m === "nebula") destroyNebulaVisualizer();
       else if (m === "storm") destroyStormVisualizer();
       else if (m === "game") destroyGameVisualizer();
+      else if (m === "fishing") destroyFishingVisualizer();
       else destroyReactiveVisualizer();
     }
 
@@ -7268,6 +8202,7 @@
       else if (m === "nebula") tickNebulaVisualizer(bass, mid, treble, time);
       else if (m === "storm") tickStormVisualizer(bass, mid, treble, time);
       else if (m === "game") tickGameVisualizer(bass, mid, treble, time);
+      else if (m === "fishing") tickFishingVisualizer(bass, mid, treble, time);
       else tickReactiveVisualizer(bass, mid, treble, time);
     }
 

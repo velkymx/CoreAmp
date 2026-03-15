@@ -58,9 +58,9 @@
 - [x] Add the ability to LIKE a song and then have it show up on the Liked Playlist
 - [x] Filter Library by Genre
 - [x] De-dup playlist, have a clean up button that removes duplicate tracks
-- [ ] Unknown title should show up in the U section
-- [ ] Add a new tab to explore your most loved artists and recently played songs.
-- [ ] Add Create Playlist from search results for quick playlist creation
+- [x] Unknown title should show up in the U section
+- [x] Add a new tab to explore your most loved artists and recently played songs.
+- [x] Add Create Playlist from search results for quick playlist creation
 - [x] Metadata should be clickable and take to the search - eg. if you click the album name you should get the album tracks. or you click the Artist name, etc etc
 - [ ] Track info sidebar, shows album art, year released, tracklist and lyrics
 ### P1 - Library and Album Listening
@@ -69,8 +69,20 @@
 - [ ] Group library playback around album order, not just track search.
 - [ ] Add folder art / album art coverage improvements where embedded art is missing.
 - [ ] Search sort by Genre
-- [ ] Add https://github.com/hvianna/audioMotion-analyzer to replace the EQ visualizer
-- [ ] Investigate https://tympanus.net/codrops/2025/06/18/coding-a-3d-audio-visualizer-with-three-js-gsap-web-audio-api/ for an audio visualizer
+- [x] Add https://github.com/hvianna/audioMotion-analyzer to replace the EQ visualizer
+- [x] Investigate https://tympanus.net/codrops/2025/06/18/coding-a-3d-audio-visualizer-with-three-js-gsap-web-audio-api/ for an audio visualizer
+
+### P1.5 - Library UI Redesign
+- [x] Consolidate tabs: merge Import into Settings, reduce from 10 to 6 tabs (Home, Library, Liked, Playlists, Audio, Settings)
+- [x] Add segmented control within Library tab for Tracks/Artists/Albums/Genres views
+- [x] Track list redesign: add album art thumbnails to track rows
+- [x] Collapse 8 action buttons into context menu (right-click or "..." button), keep only Like inline
+- [x] Better in-queue indicator (background tint instead of subtle border change)
+- [x] Summary views polish: album art in Artists/Albums/Genres cards (grid layout like Apple Music)
+- [x] Dashboard artwork cards instead of plain text lists for both Top Artists and Recently Played
+- [x] Remove inline styles from dashboard rendering, use CSS classes
+- [ ] Fix range slider gradient bug (all stops at 0%)
+- [ ] Fix mobile layout constraints (320px max-height, stacked action buttons)
 
 ### P2 - Loudness, Queue, and Listening Controls
 - [ ] Add ReplayGain support with `track gain` and `album gain` modes.
