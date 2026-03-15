@@ -8249,6 +8249,20 @@
           smoothBass: 0, smoothMid: 0, smoothTreble: 0,
           prevBass: 0, prevTreble: 0,
           energyAccum: 0, beatAccum: 0,
+          // Chord progression
+          chordIndex: 0,
+          chordTimer: 0,
+          // Common chord shapes mapped to lanes: each sub-array is a "chord"
+          chordShapes: [
+            [0, 1, 2],      // I   — D F J
+            [1, 2, 3],      // IV  — F J K
+            [0, 2, 3],      // V   — D J K
+            [0, 1, 3],      // vi  — D F K
+            [0, 1],          // I5  — D F
+            [2, 3],          // V5  — J K
+            [1, 3],          // IV inv — F K
+            [0, 2],          // vi inv — D J
+          ],
           // Visual effects
           laneFlash: [0, 0, 0, 0], // flash timer per lane on hit
           hitEffects: [], // { x, y, color, life }
@@ -8374,31 +8388,41 @@
       }
 
       if (!s.gamePaused) {
-        // ═══ NOTE SPAWNING — driven by music ═══
+        // ═══ NOTE SPAWNING — chord-driven by music ═══
         // Speed scales with energy
-        s.noteSpeed = KEY_NOTE_SPEED_BASE + s.smoothBass * 40 + s.smoothTreble * 20;
+        s.noteSpeed = KEY_NOTE_SPEED_BASE + s.smoothBass * 30 + s.smoothTreble * 15;
         s.spawnTimer -= dt;
+        s.chordTimer -= dt;
 
-        // Bass hits spawn on lanes 0-1, treble on lanes 2-3
-        if (bassVel > 0.06 && s.spawnTimer <= 0) {
-          const lane = Math.random() < 0.5 ? 0 : 1;
-          s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: bassVel });
-          s.spawnTimer = 0.15;
+        // Bass hits advance chord progression
+        if (bassVel > 0.15 && s.chordTimer <= 0) {
+          s.chordIndex = (s.chordIndex + 1) % s.chordShapes.length;
+          s.chordTimer = 0.4; // don't change chord more than ~2.5x/sec
         }
-        if (trebleVel > 0.05 && s.spawnTimer <= 0) {
-          const lane = Math.random() < 0.5 ? 2 : 3;
-          s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: trebleVel });
-          s.spawnTimer = 0.12;
+
+        const chord = s.chordShapes[s.chordIndex];
+
+        // Strong bass beat → spawn full chord (all lanes in the chord shape)
+        if (bassVel > 0.12 && s.spawnTimer <= 0) {
+          for (const lane of chord) {
+            s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: bassVel });
+          }
+          s.spawnTimer = 0.45; // much longer cooldown — fewer notes overall
         }
-        // Mid drives additional notes across all lanes
-        if (s.smoothMid > 0.3 && Math.random() < dt * 2.5) {
-          const lane = Math.floor(Math.random() * 4);
+        // Treble accent → spawn 1-2 notes from the current chord
+        else if (trebleVel > 0.10 && s.spawnTimer <= 0) {
+          const pick = chord.length > 2 ? 2 : 1;
+          const shuffled = [...chord].sort(() => Math.random() - 0.5);
+          for (let i = 0; i < pick; i++) {
+            s.notes.push({ lane: shuffled[i], y: -KEY_NOTE_H, hit: false, missed: false, glow: trebleVel });
+          }
+          s.spawnTimer = 0.35;
+        }
+        // Mid energy → occasional single note from chord (passing tone)
+        else if (s.smoothMid > 0.35 && s.spawnTimer <= 0 && Math.random() < dt * 1.2) {
+          const lane = chord[Math.floor(Math.random() * chord.length)];
           s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: 0.1 });
-        }
-        // Minimum note density — always something coming
-        if (s.notes.filter(n => !n.hit && !n.missed).length < 2 && Math.random() < dt * 1.5) {
-          const lane = Math.floor(Math.random() * 4);
-          s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: 0.05 });
+          s.spawnTimer = 0.3;
         }
 
         // ═══ UPDATE NOTES ═══
@@ -8510,31 +8534,49 @@
         }
       }
 
-      // ── Notes ──
+      // ── Notes (pulse to music) ──
+      const energy = (s.smoothBass + s.smoothMid + s.smoothTreble) / 3;
+      const pulse = Math.sin(time * 0.008) * 0.3 + 0.7; // 0.4–1.0 oscillation
+      const musicPulse = pulse + energy * 0.6; // stronger pulse with louder music
+
       for (const note of s.notes) {
-        if (note.missed) continue; // don't render missed notes
+        if (note.missed) continue;
         const lane = KEY_LANES[note.lane];
         const lx = KEY_LANE_START + note.lane * (KEY_LANE_W + KEY_LANE_GAP);
+        const ny = Math.floor(note.y);
 
         if (note.hit) {
-          // Fading out
           ctx.globalAlpha = Math.max(0, 0.5 + note.glow);
           ctx.fillStyle = "#fff";
-          ctx.fillRect(lx + 2, Math.floor(note.y), KEY_LANE_W - 4, KEY_NOTE_H);
+          ctx.fillRect(lx + 2, ny, KEY_LANE_W - 4, KEY_NOTE_H);
           ctx.globalAlpha = 1;
           continue;
         }
 
-        // Note body — neon block
+        // Pulsing scale — notes grow/shrink with the beat
+        const pScale = 1 + (musicPulse - 0.7) * 0.5; // 0.85–1.3 range
+        const pH = Math.round(KEY_NOTE_H * pScale);
+        const pW = Math.round((KEY_LANE_W - 4) * pScale);
+        const px = lx + 2 - Math.floor((pW - (KEY_LANE_W - 4)) / 2);
+        const py = ny - Math.floor((pH - KEY_NOTE_H) / 2);
+
+        // Outer glow — pulses with music
+        const glowAlpha = 0.15 + energy * 0.35;
+        ctx.globalAlpha = glowAlpha;
         ctx.fillStyle = lane.color;
-        ctx.fillRect(lx + 2, Math.floor(note.y), KEY_LANE_W - 4, KEY_NOTE_H);
-        // Note glow
-        ctx.globalAlpha = 0.3;
-        ctx.fillRect(lx, Math.floor(note.y) - 1, KEY_LANE_W, KEY_NOTE_H + 2);
-        ctx.globalAlpha = 1;
-        // Bright core
+        ctx.fillRect(px - 2, py - 2, pW + 4, pH + 4);
+
+        // Note body
+        ctx.globalAlpha = 0.7 + musicPulse * 0.3;
+        ctx.fillStyle = lane.color;
+        ctx.fillRect(px, py, pW, pH);
+
+        // Bright core — brighter on beat
+        ctx.globalAlpha = 0.5 + energy * 0.5;
         ctx.fillStyle = "#fff";
-        ctx.fillRect(lx + 4, Math.floor(note.y) + 2, KEY_LANE_W - 8, KEY_NOTE_H - 4);
+        const coreInset = Math.max(1, Math.floor(pW * 0.15));
+        ctx.fillRect(px + coreInset, py + 1, pW - coreInset * 2, Math.max(1, pH - 2));
+        ctx.globalAlpha = 1;
       }
 
       // ── Hit effects (particles) ──
@@ -9338,6 +9380,7 @@
       queueListEl.innerHTML = "";
       updatePlaybackChips();
       updatePlaylistActionStates();
+      saveQueueToStorage();
 
       const activeTrack = currentTrack();
       if (!activeTrack) {
@@ -11153,8 +11196,37 @@
       await stopWebPlayback(true);
       updateNowPlayingMeta(null);
       renderQueue();
+      saveQueueToStorage();
       setStatus("Queue cleared.");
     });
+
+    function saveQueueToStorage() {
+      try {
+        localStorage.setItem("coreamp.queue", JSON.stringify(queue));
+        localStorage.setItem("coreamp.queueIndex", String(currentQueueIndex));
+      } catch (_) {}
+    }
+
+    function restoreQueueFromStorage() {
+      try {
+        const saved = localStorage.getItem("coreamp.queue");
+        const savedIndex = localStorage.getItem("coreamp.queueIndex");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            queue = parsed;
+            currentQueueIndex = Math.min(
+              Math.max(0, Number(savedIndex) || 0),
+              queue.length - 1
+            );
+            renderQueue();
+            updateNowPlayingMeta(queue[currentQueueIndex], "Paused");
+          }
+        }
+      } catch (_) {}
+    }
+
+    window.addEventListener("beforeunload", saveQueueToStorage);
     dedupQueueBtn.addEventListener("click", deduplicateQueue);
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
       if (appearanceMode === "system") {
@@ -11185,6 +11257,8 @@
     loadAppearancePreference();
     registerTrayEvents();
     registerDaemonEvents();
+    restoreQueueFromStorage();
+
     Promise.resolve().then(async () => {
       await Promise.all([refreshLibrary(), refreshPlaylists()]);
       const nativeStatus = await getNativeAudioStatus();

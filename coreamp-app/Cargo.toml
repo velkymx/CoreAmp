@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["devtools"]
+default = []
 video = []
 devtools = ["tauri/devtools"]
 
@@ -18,4 +18,4 @@ coreamp-common = { path = "../coreamp-common" }
 rodio = "0.22"
 serde = { version = "1", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
-tauri = { version = "2", features = ["tray-icon", "protocol-asset", "devtools"] }
+tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
