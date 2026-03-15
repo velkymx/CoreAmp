@@ -8999,9 +8999,11 @@
               s.px = SHP_W / 2; s.py = SHP_H / 2;
               s.hp = SHP_MAX_HP; s.alive = true;
               s.invulnTimer = 1.0;
-              s.attacks = []; s.warnings = [];
+              s.attacks = []; s.warnings = []; s.particles = [];
               s.survived = 0; s.score = 0;
               s.gameOverTimer = 0;
+              s.bassAttackCD = 0; s.trebleAttackCD = 0;
+              s.midAttackCD = 0; s.sweepCD = 0;
               s.keys[k] = false;
               break;
             }
