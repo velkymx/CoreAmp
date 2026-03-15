@@ -1004,6 +1004,12 @@ fn import_playlist_file(source_path: String) -> Result<PlaylistSummary, String> 
 }
 
 #[tauri::command]
+fn delete_playlist(playlist_path: String) -> Result<(), String> {
+    let target = PathBuf::from(&playlist_path);
+    playlist::delete_playlist(&target).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 fn write_missing_tags_for_path(path: String) -> Result<bool, String> {
     let row = db::get_library_file(&path)?
         .ok_or_else(|| format!("Track not found in library: {path}"))?;
@@ -1763,6 +1769,7 @@ fn main() {
             append_to_playlist,
             load_playlist,
             import_playlist_file,
+            delete_playlist,
             read_track_artwork,
             read_track_signal_details,
             write_missing_tags_for_path,

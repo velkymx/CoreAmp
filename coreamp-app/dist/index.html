@@ -168,8 +168,8 @@
     }
     #libraryPanel {
       order: 2;
-      flex: 1;
-      min-height: 0;
+      flex: 1 1 0;
+      min-height: 300px;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -476,9 +476,11 @@
       min-height: 0;
       overflow-y: auto;
       overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
     }
     .library-panel {
-      display: grid;
+      display: flex;
+      flex-direction: column;
       gap: 0;
       min-height: 0;
     }
@@ -547,12 +549,34 @@
       overflow: auto;
     }
     .playlist-item {
-      display: block;
+      display: flex;
       gap: 10px;
       align-items: center;
+      justify-content: space-between;
       padding: 14px 0;
       border-bottom: 1px solid var(--line-soft);
       cursor: pointer;
+    }
+    .playlist-delete-btn {
+      all: unset;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity 0.12s, background 0.12s, color 0.12s;
+    }
+    .playlist-item:hover .playlist-delete-btn {
+      opacity: 1;
+    }
+    .playlist-delete-btn:hover {
+      background: rgba(255, 79, 94, 0.12);
+      color: var(--heart, #ff4f5e);
     }
     .playlist-item.active {
       border-bottom-color: rgba(0, 122, 255, 0.26);
@@ -6546,9 +6570,28 @@
           copy.appendChild(count);
         }
 
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "secondary playlist-delete-btn";
+        deleteBtn.type = "button";
+        deleteBtn.ariaLabel = `Delete ${playlist.name}`;
+        deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+        deleteBtn.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          if (!confirm(`Delete playlist "${playlist.name}"?`)) return;
+          try {
+            await invoke("delete_playlist", { playlistPath: playlist.path });
+            if (activePlaylistPath === playlist.path) activePlaylistPath = null;
+            setStatus(`Deleted playlist ${playlist.name}`);
+            await refreshPlaylists();
+          } catch (err) {
+            setStatus(`Failed to delete: ${String(err)}`);
+          }
+        });
+
         meta.appendChild(marker);
         meta.appendChild(copy);
         item.appendChild(meta);
+        item.appendChild(deleteBtn);
         playlistListEl.appendChild(item);
       }
     }
