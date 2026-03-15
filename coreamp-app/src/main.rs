@@ -1652,6 +1652,10 @@ fn main() {
 
     tauri::Builder::default()
         .setup(|app| {
+            #[cfg(feature = "devtools")]
+            if let Some(window) = app.get_webview_window("main") {
+                window.open_devtools();
+            }
             let app_handle = app.handle().clone();
             thread::spawn(move || {
                 let mut last_id = ipc::read_daemon_events(None, Some(1))

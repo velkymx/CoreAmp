@@ -79,17 +79,12 @@
     * {
       box-sizing: border-box;
     }
-    html {
+    html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      overflow: hidden;
     }
     body {
-      margin: 0;
-      height: 100%;
-      padding: 6px 20px 12px;
-      overflow: hidden;
       background:
         radial-gradient(1100px 520px at 50% -10%, rgba(255, 255, 255, 0.28), transparent 68%),
         linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 28%),
@@ -111,12 +106,12 @@
       max-width: 1560px;
       height: 100%;
       margin: 0 auto;
+      padding: 0 20px 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      position: relative;
+      gap: 6px;
       z-index: 1;
-      overflow: hidden;
+      box-sizing: border-box;
     }
     .panel {
       background: var(--surface);
@@ -450,7 +445,7 @@
     }
     .library-panels {
       margin-top: 12px;
-      flex: 1;
+      flex: 1 1 0;
       min-height: 0;
       overflow-y: auto;
       overflow-x: hidden;
@@ -928,12 +923,8 @@
     .table-wrap {
       border: 0;
       border-radius: 0;
-      overflow-x: hidden;
-      overflow-y: auto;
+      overflow: visible;
       overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
-      max-height: min(58vh, 640px);
-      min-height: 340px;
       min-width: 0;
       background: transparent;
       margin-top: 10px;
@@ -1191,7 +1182,7 @@
     .player-wrap {
       display: grid;
       gap: 16px;
-      padding: 12px 20px 14px;
+      padding: 4px 20px 14px;
       background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
       flex-shrink: 0;
     }
@@ -1470,39 +1461,19 @@
       top: 18px;
       right: 18px;
     }
-    .visualizer-bars {
+    #visualizerContainer {
       position: absolute;
       inset: 0;
       overflow: hidden;
       border-radius: 18px;
       background: linear-gradient(180deg, rgba(6, 11, 18, 0.68), rgba(10, 18, 28, 0.3));
     }
-    .audio-visualizer:fullscreen .visualizer-bars,
-    .audio-visualizer:-webkit-full-screen .visualizer-bars,
-    .audio-visualizer.is-fullscreen .visualizer-bars {
-      inset: 0;
-    }
-    .milk-canvas {
+    #visualizerContainer canvas {
       position: absolute;
       inset: 0;
+      display: block;
       width: 100%;
       height: 100%;
-      display: none;
-      background: #000000;
-    }
-    .audio-visualizer.milk-mode .milk-canvas {
-      display: block;
-    }
-    .audio-visualizer.milk-mode .visualizer-bars {
-      opacity: 0;
-      pointer-events: none;
-    }
-    .bars-canvas {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
     }
     audio {
       display: none;
@@ -2015,8 +1986,8 @@
       }
     }
     @media (max-width: 640px) {
-      body {
-        padding: 12px;
+      main {
+        padding: 0 12px 12px;
       }
       .panel {
         padding: 12px;
@@ -2063,12 +2034,12 @@
   </style>
 </head>
 <body>
-  <svg style="display: none;">
-    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
-    <symbol id="icon-disc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></symbol>
-    <symbol id="icon-music" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></symbol>
-  </svg>
   <main>
+    <svg style="display: none; position: absolute;">
+      <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
+      <symbol id="icon-disc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></symbol>
+      <symbol id="icon-music" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></symbol>
+    </svg>
     <section class="panel player-wrap" id="playerPanel">
       <div class="sr-only" aria-live="polite">
         <div id="status" class="status">Ready.</div>
@@ -2080,8 +2051,8 @@
       </div>
       <div class="player-shell">
         <div class="player-column">
-          <audio id="player" preload="none"></audio>
-          <audio id="playerPreload" preload="none"></audio>
+          <audio id="player" preload="none" crossorigin="anonymous"></audio>
+          <audio id="playerPreload" preload="none" crossorigin="anonymous"></audio>
             <div id="playerShowcase" class="player-showcase">
             <div id="artworkFrame" class="artwork-frame">
               <img id="artworkImage" class="artwork-image" alt="Album artwork">
@@ -2095,17 +2066,11 @@
             </div>
             <div id="visualizer" class="audio-visualizer" aria-hidden="true">
               <div class="visualizer-toolbar">
-                <button id="visualizerBarsBtn" class="visualizer-mode-btn active" type="button">Bars</button>
-                <button id="visualizerMilkBtn" class="visualizer-mode-btn" type="button">Milk</button>
-                <button id="milkPrevBtn" class="visualizer-mode-btn" type="button" hidden>Prev</button>
-                <button id="milkNextBtn" class="visualizer-mode-btn" type="button" hidden>Next</button>
-                <button id="milkAutoBtn" class="visualizer-mode-btn" type="button" hidden>Auto</button>
+                <button id="visualizerSpectrumBtn" class="visualizer-mode-btn active" type="button" aria-label="Switch to spectrum visualizer">Spectrum</button>
+                <button id="visualizerReactiveBtn" class="visualizer-mode-btn" type="button" aria-label="Switch to reactive 3D visualizer">Reactive</button>
                 <button id="visualizerFullscreenBtn" class="visualizer-mode-btn" type="button">Full</button>
               </div>
-              <div id="visualizerBars" class="visualizer-bars">
-                <canvas id="barsCanvas" class="bars-canvas"></canvas>
-              </div>
-              <canvas id="milkCanvas" class="milk-canvas"></canvas>
+              <div id="visualizerContainer"></div>
             </div>
           </div>
           <div class="expanded-player-row">
@@ -2526,8 +2491,8 @@
     </form>
   </dialog>
 
-  <script src="./vendor/butterchurn.min.js"></script>
-  <script src="./vendor/butterchurnPresetsMinimal.min.js"></script>
+  <script src="./vendor/audiomotion-analyzer.min.js"></script>
+  <script src="./vendor/three.min.js"></script>
   <script>
     const statusEl = document.getElementById("status");
     const rowsEl = document.getElementById("libraryRows");
@@ -2536,15 +2501,10 @@
     const playerEl = document.getElementById("player");
     const playerPreloadEl = document.getElementById("playerPreload");
     const visualizerEl = document.getElementById("visualizer");
-    const visualizerBarsEl = document.getElementById("visualizerBars");
-    const barsCanvasEl = document.getElementById("barsCanvas");
-    const visualizerBarsBtn = document.getElementById("visualizerBarsBtn");
-    const visualizerMilkBtn = document.getElementById("visualizerMilkBtn");
-    const milkPrevBtn = document.getElementById("milkPrevBtn");
-    const milkNextBtn = document.getElementById("milkNextBtn");
-    const milkAutoBtn = document.getElementById("milkAutoBtn");
+    const visualizerContainerEl = document.getElementById("visualizerContainer");
+    const visualizerSpectrumBtn = document.getElementById("visualizerSpectrumBtn");
+    const visualizerReactiveBtn = document.getElementById("visualizerReactiveBtn");
     const visualizerFullscreenBtn = document.getElementById("visualizerFullscreenBtn");
-    const milkCanvasEl = document.getElementById("milkCanvas");
     const playerShowcaseEl = document.getElementById("playerShowcase");
     const artworkFrameEl = document.getElementById("artworkFrame");
     const artworkImageEl = document.getElementById("artworkImage");
@@ -2710,30 +2670,22 @@
     let limiterNode = null;
     let mediaSourceNodes = [];
     let visualizerFrame = null;
-    let barsCanvasCtx = null;
-    let barsCanvasWidth = 0;
-    let barsCanvasHeight = 0;
     let analyserData = new Uint8Array(0);
-    let visualizerSpectrum = new Float32Array(0);
-    let visualizerLevels = new Float32Array(0);
-    let visualizerPeakLevels = new Float32Array(0);
-    let visualizerPeakVelocity = new Float32Array(0);
     let visualizerMode = (() => {
-      const saved = window.localStorage.getItem("coreamp.visualizerMode") || "bars";
-      return saved === "milk" ? "milk" : "bars";
+      const saved = window.localStorage.getItem("coreamp.visualizerMode") || "spectrum";
+      if (saved === "bars") return "spectrum";
+      if (saved === "milk") return "reactive";
+      return (saved === "reactive") ? "reactive" : "spectrum";
     })();
     let visualizerPseudoFullscreen = false;
-    let milkVisualizer = null;
-    let milkPresetNames = [];
-    let milkPresetIndex = -1;
-    let milkLastPresetSwapAt = 0;
-    let milkSupportChecked = false;
-    let milkSupported = false;
-    let milkAutoCycle = true;
-    let milkRendererWidth = 0;
-    let milkRendererHeight = 0;
-    let milkLastRenderTime = 0;
-    let visualizerFaultCount = 0;
+    let spectrumSubMode = Number(window.localStorage.getItem("coreamp.spectrumSubMode") || 0);
+    let audioMotionInstance = null;
+    let reactiveState = null;
+    let smoothedBass = 0;
+    let smoothedMid = 0;
+    let smoothedTreble = 0;
+    let prevBass = 0;
+    let webglAvailable = null;
     let artworkRequestToken = 0;
     let artworkPath = null;
     const queueArtworkCache = new Map();
@@ -2794,18 +2746,7 @@
     let gaplessPreparedIndex = -1;
     let gaplessPreparingPath = "";
     let gaplessTransitionInProgress = false;
-    const MILK_PRESET_NAMES = [
-      "Flexi, martin + geiss - dedicated to the sherwin maxawow",
-      "Unchained & Rovastar - Wormhole Pillars (Hall of Shadows mix)",
-      "Geiss - Cauldron - painterly 2 (saturation remix)",
-      "Martin - QBikal - Surface Turbulence IIb",
-      "Krash + Illusion - Spiral Movement",
-      "Flexi - alien fish pond",
-      "martin - mandelbox explorer - high speed demo version"
-    ];
-
     const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const EQ_BAR_COUNT = 34;
     const EQ_BAND_DEFINITIONS = [
       { id: "sub", label: "Sub", frequency: 45, q: 0.95, gain: 0, minFreq: 20, maxFreq: 90 },
       { id: "bass", label: "Bass", frequency: 90, q: 1.0, gain: 0, minFreq: 45, maxFreq: 180 },
@@ -4364,194 +4305,404 @@
       shuffleHistory = [];
     }
 
-    function butterchurnApi() {
-      return window.butterchurn?.default || window.butterchurn || null;
+    // ── Spectrum mode (audioMotion-analyzer) ──
+
+    const SPECTRUM_SUB_MODES = [
+      { mode: 6, name: "1/3 Octave" },
+      { mode: 8, name: "Full Octave" },
+      { mode: 10, name: "Graph" },
+      { mode: 0, name: "Discrete" },
+    ];
+
+    function initSpectrumVisualizer() {
+      if (audioMotionInstance) return;
+      const AudioMotion = window.AudioMotionAnalyzer;
+      if (!AudioMotion) { console.error("audioMotion-analyzer not loaded"); return; }
+      try {
+        const opts = {
+          container: visualizerContainerEl,
+          connectSpeakers: false,
+          showBgColor: false,
+          overlay: true,
+          showPeaks: true,
+          showScaleX: false,
+          showScaleY: false,
+          roundBars: true,
+          ledBars: false,
+          lumiBars: false,
+          reflexRatio: 0.15,
+          gradient: "rainbow",
+          ...SPECTRUM_SUB_MODES[spectrumSubMode],
+        };
+        if (audioContext) {
+          opts.audioCtx = audioContext;
+        }
+        audioMotionInstance = new AudioMotion(visualizerContainerEl, opts);
+        if (gainNode) {
+          audioMotionInstance.connectInput(gainNode);
+        }
+      } catch (error) {
+        console.error("Spectrum init failed", error);
+        audioMotionInstance = null;
+        visualizerSpectrumBtn.disabled = true;
+        visualizerSpectrumBtn.title = "Spectrum unavailable";
+        setVisualizerMode("reactive");
+      }
     }
 
-    function butterchurnPresetsApi() {
-      return window.butterchurnPresetsMinimal || null;
+    function destroySpectrumVisualizer() {
+      if (!audioMotionInstance) return;
+      try { audioMotionInstance.destroy(); } catch (_) {}
+      audioMotionInstance = null;
+      visualizerContainerEl.innerHTML = "";
     }
 
-    function updateMilkControls() {
-      const active = visualizerMode === "milk";
-      milkPrevBtn.hidden = !active;
-      milkNextBtn.hidden = !active;
-      milkAutoBtn.hidden = !active;
-      if (!active) {
+    function cycleSpectrumSubMode() {
+      spectrumSubMode = (spectrumSubMode + 1) % SPECTRUM_SUB_MODES.length;
+      window.localStorage.setItem("coreamp.spectrumSubMode", spectrumSubMode);
+      if (audioMotionInstance) {
+        audioMotionInstance.setOptions(SPECTRUM_SUB_MODES[spectrumSubMode]);
+      }
+    }
+
+    // ── Reactive mode (Three.js) ──
+
+    function isWebGLAvailable() {
+      if (webglAvailable !== null) return webglAvailable;
+      try {
+        const c = document.createElement("canvas");
+        webglAvailable = Boolean(c.getContext("webgl") || c.getContext("experimental-webgl"));
+      } catch (_) { webglAvailable = false; }
+      return webglAvailable;
+    }
+
+    function initReactiveVisualizer() {
+      if (reactiveState) return;
+      if (!isWebGLAvailable() || !window.THREE) {
+        visualizerReactiveBtn.disabled = true;
+        visualizerReactiveBtn.title = "WebGL not available";
+        setVisualizerMode("spectrum");
         return;
       }
-      setButtonState(milkAutoBtn, milkAutoCycle, milkAutoCycle ? "Turn preset auto-cycle off" : "Turn preset auto-cycle on");
+      try {
+        const THREE = window.THREE;
+        const container = visualizerContainerEl;
+        const w = container.clientWidth || 400;
+        const h = container.clientHeight || 300;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(w, h);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x020408, 1);
+        container.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x020408, 0.18);
+        const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 100);
+        camera.position.z = 3.6;
+
+        // Primary form — high-detail sphere with custom shader material
+        const geo = new THREE.IcosahedronGeometry(1.0, 5);
+        const basePositions = new Float32Array(geo.attributes.position.array);
+        const vertexShader = `
+          varying vec3 vNormal;
+          varying vec3 vPosition;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            vPosition = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `;
+        const fragmentShader = `
+          uniform float uBass;
+          uniform float uMid;
+          uniform float uTreble;
+          uniform float uTime;
+          uniform float uBloom;
+          varying vec3 vNormal;
+          varying vec3 vPosition;
+          void main() {
+            vec3 viewDir = normalize(cameraPosition - vPosition);
+            float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+            float warmShift = uBass * 0.6 + uTreble * 0.3;
+            vec3 coolColor = vec3(0.1, 0.45, 0.9);
+            vec3 warmColor = vec3(0.95, 0.4, 0.15);
+            vec3 accentColor = vec3(0.6, 0.1, 0.95);
+            vec3 baseColor = mix(coolColor, warmColor, warmShift);
+            baseColor = mix(baseColor, accentColor, uTreble * 0.4);
+            float pulse = 0.3 + uBass * 0.5 + uBloom * 0.4;
+            vec3 innerGlow = baseColor * pulse;
+            vec3 rimColor = mix(vec3(0.3, 0.7, 1.0), vec3(1.0, 0.5, 0.2), warmShift);
+            vec3 color = innerGlow + rimColor * fresnel * (0.6 + uTreble * 0.8);
+            color += vec3(0.08, 0.12, 0.2) * (1.0 - fresnel) * 0.3;
+            float alpha = 0.15 + fresnel * 0.7 + pulse * 0.2;
+            gl_FragColor = vec4(color, min(alpha, 1.0));
+          }
+        `;
+        const shaderMat = new THREE.ShaderMaterial({
+          vertexShader, fragmentShader,
+          uniforms: {
+            uBass: { value: 0 }, uMid: { value: 0 }, uTreble: { value: 0 },
+            uTime: { value: 0 }, uBloom: { value: 0 },
+          },
+          transparent: true, side: THREE.DoubleSide, wireframe: false,
+        });
+        const mesh = new THREE.Mesh(geo, shaderMat);
+        scene.add(mesh);
+
+        // Inner wireframe glow
+        const wireGeo = new THREE.IcosahedronGeometry(0.98, 3);
+        const wireBasePositions = new Float32Array(wireGeo.attributes.position.array);
+        const wireMat = new THREE.MeshBasicMaterial({
+          color: 0x4488ff, wireframe: true, transparent: true, opacity: 0.12,
+        });
+        const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+        scene.add(wireMesh);
+
+        // Orbiting particle rings
+        const particleCount = 600;
+        const pGeo = new THREE.BufferGeometry();
+        const pPos = new Float32Array(particleCount * 3);
+        const pVel = new Float32Array(particleCount * 3);
+        const pAlpha = new Float32Array(particleCount);
+        for (let i = 0; i < particleCount; i++) {
+          const ring = Math.floor(Math.random() * 3);
+          const angle = Math.random() * Math.PI * 2;
+          const r = 1.4 + ring * 0.35 + (Math.random() - 0.5) * 0.2;
+          const ySpread = (Math.random() - 0.5) * 0.4;
+          pPos[i * 3] = Math.cos(angle) * r;
+          pPos[i * 3 + 1] = ySpread;
+          pPos[i * 3 + 2] = Math.sin(angle) * r;
+          const speed = 0.002 + Math.random() * 0.003;
+          pVel[i * 3] = -Math.sin(angle) * speed;
+          pVel[i * 3 + 1] = (Math.random() - 0.5) * 0.0005;
+          pVel[i * 3 + 2] = Math.cos(angle) * speed;
+          pAlpha[i] = 0.2 + Math.random() * 0.6;
+        }
+        pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+        const pMat = new THREE.PointsMaterial({
+          color: 0xaaddff, size: 0.018, transparent: true, opacity: 0.45,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        const particles = new THREE.Points(pGeo, pMat);
+        scene.add(particles);
+
+        // Background star field
+        const starCount = 200;
+        const sGeo = new THREE.BufferGeometry();
+        const sPos = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+          sPos[i * 3] = (Math.random() - 0.5) * 20;
+          sPos[i * 3 + 1] = (Math.random() - 0.5) * 20;
+          sPos[i * 3 + 2] = -5 - Math.random() * 15;
+        }
+        sGeo.setAttribute("position", new THREE.BufferAttribute(sPos, 3));
+        const sMat = new THREE.PointsMaterial({
+          color: 0x6688bb, size: 0.03, transparent: true, opacity: 0.4,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        const stars = new THREE.Points(sGeo, sMat);
+        scene.add(stars);
+
+        // Ambient light for subtle depth
+        scene.add(new THREE.AmbientLight(0x112244, 0.3));
+
+        const ro = new ResizeObserver(() => {
+          const cw = container.clientWidth;
+          const ch = container.clientHeight;
+          if (cw && ch) {
+            camera.aspect = cw / ch;
+            camera.updateProjectionMatrix();
+            renderer.setSize(cw, ch);
+          }
+        });
+        ro.observe(container);
+
+        reactiveState = {
+          scene, camera, renderer, mesh, geo, basePositions, shaderMat,
+          wireMesh, wireGeo, wireBasePositions, wireMat,
+          particles, pGeo, pPos, pVel, pAlpha, pMat,
+          stars, sMat, ro,
+          bloomDecay: 0, camAngle: 0,
+        };
+      } catch (error) {
+        console.error("Reactive init failed", error);
+        reactiveState = null;
+        visualizerReactiveBtn.disabled = true;
+        visualizerReactiveBtn.title = "3D visualizer unavailable";
+        setVisualizerMode("spectrum");
+        setStatus("3D visualizer unavailable.");
+      }
     }
+
+    function destroyReactiveVisualizer() {
+      if (!reactiveState) return;
+      try {
+        reactiveState.ro.disconnect();
+        reactiveState.renderer.dispose();
+        reactiveState.geo.dispose();
+        reactiveState.shaderMat.dispose();
+        reactiveState.wireGeo.dispose();
+        reactiveState.wireMat.dispose();
+        reactiveState.pGeo.dispose();
+        reactiveState.pMat.dispose();
+        reactiveState.stars.geometry.dispose();
+        reactiveState.sMat.dispose();
+        if (reactiveState.renderer.domElement.parentNode) {
+          reactiveState.renderer.domElement.parentNode.removeChild(reactiveState.renderer.domElement);
+        }
+      } catch (_) {}
+      reactiveState = null;
+    }
+
+    function tickReactiveVisualizer(bass, mid, treble, time) {
+      if (!reactiveState) return;
+      const s = reactiveState;
+      const t = time * 0.001;
+
+      // Slow camera orbit
+      s.camAngle += 0.0008 + mid * 0.002;
+      s.camera.position.x = Math.sin(s.camAngle) * 3.6;
+      s.camera.position.z = Math.cos(s.camAngle) * 3.6;
+      s.camera.position.y = Math.sin(t * 0.15) * 0.4;
+      s.camera.lookAt(0, 0, 0);
+
+      // Mesh rotation — organic compound rotation
+      s.mesh.rotation.y += 0.003 + mid * 0.008;
+      s.mesh.rotation.x += 0.001 + bass * 0.003;
+      s.mesh.rotation.z += 0.0005;
+      s.wireMesh.rotation.copy(s.mesh.rotation);
+
+      // Vertex displacement — multi-octave noise-like
+      const positions = s.geo.attributes.position.array;
+      const wPositions = s.wireGeo.attributes.position.array;
+      const amplitude = 0.03 + bass * 0.45;
+      const noiseSpeed = 0.25 + mid * 1.5;
+      const nt = t * noiseSpeed;
+      for (let i = 0; i < positions.length; i += 3) {
+        const bx = s.basePositions[i], by = s.basePositions[i + 1], bz = s.basePositions[i + 2];
+        const n1 = Math.sin(bx * 3.7 + nt) * Math.cos(by * 4.1 + nt * 0.7) * Math.sin(bz * 2.9 + nt * 1.3);
+        const n2 = Math.sin(bx * 7.3 - nt * 0.5) * Math.cos(bz * 5.1 + nt * 0.3) * 0.3;
+        const n3 = Math.cos(by * 9.1 + nt * 0.9) * Math.sin(bx * 6.7 - nt * 0.4) * 0.15;
+        const displacement = 1 + (n1 + n2 + n3) * amplitude;
+        positions[i] = bx * displacement;
+        positions[i + 1] = by * displacement;
+        positions[i + 2] = bz * displacement;
+      }
+      s.geo.attributes.position.needsUpdate = true;
+      s.geo.computeVertexNormals();
+
+      // Wire mesh follows with slightly less displacement
+      for (let i = 0; i < wPositions.length; i += 3) {
+        const bx = s.wireBasePositions[i], by = s.wireBasePositions[i + 1], bz = s.wireBasePositions[i + 2];
+        const n1 = Math.sin(bx * 3.7 + nt) * Math.cos(by * 4.1 + nt * 0.7) * Math.sin(bz * 2.9 + nt * 1.3);
+        const displacement = 1 + n1 * amplitude * 0.7;
+        wPositions[i] = bx * displacement;
+        wPositions[i + 1] = by * displacement;
+        wPositions[i + 2] = bz * displacement;
+      }
+      s.wireGeo.attributes.position.needsUpdate = true;
+
+      // Update shader uniforms
+      s.shaderMat.uniforms.uBass.value = bass;
+      s.shaderMat.uniforms.uMid.value = mid;
+      s.shaderMat.uniforms.uTreble.value = treble;
+      s.shaderMat.uniforms.uTime.value = t;
+
+      // Bass bloom
+      if (bass > 0.55 && bass - prevBass > 0.12) {
+        s.bloomDecay = 1.0;
+      }
+      s.shaderMat.uniforms.uBloom.value = s.bloomDecay;
+      if (s.bloomDecay > 0) {
+        const scale = 1 + s.bloomDecay * 0.12;
+        s.mesh.scale.setScalar(scale);
+        s.wireMesh.scale.setScalar(scale * 1.02);
+        s.bloomDecay = Math.max(0, s.bloomDecay - 0.025);
+      } else {
+        s.mesh.scale.setScalar(1);
+        s.wireMesh.scale.setScalar(1);
+      }
+
+      // Wire color shifts
+      const warmth = bass * 0.5 + treble * 0.3;
+      s.wireMat.color.setHSL(0.58 - warmth * 0.25, 0.6, 0.4 + treble * 0.2);
+      s.wireMat.opacity = 0.08 + bass * 0.15;
+
+      // Animate particles — orbit + audio pulse
+      const pPositions = s.pGeo.attributes.position.array;
+      for (let i = 0; i < pPositions.length / 3; i++) {
+        const idx = i * 3;
+        pPositions[idx] += s.pVel[idx] * (1 + bass * 3);
+        pPositions[idx + 1] += s.pVel[idx + 1];
+        pPositions[idx + 2] += s.pVel[idx + 2] * (1 + bass * 3);
+        // Keep in orbit
+        const dist = Math.sqrt(pPositions[idx] ** 2 + pPositions[idx + 2] ** 2);
+        if (dist > 2.8 || dist < 1.0) {
+          const angle = Math.atan2(pPositions[idx + 2], pPositions[idx]);
+          const r = 1.4 + Math.random() * 0.7;
+          pPositions[idx] = Math.cos(angle) * r;
+          pPositions[idx + 2] = Math.sin(angle) * r;
+        }
+      }
+      s.pGeo.attributes.position.needsUpdate = true;
+      s.pMat.opacity = 0.25 + bass * 0.5;
+      s.pMat.size = 0.015 + treble * 0.025;
+      s.pMat.color.setHSL(0.55 - warmth * 0.2, 0.5, 0.6 + treble * 0.2);
+
+      // Stars twinkle
+      s.sMat.opacity = 0.2 + Math.sin(t * 0.7) * 0.1 + bass * 0.15;
+
+      // Background breathe
+      const bgBrightness = Math.floor(2 + bass * 6);
+      s.renderer.setClearColor(new THREE.Color(`rgb(${bgBrightness}, ${bgBrightness + 2}, ${bgBrightness + 6})`), 1);
+
+      s.renderer.render(s.scene, s.camera);
+    }
+
+    // ── Audio energy computation ──
+
+    function computeAudioEnergy(data) {
+      if (!data || !data.length) return { bass: 0, mid: 0, treble: 0 };
+      const binCount = data.length;
+      const sampleRate = audioContext ? audioContext.sampleRate : 44100;
+      const nyquist = sampleRate / 2;
+      const binWidth = nyquist / binCount;
+
+      let bassSum = 0, bassCount = 0;
+      let midSum = 0, midCount = 0;
+      let trebleSum = 0, trebleCount = 0;
+
+      for (let i = 0; i < binCount; i++) {
+        const freq = i * binWidth;
+        const val = data[i] / 255;
+        if (freq < 250) { bassSum += val; bassCount++; }
+        else if (freq < 2000) { midSum += val; midCount++; }
+        else if (freq < 16000) { trebleSum += val; trebleCount++; }
+      }
+
+      return {
+        bass: bassCount ? bassSum / bassCount : 0,
+        mid: midCount ? midSum / midCount : 0,
+        treble: trebleCount ? trebleSum / trebleCount : 0,
+      };
+    }
+
+    // ── Visualizer mode management ──
 
     function setVisualizerMode(mode) {
-      if (mode === "milk" && !isMilkSupported()) {
-        visualizerMode = "bars";
-      } else {
-        visualizerMode = mode === "milk" ? "milk" : "bars";
-      }
-      visualizerEl.classList.toggle("milk-mode", visualizerMode === "milk");
-      setButtonState(visualizerBarsBtn, visualizerMode === "bars", "Show bar visualizer");
-      setButtonState(visualizerMilkBtn, visualizerMode === "milk", "Show milk visualizer");
-      if (visualizerMode === "milk") {
-        const visualizer = ensureMilkVisualizer();
-        if (!visualizer) {
-          visualizerMode = "bars";
-          visualizerEl.classList.remove("milk-mode");
-          setButtonState(visualizerBarsBtn, true, "Show bar visualizer");
-          setButtonState(visualizerMilkBtn, false, "Show milk visualizer");
-        }
-      }
-      updateMilkControls();
+      const prev = visualizerMode;
+      visualizerMode = (mode === "reactive") ? "reactive" : "spectrum";
+
+      if (prev === "spectrum" && visualizerMode !== "spectrum") destroySpectrumVisualizer();
+      if (prev === "reactive" && visualizerMode !== "reactive") destroyReactiveVisualizer();
+
+      if (visualizerMode === "spectrum") initSpectrumVisualizer();
+      if (visualizerMode === "reactive") initReactiveVisualizer();
+
+      setButtonState(visualizerSpectrumBtn, visualizerMode === "spectrum", "Switch to spectrum visualizer");
+      setButtonState(visualizerReactiveBtn, visualizerMode === "reactive", "Switch to reactive 3D visualizer");
       window.localStorage.setItem("coreamp.visualizerMode", visualizerMode);
-    }
-
-    function isMilkSupported() {
-      if (milkSupportChecked) {
-        return milkSupported;
-      }
-      milkSupportChecked = true;
-      try {
-        if (!(butterchurnApi() && butterchurnPresetsApi() && milkCanvasEl)) {
-          milkSupported = false;
-          return milkSupported;
-        }
-        const probeCanvas = document.createElement("canvas");
-        const gl = probeCanvas.getContext("webgl2", { preserveDrawingBuffer: false, antialias: true });
-        milkSupported = Boolean(gl);
-        return milkSupported;
-      } catch (_) {
-        milkSupported = false;
-        return milkSupported;
-      }
-    }
-
-    function ensureMilkPresetNames() {
-      const presetApi = butterchurnPresetsApi();
-      if (milkPresetNames.length || !presetApi) {
-        return;
-      }
-      const presets = presetApi.getPresets();
-      milkPresetNames = MILK_PRESET_NAMES.filter((name) => presets[name]);
-      if (!milkPresetNames.length) {
-        milkPresetNames = Object.keys(presets).slice(0, 8);
-      }
-    }
-
-    function ensureMilkVisualizer() {
-      if (milkVisualizer || !isMilkSupported()) {
-        return milkVisualizer;
-      }
-      const butterchurn = butterchurnApi();
-      ensureMilkPresetNames();
-      if (!audioContext || !butterchurn) {
-        return null;
-      }
-      try {
-        const width = Math.max(320, Math.round(milkCanvasEl.clientWidth * Math.max(1, Math.min(2, window.devicePixelRatio || 1))));
-        const height = Math.max(180, Math.round(milkCanvasEl.clientHeight * Math.max(1, Math.min(2, window.devicePixelRatio || 1))));
-        milkVisualizer = butterchurn.createVisualizer(audioContext, milkCanvasEl, {
-          width,
-          height,
-          textureRatio: 1
-        });
-        milkRendererWidth = width;
-        milkRendererHeight = height;
-        if (gainNode) {
-          milkVisualizer.connectAudio(gainNode);
-        }
-        cycleMilkPreset(true);
-        return milkVisualizer;
-      } catch (error) {
-        console.error("Milk visualizer init failed", error);
-        milkVisualizer = null;
-        milkSupported = false;
-        milkSupportChecked = true;
-        return null;
-      }
-    }
-
-    async function activateMilkMode() {
-      if (!isMilkSupported()) {
-        setStatus("Milk visualizer requires WebGL 2.", false);
-        return;
-      }
-      if (preferNativePlayback && nativeAudioAvailable) {
-        preferNativePlayback = false;
-        updateOutputModeUI();
-        await invoke("native_audio_stop").catch(() => {});
-        const track = currentTrack();
-        if (track) {
-          await playTrack(track);
-        }
-      }
-      await ensureAudioGraph();
-      await resumeAudioContext();
-      const visualizer = ensureMilkVisualizer();
-      if (!visualizer) {
-        setVisualizerMode("bars");
-        setStatus("Milk visualizer failed to initialize on this system.", false);
-        return;
-      }
-      setVisualizerMode("milk");
-    }
-
-    function resizeMilkVisualizer() {
-      if (!milkVisualizer) {
-        return;
-      }
-      const width = Math.max(320, Math.round(milkCanvasEl.clientWidth * Math.max(1, Math.min(2, window.devicePixelRatio || 1))));
-      const height = Math.max(180, Math.round(milkCanvasEl.clientHeight * Math.max(1, Math.min(2, window.devicePixelRatio || 1))));
-      if (width === milkRendererWidth && height === milkRendererHeight) {
-        return;
-      }
-      milkVisualizer.setRendererSize(width, height);
-      milkRendererWidth = width;
-      milkRendererHeight = height;
-    }
-
-    function handleVisualizerFault(error) {
-      visualizerFaultCount += 1;
-      console.error("Visualizer error", error);
-      if (visualizerFaultCount >= 2 && visualizerMode !== "bars") {
-        if (visualizerMode === "milk") {
-          milkVisualizer = null;
-          milkRendererWidth = 0;
-          milkRendererHeight = 0;
-        }
-        setVisualizerMode("bars");
-        setStatus("Visualizer failed, so CoreAmp switched back to Bars.", false);
-      }
-    }
-
-    function cycleMilkPreset(force = false, step = 1) {
-      const presetApi = butterchurnPresetsApi();
-      if (!milkVisualizer || !presetApi) {
-        return;
-      }
-      ensureMilkPresetNames();
-      if (!milkPresetNames.length) {
-        return;
-      }
-      if (!force && step > 0 && (performance.now() - milkLastPresetSwapAt) < 18000) {
-        return;
-      }
-      if (milkPresetIndex < 0) {
-        milkPresetIndex = step < 0 ? milkPresetNames.length - 1 : 0;
-      } else {
-        milkPresetIndex = (milkPresetIndex + step + milkPresetNames.length) % milkPresetNames.length;
-      }
-      const presets = presetApi.getPresets();
-      const preset = presets[milkPresetNames[milkPresetIndex]];
-      if (preset) {
-        milkVisualizer.loadPreset(preset, force ? 0 : 2.7);
-        milkLastPresetSwapAt = performance.now();
-        updateMilkControls();
-      }
-    }
-
-    function setMilkAutoCycle(enabled) {
-      milkAutoCycle = Boolean(enabled);
-      updateMilkControls();
     }
 
     function updateVisualizerFullscreenButton() {
@@ -4571,14 +4722,12 @@
     function enterVisualizerPseudoFullscreen() {
       visualizerPseudoFullscreen = true;
       playerPanelEl.classList.add("visualizer-expanded");
-      resizeMilkVisualizer();
       updateVisualizerFullscreenButton();
     }
 
     function exitVisualizerPseudoFullscreen() {
       visualizerPseudoFullscreen = false;
       playerPanelEl.classList.remove("visualizer-expanded");
-      resizeMilkVisualizer();
       updateVisualizerFullscreenButton();
     }
 
@@ -4597,146 +4746,6 @@
       enterVisualizerPseudoFullscreen();
     }
 
-    function ensureBarsCanvas() {
-      if (!barsCanvasEl) {
-        return;
-      }
-      if (!barsCanvasCtx) {
-        barsCanvasCtx = barsCanvasEl.getContext("2d", { alpha: true });
-      }
-      resizeBarsCanvas();
-    }
-
-    function resizeBarsCanvas() {
-      if (!barsCanvasEl || !barsCanvasCtx) {
-        return;
-      }
-      const rect = barsCanvasEl.getBoundingClientRect();
-      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-      const width = Math.max(1, Math.round(rect.width * dpr));
-      const height = Math.max(1, Math.round(rect.height * dpr));
-      if (width === barsCanvasWidth && height === barsCanvasHeight) {
-        return;
-      }
-      barsCanvasWidth = width;
-      barsCanvasHeight = height;
-      barsCanvasEl.width = width;
-      barsCanvasEl.height = height;
-    }
-
-    function ensureVisualizerBuffers(binCount, barCount = EQ_BAR_COUNT) {
-      if (analyserData.length !== binCount) {
-        analyserData = new Uint8Array(binCount);
-        visualizerSpectrum = new Float32Array(binCount);
-      }
-      if (visualizerLevels.length !== barCount) {
-        visualizerLevels = new Float32Array(barCount);
-        visualizerPeakLevels = new Float32Array(barCount);
-        visualizerPeakVelocity = new Float32Array(barCount);
-      }
-    }
-
-    function remapSpectrumToBars(data, output) {
-      const maxIndex = data.length - 1;
-      if (maxIndex <= 0) {
-        output.fill(0);
-        return;
-      }
-      for (let index = 0; index < output.length; index += 1) {
-        const start = Math.max(1, Math.floor((index / output.length) ** 2.08 * maxIndex));
-        const end = Math.max(start + 1, Math.floor(((index + 1) / output.length) ** 2.08 * maxIndex));
-        let weighted = 0;
-        let weightTotal = 0;
-        let localPeak = 0;
-        for (let bin = start; bin < end && bin <= maxIndex; bin += 1) {
-          const normalized = (data[bin] || 0) / 255;
-          const weight = 1 + (bin / maxIndex) * 0.6;
-          weighted += normalized * normalized * weight;
-          weightTotal += weight;
-          localPeak = Math.max(localPeak, normalized);
-        }
-        const average = weightTotal > 0 ? Math.sqrt(weighted / weightTotal) : 0;
-        output[index] = Math.min(1, average * 0.78 + localPeak * 0.35);
-      }
-    }
-
-    function drawBarsVisualizer(levels, hasLiveAudio, time) {
-      ensureBarsCanvas();
-      if (!barsCanvasCtx || !barsCanvasWidth || !barsCanvasHeight) {
-        return;
-      }
-
-      const ctx = barsCanvasCtx;
-      const width = barsCanvasWidth;
-      const height = barsCanvasHeight;
-      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-      const left = 14 * dpr;
-      const right = width - 14 * dpr;
-      const top = 14 * dpr;
-      const bottom = height - 16 * dpr;
-      const usableWidth = Math.max(1, right - left);
-      const usableHeight = Math.max(1, bottom - top);
-      const gridLines = 5;
-      const gap = 4 * dpr;
-      const barWidth = Math.max(3 * dpr, (usableWidth - gap * (levels.length - 1)) / levels.length);
-
-      ctx.clearRect(0, 0, width, height);
-
-      const shellGradient = ctx.createLinearGradient(0, top, 0, bottom);
-      shellGradient.addColorStop(0, "rgba(10, 18, 30, 0.10)");
-      shellGradient.addColorStop(1, "rgba(4, 10, 18, 0.24)");
-      ctx.fillStyle = shellGradient;
-      ctx.fillRect(0, 0, width, height);
-
-      ctx.strokeStyle = "rgba(167, 192, 214, 0.10)";
-      ctx.lineWidth = 1;
-      for (let line = 0; line < gridLines; line += 1) {
-        const y = top + (usableHeight / (gridLines - 1)) * line;
-        ctx.beginPath();
-        ctx.moveTo(left, y);
-        ctx.lineTo(right, y);
-        ctx.stroke();
-      }
-
-      ctx.strokeStyle = "rgba(205, 228, 248, 0.18)";
-      ctx.beginPath();
-      ctx.moveTo(left, bottom + 0.5);
-      ctx.lineTo(right, bottom + 0.5);
-      ctx.stroke();
-
-      const idlePhase = 0.05 + (Math.sin(time / 420) + 1) * 0.018;
-      for (let index = 0; index < levels.length; index += 1) {
-        const x = left + index * (barWidth + gap);
-        const target = hasLiveAudio
-          ? Math.min(1, levels[index] * (boostLevel > 0 ? 1.16 : 1))
-          : Math.max(0.018, idlePhase + Math.sin((time / 310) + index * 0.42) * 0.018);
-        visualizerLevels[index] = hasLiveAudio
-          ? (visualizerLevels[index] * 0.72) + (target * 0.28)
-          : Math.max(target, visualizerLevels[index] * 0.94);
-
-        if (visualizerLevels[index] >= visualizerPeakLevels[index]) {
-          visualizerPeakLevels[index] = visualizerLevels[index];
-          visualizerPeakVelocity[index] = 0;
-        } else {
-          visualizerPeakVelocity[index] += hasLiveAudio ? 0.0026 : 0.0016;
-          visualizerPeakLevels[index] = Math.max(visualizerLevels[index], visualizerPeakLevels[index] - visualizerPeakVelocity[index]);
-        }
-
-        const barHeight = Math.max(2 * dpr, visualizerLevels[index] * usableHeight);
-        const y = bottom - barHeight;
-        const peakY = Math.max(top, bottom - visualizerPeakLevels[index] * usableHeight);
-
-        const fill = ctx.createLinearGradient(0, y, 0, bottom);
-        fill.addColorStop(0, "rgba(255, 214, 102, 0.96)");
-        fill.addColorStop(0.34, "rgba(116, 234, 255, 0.92)");
-        fill.addColorStop(1, "rgba(62, 136, 255, 0.9)");
-        ctx.fillStyle = fill;
-        ctx.fillRect(x, y, barWidth, barHeight);
-
-        ctx.fillStyle = "rgba(255, 245, 194, 0.96)";
-        ctx.fillRect(x, peakY - 2 * dpr, barWidth, Math.max(2, 1.5 * dpr));
-      }
-    }
 
     async function ensureAudioGraph() {
       if (mediaSourceNodes.length || !(window.AudioContext || window.webkitAudioContext)) {
@@ -4804,8 +4813,8 @@
       updatePreampNode();
       updateLimiterNode();
       updateCrossfeedGraph();
-      if (milkVisualizer) {
-        milkVisualizer.connectAudio(gainNode);
+      if (audioMotionInstance && gainNode) {
+        audioMotionInstance.connectInput(gainNode);
       }
     }
 
@@ -4816,8 +4825,6 @@
     }
 
     function animateVisualizer() {
-      ensureBarsCanvas();
-      ensureVisualizerBuffers(0);
       const tick = () => {
         try {
           if (document.hidden) {
@@ -4825,45 +4832,33 @@
             return;
           }
           const time = performance.now();
-          const currentPlayerEl = playbackPlayer();
-          const hasLiveAudio = analyserNode && !currentPlayerEl.paused && !currentPlayerEl.ended && !preferNativePlayback;
-          let bassTrigger = 0;
-          if (hasLiveAudio) {
-            ensureVisualizerBuffers(analyserNode.frequencyBinCount);
-            analyserNode.getByteFrequencyData(analyserData);
-            for (let i = 0; i < analyserData.length; i += 1) {
-              visualizerSpectrum[i] = (visualizerSpectrum[i] * 0.84) + (analyserData[i] * 0.16);
-            }
-            remapSpectrumToBars(visualizerSpectrum, visualizerLevels);
-            bassTrigger = visualizerLevels[1] || visualizerLevels[0] || 0;
-          } else {
-            for (let i = 0; i < visualizerSpectrum.length; i += 1) {
-              visualizerSpectrum[i] *= 0.94;
-            }
-            if (visualizerLevels.length) {
-              for (let i = 0; i < visualizerLevels.length; i += 1) {
-                visualizerLevels[i] *= 0.92;
-              }
-            }
-          }
 
-          drawBarsVisualizer(visualizerLevels, hasLiveAudio, time);
+          if (visualizerMode === "reactive") {
+            const currentPlayerEl = playbackPlayer();
+            const hasLiveAudio = analyserNode && !currentPlayerEl.paused && !currentPlayerEl.ended && !preferNativePlayback;
+            let bass = 0, mid = 0, treble = 0;
 
-          if (visualizerMode === "milk") {
-            const visualizer = ensureMilkVisualizer();
-            const milkFrameBudget = hasLiveAudio ? (1000 / 30) : (1000 / 12);
-            if (visualizer && (time - milkLastRenderTime) >= milkFrameBudget) {
-              resizeMilkVisualizer();
-              if (hasLiveAudio && milkAutoCycle && bassTrigger > 0.38) {
-                cycleMilkPreset(false);
+            if (hasLiveAudio) {
+              if (analyserData.length !== analyserNode.frequencyBinCount) {
+                analyserData = new Uint8Array(analyserNode.frequencyBinCount);
               }
-              visualizer.render();
-              milkLastRenderTime = time;
+              analyserNode.getByteFrequencyData(analyserData);
+              const energy = computeAudioEnergy(analyserData);
+              bass = energy.bass;
+              mid = energy.mid;
+              treble = energy.treble;
             }
+
+            smoothedBass = smoothedBass * 0.85 + bass * 0.15;
+            smoothedMid = smoothedMid * 0.85 + mid * 0.15;
+            smoothedTreble = smoothedTreble * 0.85 + treble * 0.15;
+
+            tickReactiveVisualizer(smoothedBass, smoothedMid, smoothedTreble, time);
+            prevBass = smoothedBass;
           }
-          visualizerFaultCount = 0;
+          // Spectrum mode: audioMotion handles its own render loop
         } catch (error) {
-          handleVisualizerFault(error);
+          console.error("Visualizer error", error);
         } finally {
           visualizerFrame = window.requestAnimationFrame(tick);
         }
@@ -5229,15 +5224,16 @@
       try {
         setStatus(`Loading ${trackDisplayTitle(track)}...`);
         const currentPlayerEl = playbackPlayer();
-        currentPlayerEl.preload = gaplessEnabled ? "auto" : "metadata";
-        currentPlayerEl.src = convertFileSrc(track.path);
         await ensureAudioGraph();
+        await resumeAudioContext();
         if (analyserNode) {
           analyserNode.smoothingTimeConstant = 0.8;
         }
-        await resumeAudioContext();
+        currentPlayerEl.preload = gaplessEnabled ? "auto" : "metadata";
+        currentPlayerEl.src = convertFileSrc(track.path);
         syncAudioElementState(Number(volumeSliderEl.value || 80));
         await currentPlayerEl.play();
+        setToggleIcon(true);
         updateNowPlayingMeta(track);
         await prepareGaplessNextTrack();
         setStatus(`Playing ${trackDisplayTitle(track)}`, true);
@@ -6589,11 +6585,14 @@
     });
 
     appearanceToggleBtn.addEventListener("click", () => applyAppearance(nextAppearanceMode()));
-    visualizerBarsBtn.addEventListener("click", () => setVisualizerMode("bars"));
-    visualizerMilkBtn.addEventListener("click", activateMilkMode);
-    milkPrevBtn.addEventListener("click", () => cycleMilkPreset(true, -1));
-    milkNextBtn.addEventListener("click", () => cycleMilkPreset(true, 1));
-    milkAutoBtn.addEventListener("click", () => setMilkAutoCycle(!milkAutoCycle));
+    visualizerSpectrumBtn.addEventListener("click", () => {
+      if (visualizerMode === "spectrum") {
+        cycleSpectrumSubMode();
+      } else {
+        setVisualizerMode("spectrum");
+      }
+    });
+    visualizerReactiveBtn.addEventListener("click", () => setVisualizerMode("reactive"));
     visualizerFullscreenBtn.addEventListener("click", toggleVisualizerFullscreen);
     document.addEventListener("keydown", async (event) => {
       if (event.key === "Escape" && visualizerIsFullscreen()) {
@@ -6853,10 +6852,6 @@
         return;
       }
       preferNativePlayback = nativeModeBtn.checked;
-      if (preferNativePlayback && visualizerMode === "milk") {
-        setVisualizerMode("bars");
-        setStatus("Milk visualizer uses web output, so CoreAmp switched back to Bars.", true);
-      }
       updateOutputModeUI();
       await syncNativeDspSettings();
       await syncNativeVolume(playbackPlayer().muted ? 0 : playbackPlayer().volume);
@@ -7028,9 +7023,6 @@
     loadDspPreferences();
     renderEqPanel();
     updateDspControls();
-    ensureBarsCanvas();
-    ensureVisualizerBuffers(0);
-    window.addEventListener("resize", resizeBarsCanvas);
     setVisualizerMode(visualizerMode);
     updateVisualizerFullscreenButton();
     animateVisualizer();
