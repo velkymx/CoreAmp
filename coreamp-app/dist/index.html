@@ -331,6 +331,30 @@
       border-color: var(--accent);
       box-shadow: none;
     }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+      padding-top: 4px;
+    }
+    .settings-card {
+      background: var(--surface-strong);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-medium);
+      padding: 16px;
+    }
+    .settings-card-header {
+      font-size: 0.9rem;
+      font-weight: 650;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .settings-card-desc {
+      color: var(--text-tertiary);
+      font-size: 0.8rem;
+      margin: 0 0 12px;
+      line-height: 1.4;
+    }
     .settings-note {
       color: var(--text-tertiary);
       font-size: 0.76rem;
@@ -2569,49 +2593,53 @@
           </section>
         </section>
         <section id="librarySettingsPanel" class="library-panel" role="tabpanel" aria-labelledby="librarySettingsTab" hidden>
-          <div class="audio-panel-head">
-            <div>
-              <h2>Settings</h2>
-              <p class="audio-panel-copy">Import music and configure library scanning.</p>
-            </div>
-          </div>
-          <div class="audio-module" style="max-width: 480px;">
-            <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Import Music</h3>
-            <div class="library-intake" style="margin-bottom:20px;">
-              <button id="pickFolderBtn" type="button">Choose folder</button>
-              <button id="pickFileBtn" class="secondary" type="button">Choose files</button>
-              <button id="scanBtn" class="secondary" type="button">Scan library</button>
-              <button id="refreshBtn" class="secondary" type="button">Refresh</button>
-            </div>
-            <div class="library-advanced" style="margin-bottom:20px;">
-              <label class="subtle" for="pathInput">Explicit path(s), separated by <span class="mono">:</span></label>
-              <div class="row">
-                <input id="pathInput" aria-label="Scan explicit paths" placeholder="/Users/me/Music:/Volumes/External/Albums">
-                <button id="importPathBtn" class="secondary">Scan</button>
+          <div class="settings-grid">
+            <div class="settings-card">
+              <div class="settings-card-header">Import Music</div>
+              <p class="settings-card-desc">Add folders, files, or drag and drop to build your library.</p>
+              <div class="library-intake" style="margin-bottom:12px;">
+                <button id="pickFolderBtn" type="button">Choose folder</button>
+                <button id="pickFileBtn" class="secondary" type="button">Choose files</button>
+                <button id="scanBtn" class="secondary" type="button">Scan library</button>
+                <button id="refreshBtn" class="secondary" type="button">Refresh</button>
               </div>
-              <div id="dropZone" class="drop-zone">
-                Drop files or folders here to scan them.
+              <div class="library-advanced">
+                <label class="subtle" for="pathInput">Explicit path(s), separated by <span class="mono">:</span></label>
+                <div class="row">
+                  <input id="pathInput" aria-label="Scan explicit paths" placeholder="/Users/me/Music:/Volumes/External/Albums">
+                  <button id="importPathBtn" class="secondary">Scan</button>
+                </div>
+                <div id="dropZone" class="drop-zone">
+                  Drop files or folders here to scan them.
+                </div>
               </div>
             </div>
-            <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Appearance</h3>
-            <button id="appearanceToggleBtn" class="secondary" type="button" aria-label="Toggle appearance" style="margin-bottom:20px;width:auto;display:inline-flex;align-items:center;padding:6px 14px;font-size:0.82rem;min-height:0;">
-              <svg id="appearanceToggleIcon" viewBox="0 0 24 24" style="width:14px;height:14px;margin-right:6px;flex-shrink:0;"><rect x="4" y="5" width="16" height="12" rx="2"></rect><path d="M10 19h4"></path><path d="M12 17v2"></path></svg>
-              <span>Theme</span>
-            </button>
-            <h3 style="margin:0 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Library Settings</h3>
-            <div class="metadata-field" style="margin-bottom: 16px;">
-              <label for="scanIntervalInput">Scan interval (seconds)</label>
-              <input id="scanIntervalInput" type="number" min="1" step="1" value="300" autocomplete="off">
+            <div class="settings-card">
+              <div class="settings-card-header">Appearance</div>
+              <p class="settings-card-desc">Switch between light, dark, and system themes.</p>
+              <button id="appearanceToggleBtn" class="secondary" type="button" aria-label="Toggle appearance" style="width:auto;display:inline-flex;align-items:center;padding:6px 14px;font-size:0.82rem;min-height:0;">
+                <svg id="appearanceToggleIcon" viewBox="0 0 24 24" style="width:14px;height:14px;margin-right:6px;flex-shrink:0;"><rect x="4" y="5" width="16" height="12" rx="2"></rect><path d="M10 19h4"></path><path d="M12 17v2"></path></svg>
+                <span>Theme</span>
+              </button>
             </div>
-            <div class="metadata-field" style="margin-bottom: 16px;">
-              <label for="apiProxyInput">MusicBrainz API proxy URL</label>
-              <input id="apiProxyInput" type="url" autocomplete="off" placeholder="https://proxy.example.com">
+            <div class="settings-card">
+              <div class="settings-card-header">Library</div>
+              <p class="settings-card-desc">Background scanning and metadata lookup.</p>
+              <div class="metadata-field" style="margin-bottom: 12px;">
+                <label for="scanIntervalInput">Scan interval (seconds)</label>
+                <input id="scanIntervalInput" type="number" min="1" step="1" value="300" autocomplete="off">
+              </div>
+              <div class="metadata-field" style="margin-bottom: 12px;">
+                <label for="apiProxyInput">MusicBrainz API proxy URL</label>
+                <input id="apiProxyInput" type="url" autocomplete="off" placeholder="https://proxy.example.com">
+              </div>
+              <button id="saveSettingsBtn" type="button" style="width:auto;padding:6px 18px;">Save</button>
             </div>
-            <div class="metadata-actions">
-              <button id="saveSettingsBtn" type="button">Save settings</button>
+            <div class="settings-card">
+              <div class="settings-card-header">Data</div>
+              <p class="settings-card-desc">Manage playback history and listening data.</p>
+              <button id="resetHistoryBtn" class="secondary" type="button" style="width:auto;display:inline-flex;padding:6px 14px;font-size:0.82rem;min-height:0;">Reset History</button>
             </div>
-            <h3 style="margin:18px 0 10px;font-size:0.95rem;font-weight:600;color:var(--text-primary,#fff);">Data</h3>
-            <button id="resetHistoryBtn" class="secondary" type="button">Reset History</button>
           </div>
         </section>
       </div>
