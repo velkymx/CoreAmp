@@ -39,6 +39,7 @@ jobs:
 
       - name: Verify workspace
         run: |
+          cargo fmt --all --check
           cargo check --workspace
           cargo test --workspace
           cargo clippy --workspace --all-targets -- -D warnings
@@ -46,6 +47,9 @@ jobs:
   linux:
     needs: verify
     runs-on: ubuntu-22.04
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,6 +80,14 @@ jobs:
           bash packaging/linux/build-deb.sh
           bash packaging/linux/build-appimage.sh
 
+      - name: Collect updater artifacts
+        run: |
+          mkdir -p target/packages/linux
+          BUNDLE_DIR="target/release/bundle"
+          # Copy AppImage updater bundle and signature
+          find "${BUNDLE_DIR}/appimage" -name '*.AppImage.tar.gz' -exec cp {} target/packages/linux/ \; 2>/dev/null || true
+          find "${BUNDLE_DIR}/appimage" -name '*.AppImage.tar.gz.sig' -exec cp {} target/packages/linux/ \; 2>/dev/null || true
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -92,6 +104,9 @@ jobs:
   macos:
     needs: verify
     runs-on: macos-latest
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -109,6 +124,14 @@ jobs:
       - name: Build macOS bundles
         run: bash packaging/macos/build-app.sh
 
+      - name: Collect updater artifacts
+        run: |
+          mkdir -p target/packages/macos
+          BUNDLE_DIR="target/release/bundle/macos"
+          # Copy the .tar.gz updater bundle and signature
+          find "${BUNDLE_DIR}" -name '*.app.tar.gz' -exec cp {} target/packages/macos/ \; 2>/dev/null || true
+          find "${BUNDLE_DIR}" -name '*.app.tar.gz.sig' -exec cp {} target/packages/macos/ \; 2>/dev/null || true
+
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -119,5 +142,68 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: target/packages/macos/*.zip
+          files: target/packages/macos/*
+          draft: true
+
+  updater-json:
+    needs: [linux, macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate latest.json
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          REPO="velkymx/CoreAmp"
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Read signatures
+          MACOS_SIG=""
+          LINUX_SIG=""
+          if [ -f artifacts/coreamp-macos-bundles/*.app.tar.gz.sig ]; then
+            MACOS_SIG=$(cat artifacts/coreamp-macos-bundles/*.app.tar.gz.sig)
+          fi
+          if [ -f artifacts/coreamp-linux-bundles/*.AppImage.tar.gz.sig ]; then
+            LINUX_SIG=$(cat artifacts/coreamp-linux-bundles/*.AppImage.tar.gz.sig)
+          fi
+
+          # Find artifact filenames
+          MACOS_FILE=$(ls artifacts/coreamp-macos-bundles/*.app.tar.gz 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
+          LINUX_FILE=$(ls artifacts/coreamp-linux-bundles/*.AppImage.tar.gz 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
+
+          # Build latest.json
+          cat > latest.json << ENDJSON
+          {
+            "version": "${VERSION}",
+            "notes": "CoreAmp ${VERSION} is available. See release notes on GitHub.",
+            "pub_date": "${DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${MACOS_SIG}",
+                "url": "${BASE_URL}/${MACOS_FILE}"
+              },
+              "darwin-x86_64": {
+                "signature": "${MACOS_SIG}",
+                "url": "${BASE_URL}/${MACOS_FILE}"
+              },
+              "linux-x86_64": {
+                "signature": "${LINUX_SIG}",
+                "url": "${BASE_URL}/${LINUX_FILE}"
+              }
+            }
+          }
+          ENDJSON
+
+          cat latest.json
+
+      - name: Upload latest.json to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: latest.json
           draft: true

@@ -635,6 +635,11 @@ fn scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
 }
 
 #[tauri::command]
+fn app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
 fn list_library(
     limit: Option<usize>,
     offset: Option<usize>,
@@ -1687,6 +1692,7 @@ fn main() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             #[cfg(feature = "devtools")]
             if let Some(window) = app.get_webview_window("main") {
@@ -1780,6 +1786,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            app_version,
             scan_library,
             scan_paths,
             pick_scan_paths,

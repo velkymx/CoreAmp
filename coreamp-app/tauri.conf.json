@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CoreAmp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "com.coreamp.desktop",
   "build": {
     "beforeDevCommand": "",
@@ -10,7 +10,7 @@
   },
   "app": {
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost; img-src 'self' asset: http://asset.localhost data:; media-src 'self' asset: http://asset.localhost data:; video-src 'self' asset: http://asset.localhost; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'",
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost https://api.github.com https://github.com https://objects.githubusercontent.com; img-src 'self' asset: http://asset.localhost data:; media-src 'self' asset: http://asset.localhost data:; video-src 'self' asset: http://asset.localhost; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]
@@ -30,5 +30,13 @@
     "active": true,
     "targets": "all",
     "icon": ["icons/icon.png"]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/velkymx/CoreAmp/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY4NjUxMkFGQkFFRDlEMjkKUldRcG5lMjZyeEpsK0JIVDN2YU9mQndwcVU1TkFzakgrNkV1TnBYK01vWU9KVzQzaVJvL1N5MFQK"
+    }
   }
 }

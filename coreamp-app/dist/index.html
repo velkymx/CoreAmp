@@ -2640,6 +2640,13 @@
               <p class="settings-card-desc">Manage playback history and listening data.</p>
               <button id="resetHistoryBtn" class="secondary" type="button" style="width:auto;display:inline-flex;padding:6px 14px;font-size:0.82rem;min-height:0;">Reset History</button>
             </div>
+            <div class="settings-card">
+              <div class="settings-card-header">Updates</div>
+              <p class="settings-card-desc">CoreAmp <span id="currentVersionLabel">v0.0.0</span></p>
+              <div id="updateStatus" style="font-size:0.82rem;margin:4px 0;color:var(--text-secondary);"></div>
+              <button id="checkUpdateBtn" class="secondary" type="button" style="width:auto;display:inline-flex;padding:6px 14px;font-size:0.82rem;min-height:0;">Check for Updates</button>
+              <button id="installUpdateBtn" class="secondary" type="button" style="width:auto;display:none;padding:6px 14px;font-size:0.82rem;min-height:0;background:var(--accent);color:#fff;">Install Update</button>
+            </div>
           </div>
         </section>
       </div>
@@ -2831,6 +2838,10 @@
     const loadSelectedPlaylistBtn = document.getElementById("loadSelectedPlaylistBtn");
     const refreshPlaylistsBtn = document.getElementById("refreshPlaylistsBtn");
     const resetHistoryBtn = document.getElementById("resetHistoryBtn");
+    const currentVersionLabel = document.getElementById("currentVersionLabel");
+    const updateStatusEl = document.getElementById("updateStatus");
+    const checkUpdateBtn = document.getElementById("checkUpdateBtn");
+    const installUpdateBtn = document.getElementById("installUpdateBtn");
     const playlistListEl = document.getElementById("playlistList");
     const metadataDialogEl = document.getElementById("metadataDialog");
     const metadataDialogCopyEl = document.getElementById("metadataDialogCopy");
@@ -6165,7 +6176,51 @@
       s.renderer.render(s.scene, s.camera);
     }
 
-    // ── Astro Chicken: Music-Powered Endless Runner ──
+    // ── Arcade High Scores (shared across all games) ──
+
+    const ARCADE_MAX_SCORES = 5;
+
+    function getArcadeScores(gameId) {
+      try {
+        const raw = localStorage.getItem(`arcadeScores_${gameId}`);
+        return raw ? JSON.parse(raw) : [];
+      } catch (_) { return []; }
+    }
+
+    function submitArcadeScore(gameId, score) {
+      if (score <= 0) return;
+      const scores = getArcadeScores(gameId);
+      const entry = { score, date: Date.now() };
+      scores.push(entry);
+      scores.sort((a, b) => b.score - a.score);
+      if (scores.length > ARCADE_MAX_SCORES) scores.length = ARCADE_MAX_SCORES;
+      localStorage.setItem(`arcadeScores_${gameId}`, JSON.stringify(scores));
+    }
+
+    function drawArcadeLeaderboard(ctx, gameId, currentScore, cx, topY, color, scale) {
+      const sc = scale || 1;
+      const scores = getArcadeScores(gameId);
+      const lineH = 8 * sc;
+      drawText(ctx, "TOP SCORES", cx - 30 * sc, topY, color, sc);
+      let newMarked = false;
+      for (let i = 0; i < ARCADE_MAX_SCORES; i++) {
+        const y = topY + lineH * (i + 1);
+        const entry = scores[i];
+        if (entry) {
+          const label = `${i + 1}. ${entry.score}`;
+          const isNew = !newMarked && entry.score === currentScore;
+          drawText(ctx, label, cx - 30 * sc, y, isNew ? "#ff0" : "#aaa", sc);
+          if (isNew) {
+            drawText(ctx, "NEW!", cx + 24 * sc, y, "#ff0", sc);
+            newMarked = true;
+          }
+        } else {
+          drawText(ctx, `${i + 1}. ---`, cx - 30 * sc, y, "#555", sc);
+        }
+      }
+    }
+
+    // ── Astro Alien: Music-Powered Endless Runner ──
 
     const GAME_W = 320, GAME_H = 180;
 
@@ -6888,7 +6943,12 @@
       // ── Dead / game over ──
       if (s.dead) {
         s.deadTimer += dt;
-        if (s.deadTimer > 1.5) s.gameOver = true;
+        if (s.deadTimer > 1.5) {
+          if (!s.gameOver) {
+            s.gameOver = true;
+            submitArcadeScore("game", s.score);
+          }
+        }
       }
       if (s.gameOver) {
         s.gameOverTimer += dt;
@@ -7260,10 +7320,11 @@
       if (s.gameOver) {
         ctx.fillStyle = "rgba(0,0,0,0.6)";
         ctx.fillRect(0, 0, GAME_W, GAME_H);
-        drawText(ctx, "GAME OVER", GAME_W / 2 - 27, GAME_H / 2 - 20, "#d83838", 2);
-        drawText(ctx, `SCORE:${s.score}`, GAME_W / 2 - 30, GAME_H / 2 + 5, "#e8c848", 1);
+        drawText(ctx, "GAME OVER", GAME_W / 2 - 27, GAME_H / 2 - 50, "#d83838", 2);
+        drawText(ctx, `SCORE:${s.score}`, GAME_W / 2 - 30, GAME_H / 2 - 30, "#e8c848", 1);
+        drawArcadeLeaderboard(ctx, "game", s.score, GAME_W / 2, GAME_H / 2 - 18, "#e8c848", 1);
         if (s.gameOverTimer > 0.5 && Math.floor(time * 0.003) % 2 === 0) {
-          drawText(ctx, "PRESS JUMP TO RETRY", GAME_W / 2 - 55, GAME_H / 2 + 20, "#888", 1);
+          drawText(ctx, "PRESS JUMP TO RETRY", GAME_W / 2 - 55, GAME_H / 2 + 35, "#888", 1);
         }
       }
 
@@ -7385,6 +7446,8 @@
           lastTime: 0,
           // Paused
           gamePaused: false,
+          songEnded: false, songEndTimer: 0,
+          hadActivity: false,
         };
       } catch (error) {
         console.error("Fishing init failed", error);
@@ -7412,11 +7475,25 @@
       const dt = s.lastTime ? Math.min((time - s.lastTime) / 1000, 0.05) : 0.016;
       s.lastTime = time;
 
-      // Pause check
+      // Pause / song end check
       const audioEl = playbackPlayer();
+      if (audioEl && audioEl.ended && s.hadActivity && !s.songEnded) {
+        s.songEnded = true;
+        s.songEndTimer = 0;
+        submitArcadeScore("fishing", s.score);
+      }
+      if (s.songEnded) {
+        s.songEndTimer += dt;
+      }
       if (audioEl && (audioEl.paused || audioEl.ended)) {
         s.gamePaused = true;
       } else {
+        if (s.songEnded) {
+          // New song started — reset
+          s.songEnded = false; s.songEndTimer = 0;
+          s.score = 0; s.totalCaught = 0; s.combo = 0;
+          s.hadActivity = false;
+        }
         s.gamePaused = false;
       }
 
@@ -7646,6 +7723,7 @@
             s.caughtFishName = fish.name;
             s.score += s.caughtFishPts;
             s.totalCaught++;
+            s.hadActivity = true;
             // Big ripple
             s.ripples.push({ x: s.bobberX, y: s.bobberY, r: 0, life: 2 });
             // Sparkle burst
@@ -8187,8 +8265,17 @@
         drawText(ctx, `X${s.combo}`, FISH_W - 30, 22, "#f80", 1);
       }
 
-      // ── Paused overlay ──
-      if (s.gamePaused) {
+      // ── Song end results / Paused overlay ──
+      if (s.songEnded) {
+        ctx.fillStyle = `rgba(0,0,0,${Math.min(0.75, s.songEndTimer * 2)})`;
+        ctx.fillRect(0, 0, FISH_W, FISH_H);
+        if (s.songEndTimer > 0.3) {
+          drawText(ctx, "SONG COMPLETE", FISH_W / 2 - 39, FISH_H / 2 - 55, "#0ff", 2);
+          drawText(ctx, `SCORE:${s.score}`, FISH_W / 2 - 18, FISH_H / 2 - 35, "#fff", 1);
+          drawText(ctx, `FISH CAUGHT:${s.totalCaught}`, FISH_W / 2 - 36, FISH_H / 2 - 25, "#0f0", 1);
+          drawArcadeLeaderboard(ctx, "fishing", s.score, FISH_W / 2, FISH_H / 2 - 13, "#0ff", 1);
+        }
+      } else if (s.gamePaused) {
         ctx.fillStyle = "rgba(0,0,0,0.65)";
         ctx.fillRect(0, 0, FISH_W, FISH_H);
         drawText(ctx, "PAUSED", FISH_W / 2 - 18, FISH_H / 2 - 15, "#fff", 2);
@@ -8295,6 +8382,8 @@
           hitText: "", hitTextTimer: 0, hitTextColor: "#fff",
           // Paused
           gamePaused: false,
+          songEnded: false, songEndTimer: 0,
+          hadNotes: false,
           lastTime: 0,
         };
       } catch (error) {
@@ -8323,11 +8412,28 @@
       const dt = s.lastTime ? Math.min((time - s.lastTime) / 1000, 0.05) : 0.016;
       s.lastTime = time;
 
-      // Pause check
+      // Pause / song end check
       const audioEl = playbackPlayer();
+      if (audioEl && audioEl.ended && s.hadNotes && !s.songEnded) {
+        s.songEnded = true;
+        s.songEndTimer = 0;
+        submitArcadeScore("keys", s.score);
+      }
+      if (s.songEnded) {
+        s.songEndTimer += dt;
+      }
       if (audioEl && (audioEl.paused || audioEl.ended)) {
         s.gamePaused = true;
       } else {
+        if (s.songEnded) {
+          // New song started — reset scores
+          s.songEnded = false; s.songEndTimer = 0;
+          s.score = 0; s.combo = 0; s.maxCombo = 0;
+          s.totalHits = 0; s.totalMisses = 0;
+          s.multiplier = 1; s.streak = 0;
+          s.notes = []; s.hadNotes = false;
+          s.hitEffects = []; s.missEffects = [];
+        }
         s.gamePaused = false;
       }
 
@@ -8443,6 +8549,8 @@
           s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: 0.1 });
           s.spawnTimer = 0.3;
         }
+
+        if (s.notes.length > 0) s.hadNotes = true;
 
         // ═══ UPDATE NOTES ═══
         for (let i = s.notes.length - 1; i >= 0; i--) {
@@ -8678,13 +8786,23 @@
       drawText(ctx, "J", KEYS_W - 30, instrY, KEY_LANES[2].color, 1);
       drawText(ctx, "K", KEYS_W - 16, instrY, KEY_LANES[3].color, 1);
 
-      // ── Paused overlay ──
-      if (s.gamePaused) {
+      // ── Song end results / Paused overlay ──
+      if (s.songEnded) {
+        ctx.fillStyle = `rgba(0,0,0,${Math.min(0.75, s.songEndTimer * 2)})`;
+        ctx.fillRect(0, 0, KEYS_W, KEYS_H);
+        if (s.songEndTimer > 0.3) {
+          drawText(ctx, "SONG COMPLETE", KEYS_W / 2 - 39, KEYS_H / 2 - 55, "#ff0", 2);
+          drawText(ctx, `SCORE:${s.score}`, KEYS_W / 2 - 18, KEYS_H / 2 - 35, "#fff", 1);
+          const tn = s.totalHits + s.totalMisses;
+          const acc = tn > 0 ? Math.floor((s.totalHits / tn) * 100) : 100;
+          drawText(ctx, `ACCURACY:${acc}%`, KEYS_W / 2 - 27, KEYS_H / 2 - 25, acc > 80 ? "#0f0" : "#ff0", 1);
+          drawArcadeLeaderboard(ctx, "keys", s.score, KEYS_W / 2, KEYS_H / 2 - 13, "#ff0", 1);
+        }
+      } else if (s.gamePaused) {
         ctx.fillStyle = "rgba(0,0,0,0.65)";
         ctx.fillRect(0, 0, KEYS_W, KEYS_H);
         drawText(ctx, "PAUSED", KEYS_W / 2 - 18, KEYS_H / 2 - 15, "#fff", 2);
         drawText(ctx, "PLAY A SONG TO JAM", KEYS_W / 2 - 55, KEYS_H / 2 + 5, "#888", 1);
-        // Show controls
         drawText(ctx, "HIT D F J K TO THE BEAT", KEYS_W / 2 - 68, KEYS_H / 2 + 20, "#666", 1);
       }
 
@@ -9006,6 +9124,7 @@
             if (s.hp <= 0) {
               s.alive = false;
               s.gameOverTimer = 0;
+              submitArcadeScore("shapes", s.score);
               // Death burst
               for (let p = 0; p < 30; p++) {
                 const angle = (p / 30) * Math.PI * 2;
@@ -9231,10 +9350,11 @@
         ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, s.gameOverTimer * 2)})`;
         ctx.fillRect(-4, -4, SHP_W + 8, SHP_H + 8);
         if (s.gameOverTimer > 0.3) {
-          drawText(ctx, "GAME OVER", SHP_W / 2 - 27, SHP_H / 2 - 20, "#f33", 2);
-          drawText(ctx, `SCORE: ${s.score}`, SHP_W / 2 - 24, SHP_H / 2 + 5, "#0ff", 1);
+          drawText(ctx, "GAME OVER", SHP_W / 2 - 27, SHP_H / 2 - 50, "#f33", 2);
+          drawText(ctx, `SCORE: ${s.score}`, SHP_W / 2 - 24, SHP_H / 2 - 30, "#0ff", 1);
+          drawArcadeLeaderboard(ctx, "shapes", s.score, SHP_W / 2, SHP_H / 2 - 18, "#0ff", 1);
           if (s.gameOverTimer > 0.5) {
-            drawText(ctx, "ANY KEY TO RESTART", SHP_W / 2 - 54, SHP_H / 2 + 20, "#666", 1);
+            drawText(ctx, "ANY KEY TO RESTART", SHP_W / 2 - 54, SHP_H / 2 + 35, "#666", 1);
           }
         }
       }
@@ -10908,6 +11028,60 @@
       }
     }
 
+    // ── Auto-updater ──
+    let pendingUpdate = null;
+
+    async function initUpdater() {
+      try {
+        const version = await invoke("app_version");
+        currentVersionLabel.textContent = `v${version}`;
+      } catch (_) {}
+      // Auto-check on startup (after a short delay)
+      setTimeout(checkForUpdate, 3000);
+    }
+
+    async function checkForUpdate() {
+      checkUpdateBtn.disabled = true;
+      updateStatusEl.textContent = "Checking for updates...";
+      installUpdateBtn.style.display = "none";
+      pendingUpdate = null;
+      try {
+        const result = await invoke("plugin:updater|check");
+        if (result && result.available) {
+          pendingUpdate = result;
+          updateStatusEl.textContent = `Update available: v${result.version}`;
+          installUpdateBtn.style.display = "inline-flex";
+        } else {
+          updateStatusEl.textContent = "You're on the latest version.";
+        }
+      } catch (error) {
+        const msg = String(error);
+        if (msg.includes("Up to date") || msg.includes("up to date")) {
+          updateStatusEl.textContent = "You're on the latest version.";
+        } else {
+          updateStatusEl.textContent = `Update check failed: ${msg}`;
+        }
+      }
+      checkUpdateBtn.disabled = false;
+    }
+
+    async function installUpdate() {
+      if (!pendingUpdate) return;
+      installUpdateBtn.disabled = true;
+      updateStatusEl.textContent = "Downloading and installing update...";
+      try {
+        await invoke("plugin:updater|download_and_install");
+        updateStatusEl.textContent = "Update installed. Restarting...";
+        // The app should restart automatically, but try manually if not
+        setTimeout(() => {
+          try { invoke("plugin:process|restart"); } catch (_) {}
+        }, 2000);
+      } catch (error) {
+        updateStatusEl.textContent = `Update failed: ${String(error)}`;
+        installUpdateBtn.disabled = false;
+      }
+    }
+
     async function recordPlay(track) {
       if (!track || !track.path) return;
       try {
@@ -11297,6 +11471,8 @@
     loadSelectedPlaylistBtn.addEventListener("click", loadSelectedPlaylist);
     refreshPlaylistsBtn.addEventListener("click", refreshPlaylists);
     resetHistoryBtn.addEventListener("click", resetHistory);
+    checkUpdateBtn.addEventListener("click", checkForUpdate);
+    installUpdateBtn.addEventListener("click", installUpdate);
     libraryDashboardTabBtn.addEventListener("click", () => setLibraryTab("dashboard"));
     libraryBrowseTabBtn.addEventListener("click", () => setLibraryTab("browse"));
     libraryLikedTabBtn.addEventListener("click", () => setLibraryTab("liked"));
@@ -11831,6 +12007,7 @@
     registerTrayEvents();
     registerDaemonEvents();
     restoreQueueFromStorage();
+    initUpdater();
 
     Promise.resolve().then(async () => {
       await Promise.all([refreshLibrary(), refreshPlaylists()]);
