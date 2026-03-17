@@ -6302,24 +6302,24 @@
     ];
 
     const ENEMY_BLOB1 = [
-      "..8888..",
-      ".888888.",
-      "88988988",
-      "88888888",
-      "8A8888A8",
-      "88888888",
-      ".888888.",
-      "..8..8..",
+      "..8....8..",
+      "...8..8...",
+      "..888888..",
+      ".88A88A8..",
+      "8888888888",
+      "8.888888.8",
+      "8.8....8.8",
+      "...88.88..",
     ];
     const ENEMY_BLOB2 = [
-      "..8888..",
-      ".888888.",
-      "88988988",
-      "88888888",
-      "8A8888A8",
-      "88888888",
-      ".888888.",
-      ".8....8.",
+      "..8....8..",
+      "...8..8...",
+      "..888888..",
+      ".88A88A8..",
+      "8888888888",
+      "8.888888.8",
+      "8..8..8..8",
+      ".88....88.",
     ];
 
     const SPRITE_PALETTE = {
@@ -6596,7 +6596,7 @@
 
       // ── Smooth audio ──
       s.prevBass = s.smoothBass;
-      s.smoothBass += (bass - s.smoothBass) * (bass > s.smoothBass ? 0.3 : 0.08);
+      s.smoothBass += (bass - s.smoothBass) * (bass > s.smoothBass ? 0.5 : 0.3);
       s.smoothMid += (mid - s.smoothMid) * 0.15;
       s.smoothTreble += (treble - s.smoothTreble) * 0.25;
       const bassHit = s.smoothBass - s.prevBass;
@@ -7015,12 +7015,26 @@
       ctx.save();
       ctx.translate(shakeX, shakeY);
 
-      // Sky
+      // Sky — near-black between beats, neon color on hits
+      const b = s.smoothBass;
+      const neonHue = (s.energyAccum * 30) % 360;
+      const neonR = Math.floor(Math.max(0, Math.sin((neonHue) * Math.PI / 180) * 255));
+      const neonG = Math.floor(Math.max(0, Math.sin((neonHue + 120) * Math.PI / 180) * 255));
+      const neonB = Math.floor(Math.max(0, Math.sin((neonHue + 240) * Math.PI / 180) * 255));
+      const pulsedSky1 = [Math.floor(b * neonR * 0.6), Math.floor(b * neonG * 0.6), Math.floor(b * neonB * 0.6)];
+      const pulsedSky2 = [Math.floor(b * neonR * 0.3), Math.floor(b * neonG * 0.3), Math.floor(b * neonB * 0.3)];
       const skyGrad = ctx.createLinearGradient(0, 0, 0, GAME_H * 0.7);
-      skyGrad.addColorStop(0, rgbStr(sky1));
-      skyGrad.addColorStop(1, rgbStr(sky2));
+      skyGrad.addColorStop(0, rgbStr(pulsedSky1));
+      skyGrad.addColorStop(1, rgbStr(pulsedSky2));
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+      // Neon flash overlay on strong beats
+      if (b > 0.4) {
+        const flashAlpha = (b - 0.4) * 0.8;
+        ctx.fillStyle = `hsla(${neonHue},100%,60%,${Math.min(0.4, flashAlpha)})`;
+        ctx.fillRect(0, 0, GAME_W, GAME_H);
+      }
 
       // ── Stars — parallax ──
       for (const star of s.stars) {
@@ -7116,16 +7130,17 @@
         }
       }
 
-      // ── Coins ──
+      // ── Coins (dance to music) ──
       for (const c of s.coins) {
         if (c.collected) continue;
         const coinX = c.x - cx;
         if (coinX < -10 || coinX > GAME_W + 10) continue;
         const coinFrame = Math.floor(c.animTimer) % 2;
-        renderSprite(ctx, COIN_FRAMES[coinFrame], coinX, c.y, SPRITE_PALETTE, false);
-        const glow = 0.2 + Math.sin(c.animTimer * 2) * 0.15;
-        ctx.fillStyle = `rgba(248,216,48,${glow})`;
-        ctx.fillRect(Math.floor(coinX - 1), Math.floor(c.y - 1), 7, 7);
+        // Bounce with bass — each coin has a phase offset based on position
+        const phase = (c.x * 0.07) + time * 0.005;
+        const bassBounce = s.smoothBass * Math.sin(phase) * 4;
+        const coinY = c.y + bassBounce;
+        renderSprite(ctx, COIN_FRAMES[coinFrame], coinX, coinY, SPRITE_PALETTE, false);
       }
 
       // ── Pulse rings ──
@@ -7263,15 +7278,7 @@
         }
       }
 
-      // Glowing coin trails — coins emit light
-      for (const c of s.coins) {
-        if (c.collected) continue;
-        const coinScreenX = c.x - cx;
-        if (coinScreenX < -20 || coinScreenX > GAME_W + 20) continue;
-        const glowPulse = 0.15 + Math.sin(c.animTimer * 3) * 0.1;
-        ctx.fillStyle = `rgba(248,216,48,${glowPulse})`;
-        ctx.fillRect(Math.floor(coinScreenX - 3), Math.floor(c.y - 3), 11, 11);
-      }
+      // (coin glow removed — clean sprites with bounce are enough at pixel scale)
 
       // Horizon glow — neon line at the ground level
       {

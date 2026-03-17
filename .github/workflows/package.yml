@@ -107,6 +107,7 @@ jobs:
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+      MACOSX_DEPLOYMENT_TARGET: "10.13"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -127,10 +128,10 @@ jobs:
       - name: Collect updater artifacts
         run: |
           mkdir -p target/packages/macos
-          BUNDLE_DIR="target/release/bundle/macos"
-          # Copy the .tar.gz updater bundle and signature
-          find "${BUNDLE_DIR}" -name '*.app.tar.gz' -exec cp {} target/packages/macos/ \; 2>/dev/null || true
-          find "${BUNDLE_DIR}" -name '*.app.tar.gz.sig' -exec cp {} target/packages/macos/ \; 2>/dev/null || true
+          # Tauri produces signed .tar.gz updater bundles per target
+          # Collect from the ARM build (used for updater; universal .zip is for manual install)
+          find target/aarch64-apple-darwin/release/bundle/macos -name '*.app.tar.gz' -exec cp {} target/packages/macos/ \; 2>/dev/null || true
+          find target/aarch64-apple-darwin/release/bundle/macos -name '*.app.tar.gz.sig' -exec cp {} target/packages/macos/ \; 2>/dev/null || true
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4

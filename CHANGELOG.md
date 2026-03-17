@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.0] - 2026-03-16
+
+### Auto-Updater
+- **Built-in auto-updater** — App checks for updates on launch and from Settings panel.
+- Download and install updates with one click; app restarts automatically.
+- Signed update bundles verified with public key for security.
+- "Updates" card in Settings shows current version and update status.
+
+### Games
+- **Arcade high scores** — Top 5 leaderboard per game, stored in localStorage.
+- High score list shown on game over (Astro Alien, Shapes) and song complete (Keys, Fishing).
+- New high scores highlighted with "NEW!" marker.
+- **Astro Alien** (renamed from Astro Chicken) — Space Invaders-style enemies, coins bounce and dance to bass, background pulses from black to neon on every beat.
+- **Guitar Hero Keys** — Song complete screen with score, accuracy, and leaderboard.
+- **Neon Fishing** — Song complete screen with score, fish caught, and leaderboard.
+
+### Packaging
+- **Universal macOS binary** — Single app bundle runs on both Apple Silicon and Intel Macs.
+- macOS compatibility extended to 10.13 (High Sierra) and up, including macOS 26 (Tahoe).
+- `MACOSX_DEPLOYMENT_TARGET=10.13` set in build scripts and CI.
+- CI workflow generates signed updater bundles and `latest.json` for auto-updates.
+
+### Technical
+- `tauri-plugin-updater` added for OTA updates via GitHub Releases.
+- `serde_json` dependency added.
+- Updater permissions added to app capabilities.
+- CSP updated to allow GitHub API and download connections.
+
 ## [0.2.0] - 2026-03-15
 
 ### Games

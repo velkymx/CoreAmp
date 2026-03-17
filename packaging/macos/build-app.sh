@@ -9,20 +9,43 @@ if ! command -v cargo-tauri >/dev/null 2>&1 && ! cargo tauri --help >/dev/null 2
   cargo install tauri-cli --locked
 fi
 
-(cd "${ROOT_DIR}/coreamp-app" && cargo tauri build --bundles app)
+export MACOSX_DEPLOYMENT_TARGET="10.13"
 
-APP_DIR="${ROOT_DIR}/target/release/bundle/macos"
-if [ ! -d "${APP_DIR}" ]; then
-  APP_DIR="${ROOT_DIR}/coreamp-app/target/release/bundle/macos"
+# Build for both architectures
+(cd "${ROOT_DIR}/coreamp-app" && cargo tauri build --target aarch64-apple-darwin --bundles app)
+(cd "${ROOT_DIR}/coreamp-app" && cargo tauri build --target x86_64-apple-darwin --bundles app)
+
+ARM_DIR="${ROOT_DIR}/target/aarch64-apple-darwin/release/bundle/macos"
+X86_DIR="${ROOT_DIR}/target/x86_64-apple-darwin/release/bundle/macos"
+
+ARM_APP="${ARM_DIR}/CoreAmp.app"
+X86_APP="${X86_DIR}/CoreAmp.app"
+
+if [ ! -d "${ARM_APP}" ]; then
+  echo "ARM app bundle not found at ${ARM_APP}" >&2
+  exit 1
 fi
-
-APP_BUNDLE="${APP_DIR}/CoreAmp.app"
-if [ ! -d "${APP_BUNDLE}" ]; then
-  echo "Expected app bundle not found at ${APP_BUNDLE}" >&2
+if [ ! -d "${X86_APP}" ]; then
+  echo "x86 app bundle not found at ${X86_APP}" >&2
   exit 1
 fi
 
-rm -f "${OUTPUT_DIR}/CoreAmp.app.zip"
-(cd "${APP_DIR}" && zip -r -y "${OUTPUT_DIR}/CoreAmp.app.zip" CoreAmp.app)
+# Create universal binary by merging with lipo
+UNIVERSAL_APP="${OUTPUT_DIR}/CoreAmp.app"
+rm -rf "${UNIVERSAL_APP}"
+cp -R "${ARM_APP}" "${UNIVERSAL_APP}"
 
-echo "macOS bundle artifacts written to ${OUTPUT_DIR}"
+ARM_BIN="${ARM_APP}/Contents/MacOS/coreamp-app"
+X86_BIN="${X86_APP}/Contents/MacOS/coreamp-app"
+UNIVERSAL_BIN="${UNIVERSAL_APP}/Contents/MacOS/coreamp-app"
+
+lipo -create "${ARM_BIN}" "${X86_BIN}" -output "${UNIVERSAL_BIN}"
+
+echo "Universal binary architectures:"
+lipo -info "${UNIVERSAL_BIN}"
+
+rm -f "${OUTPUT_DIR}/CoreAmp.app.zip"
+(cd "${OUTPUT_DIR}" && zip -r -y "CoreAmp.app.zip" CoreAmp.app)
+rm -rf "${UNIVERSAL_APP}"
+
+echo "macOS universal bundle written to ${OUTPUT_DIR}"
