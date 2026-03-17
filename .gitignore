@@ -15,6 +15,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Signing keys
+.tauri/
+
 # Misc
 .env
 .env.*
