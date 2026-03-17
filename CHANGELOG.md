@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.1] - 2026-03-16
+
+### Bug Fixes
+- Fixed updater not producing signed bundles (added `createUpdaterArtifacts` to config).
+- Fixed updater plugin registration to follow Tauri v2 pattern.
+- Fixed GitHub Actions Node.js 20 deprecation warnings (upgraded to v5).
+
+### Dependencies
+- Updated `rusqlite` 0.38 → 0.39.
+- Updated `wry` 0.54.2 → 0.54.3 (WebView engine — macOS compatibility).
+- Updated all transitive dependencies to latest versions.
+
 ## [0.3.0] - 2026-03-16
 
 ### Auto-Updater
