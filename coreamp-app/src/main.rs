@@ -1692,8 +1692,10 @@ fn main() {
     }
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             #[cfg(feature = "devtools")]
             if let Some(window) = app.get_webview_window("main") {
                 window.open_devtools();
