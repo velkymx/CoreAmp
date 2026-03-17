@@ -33,7 +33,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v3
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./ -> target"
 
@@ -71,7 +71,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v3
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./ -> target"
 
@@ -118,7 +118,7 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v3
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./ -> target"
 
