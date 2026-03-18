@@ -6,6 +6,9 @@ CoreAmp is built on top of many amazing open-source libraries. We would like to 
 - [Tauri](https://tauri.app/) - Frontend framework for desktop applications.
 - [Rust](https://www.rust-lang.org/) - The systems programming language powering our core logic.
 
+## Contributors
+- [Alan B](https://blog.ajb.bz)
+
 ## Dependencies
 
 ### Application (`coreamp-app`)
@@ -13,6 +16,8 @@ CoreAmp is built on top of many amazing open-source libraries. We would like to 
 - `rodio` - Audio playback library.
 - `serde` - Serialization and deserialization framework.
 - `base64` - Base64 encoding and decoding.
+- `image` - Image processing library.
+- `tauri-plugin-updater` - Updater support for Tauri.
 
 ### Common Logic & Data (`coreamp-common`)
 - `lofty` - Audio metadata reading and writing.
@@ -26,3 +31,5 @@ CoreAmp is built on top of many amazing open-source libraries. We would like to 
 
 ## Frontend Assets
 - [Butterchurn](https://github.com/jberg/butterchurn) - WebGL Milkdrop visualizer.
+- [audioMotion-analyzer](https://github.com/hvianna/audioMotion-analyzer) - High-resolution real-time audio spectrum analyzer.
+- [Three.js](https://threejs.org/) - JavaScript 3D library used by Butterchurn.
