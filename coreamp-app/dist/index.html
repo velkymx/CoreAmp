@@ -371,7 +371,7 @@
     .library-toolbar {
       display: grid;
       gap: 8px;
-      grid-template-columns: 1.6fr auto auto;
+      grid-template-columns: 1.6fr auto auto auto;
       margin-top: 8px;
       align-items: center;
     }
@@ -2412,6 +2412,7 @@
           <div id="libraryTracksView">
             <div class="library-toolbar">
               <input id="trackSearchInput" aria-label="Search tracks" placeholder="Search title, artist, or album">
+              <button id="addMusicBtn" class="secondary sort-chip" type="button" aria-label="Add music from folder or files">+ Music</button>
               <button id="saveSearchPlaylistBtn" class="secondary sort-chip" type="button" style="display:none;" aria-label="Save search results as playlist">+ Playlist</button>
               <select id="genreFilterSelect" class="genre-select" aria-label="Filter by genre">
                 <option value="">All Genres</option>
@@ -2429,7 +2430,13 @@
             <div class="table-wrap">
               <div id="libraryRows" class="track-list"></div>
             </div>
-            <div id="emptyState" class="empty">No indexed tracks yet.</div>
+            <div id="emptyState" class="empty">
+              <p style="margin:0 0 12px 0;">No indexed tracks yet.</p>
+              <div style="display:flex;gap:8px;justify-content:center;">
+                <button id="emptyAddFolderBtn" type="button" style="padding:8px 18px;border-radius:var(--control-radius);background:var(--accent);color:#fff;border:none;font-size:14px;cursor:pointer;">Add Album Folder</button>
+                <button id="emptyAddFilesBtn" class="secondary" type="button" style="padding:8px 18px;border-radius:var(--control-radius);background:var(--surface);color:var(--text);border:1px solid var(--line);font-size:14px;cursor:pointer;">Add Songs</button>
+              </div>
+            </div>
           </div>
           <div id="libraryArtistsView" class="library-subview" hidden>
             <div class="table-wrap"><div id="artistsGrid"></div></div>
@@ -2773,6 +2780,9 @@
     const albumsGridEl = document.getElementById("albumsGrid");
     const genresGridEl = document.getElementById("genresGrid");
     const trackSearchInput = document.getElementById("trackSearchInput");
+    const addMusicBtn = document.getElementById("addMusicBtn");
+    const emptyAddFolderBtn = document.getElementById("emptyAddFolderBtn");
+    const emptyAddFilesBtn = document.getElementById("emptyAddFilesBtn");
     const saveSearchPlaylistBtn = document.getElementById("saveSearchPlaylistBtn");
     const genreFilterSelect = document.getElementById("genreFilterSelect");
     const sortTitleBtn = document.getElementById("sortTitleBtn");
@@ -11470,6 +11480,9 @@
     refreshBtn.addEventListener("click", refreshLibrary);
     pickFolderBtn.addEventListener("click", () => pickAndScan("folder"));
     pickFileBtn.addEventListener("click", () => pickAndScan("file"));
+    addMusicBtn.addEventListener("click", () => pickAndScan("folder"));
+    emptyAddFolderBtn.addEventListener("click", () => pickAndScan("folder"));
+    emptyAddFilesBtn.addEventListener("click", () => pickAndScan("file"));
     importPathBtn.addEventListener("click", () => {
       scanExplicitPaths(parseExplicitPaths(pathInput.value));
     });

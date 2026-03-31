@@ -22,3 +22,7 @@ Thumbs.db
 .env
 .env.*
 node_modules/
+
+# Claude
+CLAUDE.md
+.claude/
