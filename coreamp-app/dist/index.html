@@ -4883,7 +4883,7 @@
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 100);
-        camera.position.z = 3.8;
+        camera.position.z = 6.2;
 
         // Trail/afterimage effect — fullscreen fade quad
         const trailScene = new THREE.Scene();
@@ -5096,8 +5096,8 @@
           stars, sMat, sGeo, ro,
           trailScene, trailCamera, trailMat,
           flareSprite, flareMat, flareTexture,
-          bloomDecay: 0, flareDecay: 0, camAngle: 0, camRadius: 3.8,
-          targetCamRadius: 3.8, camTilt: 0,
+          bloomDecay: 0, flareDecay: 0, camAngle: 0, camRadius: 6.2,
+          targetCamRadius: 6.2, camTilt: 0,
           mode: "orb",
           // Chord-aware state
           prevChord: "", chordBloom: 0, chordTimer: 0,
@@ -5163,7 +5163,7 @@
 
       // ── Camera: orbit, bass pulls camera in hard on hits ──
       s.camAngle += 0.001 + mid * 0.004;
-      s.targetCamRadius = 5.4 - bass * 1.2 - s.bloomDecay * 0.6;
+      s.targetCamRadius = 6.2 - bass * 1.2 - s.bloomDecay * 0.6;
       s.camRadius += (s.targetCamRadius - s.camRadius) * 0.15;
       s.camTilt += (Math.sin(t * 0.12) * 0.5 + bass * 0.25 - s.camTilt) * 0.06;
       s.camera.position.x = Math.sin(s.camAngle) * s.camRadius;
