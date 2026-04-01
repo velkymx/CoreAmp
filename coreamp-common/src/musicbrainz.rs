@@ -62,6 +62,7 @@ fn from_response(value: &Value) -> Option<TrackMetadata> {
         title,
         year,
         genre: None,
+        duration_secs: None,
     };
 
     if metadata.artist.is_none()

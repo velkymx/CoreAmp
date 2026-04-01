@@ -5,10 +5,7 @@ resolver = "3"
 [workspace.package]
 edition = "2024"
 license = "Polyform-Noncommercial-1.0.0"
-version = "0.3.2"
+version = "0.4.0"
 
-# Fix macOS 26 (Tahoe) crash: Apple changed ObjC method return types from
-# signed to unsigned, causing objc2 strict encoding checks to panic.
-# See: https://github.com/tauri-apps/tao/issues/1171
 [workspace.dependencies]
-objc2 = { version = "0.6", features = ["relax-sign-encoding"] }
+objc2 = "0.6"

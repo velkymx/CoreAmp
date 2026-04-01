@@ -15,6 +15,7 @@ pub struct TrackMetadata {
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
+    pub duration_secs: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -162,6 +163,13 @@ pub fn read_track_metadata(path: &Path) -> TrackMetadata {
         Ok(file) => file,
         Err(_) => return metadata,
     };
+
+    metadata.duration_secs = tagged_file
+        .properties()
+        .duration()
+        .as_secs()
+        .try_into()
+        .ok();
 
     for tag in ordered_tags(&tagged_file) {
         fill_missing_metadata(&mut metadata, tag);

@@ -1,5 +1,5 @@
 use crate::library::ScannedFile;
-use crate::metadata::TrackMetadata;
+use crate::metadata::{self, TrackMetadata};
 use crate::metadata_db_path;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::HashMap;
@@ -33,6 +33,7 @@ pub struct LibraryRow {
     pub year: Option<String>,
     pub genre: Option<String>,
     pub liked: bool,
+    pub duration_secs: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS files (
     last_played_at INTEGER,
     cover_url TEXT,
     metadata_hash TEXT,
+    duration_secs INTEGER,
     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
@@ -122,6 +124,9 @@ fn apply_schema(connection: &Connection) -> rusqlite::Result<()> {
     if !columns.contains("last_played_at") {
         connection.execute("ALTER TABLE files ADD COLUMN last_played_at INTEGER", [])?;
     }
+    if !columns.contains("duration_secs") {
+        connection.execute("ALTER TABLE files ADD COLUMN duration_secs INTEGER", [])?;
+    }
 
     Ok(())
 }
@@ -138,8 +143,8 @@ fn upsert_scanned_files_with_connection(
     {
         let mut stmt = tx.prepare(
             r#"
-            INSERT INTO files(path, filename, artist, album, title, year, genre, metadata_hash, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, unixepoch())
+            INSERT INTO files(path, filename, artist, album, title, year, genre, metadata_hash, duration_secs, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, unixepoch())
             ON CONFLICT(path) DO UPDATE SET
                 filename = excluded.filename,
                 metadata_hash = excluded.metadata_hash,
@@ -163,6 +168,7 @@ fn upsert_scanned_files_with_connection(
                     WHEN files.genre IS NULL OR files.genre = '' THEN excluded.genre
                     ELSE files.genre
                 END,
+                duration_secs = excluded.duration_secs,
                 updated_at = unixepoch()
             "#,
         )?;
@@ -176,7 +182,8 @@ fn upsert_scanned_files_with_connection(
                 &file.title,
                 &file.year,
                 &file.genre,
-                &file.metadata_hash
+                &file.metadata_hash,
+                &file.duration_secs
             ])?;
         }
     }
@@ -202,7 +209,7 @@ pub fn list_library_files(
 
     let mut query = String::from(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs
         FROM files
         WHERE 1=1
         "#,
@@ -252,6 +259,7 @@ pub fn list_library_files(
                     year: row.get(5)?,
                     genre: row.get(6)?,
                     liked: row.get::<_, i32>(7)? != 0,
+                    duration_secs: row.get(8)?,
                 })
             },
         )
@@ -440,7 +448,7 @@ pub fn list_recently_played(limit: usize) -> Result<Vec<LibraryRow>, String> {
     let mut stmt = connection
         .prepare(
             r#"
-            SELECT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked
+            SELECT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked, f.duration_secs
             FROM files f
             JOIN (SELECT path, MAX(played_at) AS last_played FROM history GROUP BY path) h ON h.path = f.path
             ORDER BY h.last_played DESC
@@ -460,6 +468,7 @@ pub fn list_recently_played(limit: usize) -> Result<Vec<LibraryRow>, String> {
                 year: row.get(5)?,
                 genre: row.get(6)?,
                 liked: row.get::<_, i32>(7)? != 0,
+                duration_secs: row.get(8)?,
             })
         })
         .map_err(|err| err.to_string())?;
@@ -536,7 +545,7 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
     let row = connection
         .query_row(
             r#"
-            SELECT path, filename, artist, album, title, year, genre, liked
+            SELECT path, filename, artist, album, title, year, genre, liked, duration_secs
             FROM files
             WHERE path = ?1
             LIMIT 1
@@ -552,6 +561,7 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
                     year: row.get(5)?,
                     genre: row.get(6)?,
                     liked: row.get::<_, i32>(7)? != 0,
+                    duration_secs: row.get(8)?,
                 })
             },
         )
@@ -580,6 +590,37 @@ pub fn get_all_metadata_hashes() -> Result<HashMap<String, String>, String> {
         out.insert(path, hash);
     }
     Ok(out)
+}
+
+pub fn backfill_duration_for_missing() -> Result<usize, String> {
+    let mutex = get_db()?;
+    let connection = mutex.lock().map_err(|err| err.to_string())?;
+
+    let mut stmt = connection
+        .prepare("SELECT path FROM files WHERE duration_secs IS NULL")
+        .map_err(|err| err.to_string())?;
+
+    let paths: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|err| err.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut updated = 0;
+    for path in paths {
+        let metadata = metadata::read_track_metadata(Path::new(&path));
+        if let Some(duration) = metadata.duration_secs {
+            connection
+                .execute(
+                    "UPDATE files SET duration_secs = ?1 WHERE path = ?2",
+                    params![duration, &path],
+                )
+                .ok();
+            updated += 1;
+        }
+    }
+
+    Ok(updated)
 }
 
 pub fn metadata_hash_for_path(path: &Path) -> Result<Option<String>, String> {
@@ -737,6 +778,7 @@ mod tests {
             year: None,
             genre: None,
             metadata_hash: String::from("hash-a"),
+            duration_secs: None,
         };
         let second = ScannedFile {
             path: PathBuf::from("/tmp/a.mp3"),
@@ -747,6 +789,7 @@ mod tests {
             year: Some(String::from("2026")),
             genre: Some(String::from("Genre B")),
             metadata_hash: String::from("hash-b"),
+            duration_secs: Some(180),
         };
         super::upsert_scanned_files_with_connection(&mut conn, &[first, second])
             .expect("upsert rows");

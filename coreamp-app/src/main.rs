@@ -42,6 +42,7 @@ struct LibraryTrack {
     pub year: Option<String>,
     pub genre: Option<String>,
     pub liked: bool,
+    pub duration: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -730,6 +731,7 @@ fn list_recently_played(limit: usize) -> Result<Vec<LibraryTrack>, String> {
             year: r.year,
             genre: r.genre,
             liked: r.liked,
+            duration: r.duration_secs,
         })
         .collect())
 }
@@ -812,6 +814,7 @@ fn library_track_from_row(row: db::LibraryRow) -> LibraryTrack {
         year: row.year,
         genre: row.genre,
         liked: row.liked,
+        duration: row.duration_secs,
     };
     hydrate_track_from_file(&mut track);
     track
@@ -837,6 +840,7 @@ fn track_from_path(path: &Path) -> LibraryTrack {
         year: metadata.year,
         genre: metadata.genre,
         liked: false,
+        duration: metadata.duration_secs,
     }
 }
 
@@ -1054,6 +1058,7 @@ fn write_missing_tags_for_path(path: String) -> Result<bool, String> {
         title: row.title,
         year: row.year,
         genre: row.genre,
+        duration_secs: row.duration_secs,
     };
     metadata::write_missing_tags(Path::new(&path), &metadata)
 }
@@ -1076,6 +1081,7 @@ fn normalize_metadata_input(input: TrackMetadataInput) -> metadata::TrackMetadat
         title: clean(input.title),
         year: clean(input.year),
         genre: clean(input.genre),
+        duration_secs: None,
     }
 }
 

@@ -18,6 +18,7 @@ pub struct ScannedFile {
     pub year: Option<String>,
     pub genre: Option<String>,
     pub metadata_hash: String,
+    pub duration_secs: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -101,6 +102,7 @@ fn to_scanned_file(path: &Path, metadata_hash: String) -> Option<ScannedFile> {
         year: file_metadata.year,
         genre: file_metadata.genre,
         metadata_hash,
+        duration_secs: file_metadata.duration_secs,
     })
 }
 
@@ -181,6 +183,9 @@ pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
         }
     }
     let files_upserted = db::upsert_scanned_files(&changed_files)?;
+
+    db::backfill_duration_for_missing()?;
+
     Ok(ScanSummary {
         roots_scanned: roots.len(),
         files_discovered: files.len(),
