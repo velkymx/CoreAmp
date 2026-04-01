@@ -11793,7 +11793,8 @@
       }
       if (event.key === " " || event.code === "Space") {
         const tag = (event.target.tagName || "").toLowerCase();
-        if (tag === "input" || tag === "textarea" || tag === "select" || event.target.isContentEditable) return;
+        if (tag === "input" || tag === "textarea" || tag === "select" || tag === "button" || event.target.isContentEditable) return;
+        if (document.querySelector("dialog[open]")) return;
         event.preventDefault();
         await togglePlayback();
       }
