@@ -4940,16 +4940,16 @@
             vec3 viewDir = normalize(cameraPosition - vWorldPosition);
             float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
 
-            // Color palette cycles through deep vibrant hues — never light
-            float hueBase = 0.65 + sin(uTime * 0.12) * 0.15;
-            float hueShift = uBass * 0.2 - uTreble * 0.1;
+            // Color palette: accent blue (#007aff ≈ hue 0.58) → purple
+            float hueBase = 0.58 + sin(uTime * 0.12) * 0.10;
+            float hueShift = uBass * 0.12 - uTreble * 0.06;
             float hue = mod(hueBase + hueShift, 1.0);
 
             // Deep saturated base — luminance capped low
             vec3 baseColor = hsl2rgb(hue, 0.95, 0.2 + uMid * 0.1);
 
-            // Rim glow — complementary hue, stays deep
-            float rimHue = mod(hue + 0.35 + uBassVelocity * 0.15, 1.0);
+            // Rim glow — shifted toward purple, stays deep
+            float rimHue = mod(hue + 0.15 + uBassVelocity * 0.08, 1.0);
             vec3 rimColor = hsl2rgb(rimHue, 1.0, 0.25 + uTreble * 0.1);
 
             // Inner pulse — intensifies color on bass, never whitens
@@ -4961,7 +4961,7 @@
 
             // Iridescence — shifts hue, stays dark and saturated
             float iridescence = sin(dot(vNormal, vec3(1.0, 0.5, 0.3)) * 4.0 + uTime * 0.5) * 0.5 + 0.5;
-            color += hsl2rgb(mod(hue + iridescence * 0.3, 1.0), 0.9, 0.15) * 0.2;
+            color += hsl2rgb(mod(hue + iridescence * 0.15, 1.0), 0.9, 0.15) * 0.2;
 
             // Clamp: no channel exceeds 0.7 — prevents wash-out
             color = min(color, vec3(0.7));
@@ -4987,7 +4987,7 @@
         const wireGeo = new THREE.IcosahedronGeometry(0.97, 4);
         const wireBasePositions = new Float32Array(wireGeo.attributes.position.array);
         const wireMat = new THREE.MeshBasicMaterial({
-          color: 0x8844ff, wireframe: true, transparent: true, opacity: 0.18,
+          color: 0x007aff, wireframe: true, transparent: true, opacity: 0.18,
           blending: THREE.AdditiveBlending, depthWrite: false,
         });
         const wireMesh = new THREE.Mesh(wireGeo, wireMat);
@@ -5229,7 +5229,7 @@
         const camDir = s.camera.position.clone().normalize().multiplyScalar(0.6);
         s.flareSprite.position.copy(camDir);
         // Tint flare to match current hue — never white
-        const flareHue = (0.72 + Math.sin(t * 0.1) * 0.1 + treble * 0.08) % 1;
+        const flareHue = (0.60 + Math.sin(t * 0.1) * 0.08 + treble * 0.06) % 1;
         s.flareMat.color.setHSL(flareHue, 0.9, 0.3);
         s.flareDecay = Math.max(0, s.flareDecay - 0.04);
       } else {
@@ -5237,7 +5237,7 @@
       }
 
       // ── Wire: bloom reveals the geometric skeleton — deep vibrant color ──
-      const hue = (0.7 + Math.sin(t * 0.08) * 0.12) % 1;
+      const hue = (0.58 + Math.sin(t * 0.08) * 0.10) % 1;
       s.wireMat.color.setHSL(hue, 0.95, 0.25 + treble * 0.1 + s.bloomDecay * 0.1);
       s.wireMat.opacity = 0.1 + bass * 0.1 + s.bloomDecay * 0.6;
 
@@ -5271,7 +5271,7 @@
       s.pGeo.attributes.position.needsUpdate = true;
       s.pMat.opacity = 0.3 + bass * 0.3;
       s.pMat.size = 0.018 + treble * 0.015;
-      s.pMat.color.setHSL((hue + 0.15) % 1, 0.6, 0.5 + treble * 0.15);
+      s.pMat.color.setHSL((hue + 0.10) % 1, 0.7, 0.5 + treble * 0.15);
 
       // ── Stars: gentle twinkle ──
       s.sMat.opacity = 0.2 + Math.sin(t * 0.5) * 0.08 + bass * 0.1;
