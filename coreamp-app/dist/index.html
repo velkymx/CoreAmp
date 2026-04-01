@@ -1725,7 +1725,7 @@
       min-height: 166px;
       border-radius: var(--radius-medium);
       border: 0;
-      background: color-mix(in srgb, var(--surface-strong) 54%, transparent);
+      background: #000000;
       padding: 14px;
       position: relative;
       overflow: hidden;
@@ -1735,7 +1735,7 @@
       height: 100%;
       padding: 16px;
       border-radius: calc(var(--radius-large) - 8px);
-      background: rgb(1, 4, 9);
+      background: #000000;
     }
     .audio-visualizer.is-fullscreen {
       position: fixed;
@@ -1746,7 +1746,7 @@
       min-height: 100vh;
       padding: 24px;
       border-radius: 0;
-      background: rgb(5, 10, 16);
+      background: #000000;
     }
     .audio-visualizer:fullscreen,
     .audio-visualizer:-webkit-full-screen {
@@ -1755,7 +1755,7 @@
       min-height: 100vh;
       padding: 24px;
       border-radius: 0;
-      background: rgb(5, 10, 16);
+      background: #000000;
     }
     .visualizer-toolbar {
       position: absolute;
@@ -1830,7 +1830,7 @@
       inset: 0;
       overflow: hidden;
       border-radius: 18px;
-      background: linear-gradient(180deg, rgba(6, 11, 18, 0.68), rgba(10, 18, 28, 0.3));
+      background: #000000;
     }
     #visualizerContainer canvas {
       position: absolute;
@@ -4228,10 +4228,7 @@
       const sampleRate = audioContext?.sampleRate || 48000;
 
       ctx.clearRect(0, 0, width, height);
-      const background = ctx.createLinearGradient(0, top, 0, bottom);
-      background.addColorStop(0, "rgba(9, 16, 25, 0.96)");
-      background.addColorStop(1, "rgba(13, 22, 32, 0.82)");
-      ctx.fillStyle = background;
+      ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, width, height);
 
       ctx.strokeStyle = "rgba(170, 189, 209, 0.12)";
@@ -5560,7 +5557,7 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(w, h);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setClearColor(0x000005, 1);
+        renderer.setClearColor(0x000000, 1);
         renderer.autoClear = false;
         container.appendChild(renderer.domElement);
 
@@ -5961,7 +5958,7 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(w, h);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setClearColor(0x050510, 1);
+        renderer.setClearColor(0x000000, 1);
         container.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
