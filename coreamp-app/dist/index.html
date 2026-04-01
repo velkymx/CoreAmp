@@ -5139,7 +5139,7 @@
 
       // ── Camera: orbit, bass pulls camera in hard ──
       s.camAngle += 0.001 + mid * 0.002;
-      s.targetCamRadius = 4.8 - bass * 0.8 - s.bloomDecay * 0.4;
+      s.targetCamRadius = 5.4 - bass * 0.8 - s.bloomDecay * 0.4;
       s.camRadius += (s.targetCamRadius - s.camRadius) * 0.08;
       s.camTilt += (Math.sin(t * 0.12) * 0.5 + bass * 0.15 - s.camTilt) * 0.03;
       s.camera.position.x = Math.sin(s.camAngle) * s.camRadius;
