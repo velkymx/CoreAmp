@@ -277,6 +277,11 @@
       background: var(--surface-strong);
       color: var(--text);
       padding: 0 12px;
+      height: 44px;
+      line-height: 44px;
+      pointer-events: auto !important;
+      position: relative;
+      z-index: 10;
     }
     input::placeholder {
       color: var(--text-tertiary);
@@ -368,13 +373,6 @@
       text-transform: uppercase;
       margin-bottom: 2px;
     }
-    .library-toolbar {
-      display: grid;
-      gap: 8px;
-      grid-template-columns: 1.6fr auto auto;
-      margin-top: 8px;
-      align-items: center;
-    }
     .library-workbench {
       margin-top: 14px;
       display: grid;
@@ -399,12 +397,6 @@
       justify-content: space-between;
       align-items: end;
       gap: 10px;
-      flex-wrap: wrap;
-    }
-    .sort-controls {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
       flex-wrap: wrap;
     }
     .sort-chip {
@@ -1005,60 +997,182 @@
       margin-top: 10px;
       padding-right: 4px;
     }
-    .track-list {
-      display: grid;
-      gap: 0;
-      padding: 2px 0;
-      align-content: start;
+    /* --- Data Table --- */
+    .data-table-container {
+      margin-top: 10px;
     }
-    .library-group + .library-group {
-      margin-top: 8px;
+    .data-table-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
     }
-    .library-group-head {
-      padding: 12px 4px 4px;
+    .data-table-toolbar input[type="search"] {
+      flex: 1;
+      min-width: 180px;
     }
-    .library-group-heading {
-      display: contents;
-    }
-    .library-group-title {
-      color: var(--text-tertiary);
-      font-size: 0.72rem;
+    .data-table-toolbar .page-size-select {
+      min-height: 36px;
+      padding: 0 8px;
+      border-radius: var(--control-radius);
+      border: 1px solid var(--line);
+      background: var(--surface-strong);
+      color: var(--text-secondary);
+      font-size: 0.8rem;
       font-weight: 600;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .data-table thead {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .data-table th {
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 700;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-    }
-    .library-group-subtitle {
-      display: none;
-    }
-    .library-group-meta {
-      display: none;
-    }
-    .track-card {
-      display: grid;
-      gap: 10px;
-      grid-template-columns: 40px minmax(0, 1fr) auto;
-      align-items: center;
-      padding: 6px 4px;
-      border: 0;
-      border-bottom: 1px solid var(--line-soft);
-      border-radius: 0;
-      background: transparent;
-      box-shadow: none;
+      color: var(--text-tertiary);
+      background: var(--surface-strong, rgba(30,30,30,0.95));
+      border-bottom: 2px solid var(--line);
       cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      position: relative;
     }
-    .track-card:hover {
-      border-bottom-color: rgba(0, 122, 255, 0.35);
+    .data-table th:hover {
+      color: var(--text);
+      background: var(--surface-2, rgba(255,255,255,0.06));
+    }
+    .data-table th.sorted {
+      color: var(--accent);
+    }
+    .data-table th .sort-arrow {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 0.7rem;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .data-table th:hover .sort-arrow {
+      opacity: 0.4;
+    }
+    .data-table th.sorted .sort-arrow {
+      opacity: 1;
+    }
+    .data-table th.no-sort {
+      cursor: default;
+    }
+    .data-table th.no-sort:hover {
+      color: var(--text-tertiary);
+      background: var(--surface-strong, rgba(30,30,30,0.95));
+    }
+    .data-table td {
+      padding: 6px 10px;
+      font-size: 0.9rem;
+      color: var(--text);
+      border-bottom: 1px solid var(--line-soft);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: middle;
+    }
+    .data-table tbody tr {
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .data-table tbody tr:hover {
       background: rgba(255,255,255,0.02);
-      box-shadow: none;
     }
-    .track-card.in-queue {
+    .data-table tbody tr:hover td {
+      border-bottom-color: rgba(0, 122, 255, 0.35);
+    }
+    .data-table tbody tr.in-queue {
       background: rgba(0, 122, 255, 0.04);
+    }
+    .data-table tbody tr.in-queue td {
       border-bottom-color: rgba(0, 122, 255, 0.5);
-      box-shadow: none;
+    }
+    .data-table .col-title {
+      width: 28%;
+    }
+    .data-table .col-artist {
+      width: 20%;
+    }
+    .data-table .col-time {
+      width: 62px;
+      text-align: right;
+    }
+    .data-table .col-album {
+      width: 20%;
+    }
+    .data-table .col-year {
+      width: 56px;
+      text-align: center;
+    }
+    .data-table .col-genre {
+      width: 11%;
+    }
+    .data-table .col-liked {
+      width: 44px;
+      text-align: center;
+    }
+    .data-table .col-actions {
+      width: 44px;
+      text-align: center;
+    }
+    .data-table td.col-time {
+      text-align: right;
+      color: var(--text-tertiary);
+      font-size: 0.82rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .data-table td.col-year {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+    }
+    .data-table td.col-genre {
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+    }
+    .data-table td.col-title {
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+    .data-table td.col-artist,
+    .data-table td.col-album {
+      color: var(--text-secondary);
+      font-size: 0.87rem;
+    }
+    .data-table td.col-liked {
+      text-align: center;
+    }
+    .data-table .track-link {
+      min-height: 0;
+      max-width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .data-table .track-link:hover {
+      color: var(--accent);
+      text-decoration: underline;
     }
     .track-thumb {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       border-radius: 4px;
       background: var(--surface-2, rgba(255,255,255,0.06));
       overflow: hidden;
@@ -1085,40 +1199,56 @@
       opacity: 0.4;
     }
     .track-thumb-icon svg {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
     }
     .track-thumb.has-art .track-thumb-icon {
       display: none;
     }
-    .track-meta {
-      min-width: 0;
-      display: grid;
-      gap: 2px;
+    /* Pagination */
+    .data-table-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 8px;
+      padding: 6px 0;
+      flex-wrap: wrap;
     }
-    .track-title {
-      color: var(--text);
-      font-size: 0.95rem;
-      font-weight: 650;
-      letter-spacing: -0.01em;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .track-subtitle {
-      color: var(--text-secondary);
-      font-size: 0.87rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .track-tertiary {
+    .data-table-pagination .page-info {
       color: var(--text-tertiary);
       font-size: 0.8rem;
-      letter-spacing: 0.01em;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-weight: 500;
+    }
+    .data-table-page-btns {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .data-table-page-btns button {
+      min-height: 30px;
+      min-width: 30px;
+      padding: 0 8px;
+      border-radius: var(--control-radius);
+      border: 1px solid var(--line);
+      background: var(--surface-strong);
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .data-table-page-btns button:hover:not(:disabled) {
+      background: var(--surface-2, rgba(255,255,255,0.06));
+      color: var(--text);
+    }
+    .data-table-page-btns button:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .data-table-page-btns button.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: rgba(0, 122, 255, 0.18);
     }
     .track-link {
       min-height: 0;
@@ -1302,6 +1432,7 @@
       max-width: min(520px, calc(100vw - 32px));
       width: 100%;
       animation: panel-in 0.18s ease;
+      z-index: 10000;
     }
     dialog::backdrop {
       background: rgba(6, 12, 18, 0.38);
@@ -1322,6 +1453,27 @@
       font-size: 0.88rem;
       line-height: 1.4;
     }
+    .metadata-filename {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-top: 2px;
+    }
+    .metadata-filename-label {
+      color: var(--text-tertiary);
+      font-size: 0.78rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .metadata-filename-value {
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
     .metadata-form {
       display: grid;
       gap: 12px;
@@ -1329,10 +1481,16 @@
     .metadata-field {
       display: grid;
       gap: 6px;
+      position: relative;
+      z-index: 1;
     }
     .metadata-field label {
       color: var(--text-secondary);
       font-size: 0.84rem;
+    }
+    .metadata-field input {
+      pointer-events: auto;
+      position: relative;
     }
     .metadata-actions {
       display: flex;
@@ -2162,14 +2320,17 @@
       .library-browse-head {
         align-items: start;
       }
-      .library-toolbar {
-        grid-template-columns: 1fr;
+      .data-table-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .data-table .col-genre,
+      .data-table .col-year,
+      .data-table .col-time {
+        display: none;
       }
       .library-intake {
         align-items: stretch;
-      }
-      .sort-controls {
-        width: 100%;
       }
       .eq-band-controls {
         grid-template-columns: 1fr;
@@ -2213,12 +2374,9 @@
       .table-wrap {
         max-height: 320px;
       }
-      .track-card {
-        grid-template-columns: 1fr;
-      }
-      .track-actions {
-        justify-content: start;
-        flex-wrap: wrap;
+      .data-table .col-album,
+      .data-table .col-liked {
+        display: none;
       }
       .queue-item-path {
         max-width: 66vw;
@@ -2410,26 +2568,43 @@
             <div id="visibleCount" class="count-chip">0 shown</div>
           </div>
           <div id="libraryTracksView">
-            <div class="library-toolbar">
-              <input id="trackSearchInput" aria-label="Search tracks" placeholder="Search title, artist, or album">
-              <button id="saveSearchPlaylistBtn" class="secondary sort-chip" type="button" style="display:none;" aria-label="Save search results as playlist">+ Playlist</button>
-              <select id="genreFilterSelect" class="genre-select" aria-label="Filter by genre">
-                <option value="">All Genres</option>
-              </select>
-              <div class="sort-controls" role="group" aria-label="Sort library">
-                <button id="sortTitleBtn" class="secondary sort-chip active" type="button">Title</button>
-                <button id="sortArtistBtn" class="secondary sort-chip" type="button">Artist</button>
-                <button id="sortAlbumBtn" class="secondary sort-chip" type="button">Album</button>
-                <button id="sortDirectionBtn" class="secondary sort-chip" type="button" aria-label="Toggle sort direction">
-                  <svg id="sortDirectionIcon" viewBox="0 0 24 24"><path d="M8 7l4-4 4 4"></path><path d="M12 3v18"></path></svg>
-                  <span id="sortDirectionLabel">A-Z</span>
-                </button>
+            <div class="data-table-container">
+              <div class="data-table-toolbar">
+                <input id="trackSearchInput" type="search" aria-label="Search tracks" placeholder="Search title, artist, or album">
+                <button id="saveSearchPlaylistBtn" class="secondary sort-chip" type="button" style="display:none;" aria-label="Save search results as playlist">+ Playlist</button>
+                <select id="genreFilterSelect" class="genre-select" aria-label="Filter by genre">
+                  <option value="">All Genres</option>
+                </select>
+                <select id="pageSizeSelect" class="page-size-select" aria-label="Rows per page">
+                  <option value="25">25 rows</option>
+                  <option value="50" selected>50 rows</option>
+                  <option value="100">100 rows</option>
+                  <option value="200">200 rows</option>
+                </select>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table" id="libraryTable">
+                  <thead>
+                    <tr>
+                      <th class="col-title sorted" data-sort="title">Title <span class="sort-arrow">▲</span></th>
+                      <th class="col-artist" data-sort="artist">Artist <span class="sort-arrow">▲</span></th>
+                      <th class="col-time" data-sort="time">Time <span class="sort-arrow">▲</span></th>
+                      <th class="col-album" data-sort="album">Album <span class="sort-arrow">▲</span></th>
+                      <th class="col-year" data-sort="year">Year <span class="sort-arrow">▲</span></th>
+                      <th class="col-genre" data-sort="genre">Genre <span class="sort-arrow">▲</span></th>
+                      <th class="col-liked" data-sort="liked">♥ <span class="sort-arrow">▲</span></th>
+                      <th class="col-actions no-sort">&nbsp;</th>
+                    </tr>
+                  </thead>
+                  <tbody id="libraryRows"></tbody>
+                </table>
+              </div>
+              <div id="emptyState" class="empty">No indexed tracks yet.</div>
+              <div class="data-table-pagination" id="libraryPagination">
+                <span class="page-info" id="libraryPageInfo">0 tracks</span>
+                <div class="data-table-page-btns" id="libraryPageBtns"></div>
               </div>
             </div>
-            <div class="table-wrap">
-              <div id="libraryRows" class="track-list"></div>
-            </div>
-            <div id="emptyState" class="empty">No indexed tracks yet.</div>
           </div>
           <div id="libraryArtistsView" class="library-subview" hidden>
             <div class="table-wrap"><div id="artistsGrid"></div></div>
@@ -2658,6 +2833,10 @@
       <div class="metadata-dialog-head">
         <h2>Edit metadata</h2>
         <div id="metadataDialogCopy" class="metadata-dialog-copy">Update the track tags in the file and library.</div>
+        <div class="metadata-filename">
+          <span class="metadata-filename-label">File:</span>
+          <code id="metadataFilename" class="metadata-filename-value"></code>
+        </div>
       </div>
       <div class="metadata-form">
         <div class="metadata-field">
@@ -2775,12 +2954,11 @@
     const trackSearchInput = document.getElementById("trackSearchInput");
     const saveSearchPlaylistBtn = document.getElementById("saveSearchPlaylistBtn");
     const genreFilterSelect = document.getElementById("genreFilterSelect");
-    const sortTitleBtn = document.getElementById("sortTitleBtn");
-    const sortArtistBtn = document.getElementById("sortArtistBtn");
-    const sortAlbumBtn = document.getElementById("sortAlbumBtn");
-    const sortDirectionBtn = document.getElementById("sortDirectionBtn");
-    const sortDirectionIcon = document.getElementById("sortDirectionIcon");
-    const sortDirectionLabel = document.getElementById("sortDirectionLabel");
+    const libraryTableEl = document.getElementById("libraryTable");
+    const libraryPaginationEl = document.getElementById("libraryPagination");
+    const libraryPageInfoEl = document.getElementById("libraryPageInfo");
+    const libraryPageBtnsEl = document.getElementById("libraryPageBtns");
+    const pageSizeSelectEl = document.getElementById("pageSizeSelect");
     const visibleCountEl = document.getElementById("visibleCount");
     const prevBtn = document.getElementById("prevBtn");
     const toggleBtn = document.getElementById("toggleBtn");
@@ -2851,6 +3029,7 @@
     const metadataAlbumInputEl = document.getElementById("metadataAlbumInput");
     const metadataYearInputEl = document.getElementById("metadataYearInput");
     const metadataGenreInputEl = document.getElementById("metadataGenreInput");
+    const metadataFilenameEl = document.getElementById("metadataFilename");
     const metadataCancelBtn = document.getElementById("metadataCancelBtn");
     const metadataSaveBtn = document.getElementById("metadataSaveBtn");
     const trackPlaylistDialogEl = document.getElementById("trackPlaylistDialog");
@@ -2868,13 +3047,15 @@
     let nativeAudioAvailable = false;
     let nativeWatchHandle = null;
     let allTracks = [];
-    let libraryPageSize = 200;
+    let libraryFetchSize = 500;
     let libraryHasMore = false;
     let libraryTotalCount = 0;
     let currentSearchTerm = "";
     let currentGenre = "";
     let likedOnly = false;
     let currentSortOrder = "title-asc";
+    let tablePageSize = 50;
+    let tableCurrentPage = 0;
     let activeLibraryTab = "dashboard";
     let appearanceMode = "system";
     let playlists = [];
@@ -3446,27 +3627,29 @@
     }
     function updateSortControls() {
       const [field, order] = currentSortOrder.split("-");
-      setButtonState(sortTitleBtn, field === "title", "Sort by title");
-      setButtonState(sortArtistBtn, field === "artist", "Sort by artist");
-      setButtonState(sortAlbumBtn, field === "album", "Sort by album");
       const ascending = order !== "desc";
-      sortDirectionLabel.textContent = ascending ? "A-Z" : "Z-A";
-      sortDirectionIcon.innerHTML = ascending
-        ? '<path d="M8 7l4-4 4 4"></path><path d="M12 3v18"></path>'
-        : '<path d="M8 17l4 4 4-4"></path><path d="M12 3v18"></path>';
-      setButtonState(sortDirectionBtn, !ascending, ascending ? "Use descending sort" : "Use ascending sort");
+      const headers = libraryTableEl.querySelectorAll("th[data-sort]");
+      for (const th of headers) {
+        const sortField = th.dataset.sort;
+        const arrow = th.querySelector(".sort-arrow");
+        if (sortField === field) {
+          th.classList.add("sorted");
+          if (arrow) arrow.textContent = ascending ? "▲" : "▼";
+        } else {
+          th.classList.remove("sorted");
+          if (arrow) arrow.textContent = "▲";
+        }
+      }
     }
 
     function setSortField(field) {
-      const [, order = "asc"] = currentSortOrder.split("-");
-      currentSortOrder = `${field}-${order}`;
-      updateSortControls();
-      applyLibraryView();
-    }
-
-    function toggleSortDirection() {
-      const [field = "title", order = "asc"] = currentSortOrder.split("-");
-      currentSortOrder = `${field}-${order === "desc" ? "asc" : "desc"}`;
+      const [currentField, order = "asc"] = currentSortOrder.split("-");
+      if (currentField === field) {
+        currentSortOrder = `${field}-${order === "desc" ? "asc" : "desc"}`;
+      } else {
+        currentSortOrder = `${field}-asc`;
+      }
+      tableCurrentPage = 0;
       updateSortControls();
       applyLibraryView();
     }
@@ -3494,11 +3677,27 @@
       const artist = normalizedSortText(track.artist) || "unknown artist";
       const album = normalizedSortText(track.album) || "unknown album";
       const filename = normalizedSortText(track.filename);
+      const year = track.year || "";
+      const genre = normalizedSortText(track.genre) || "";
+      const duration = String(track.duration || 0).padStart(10, "0");
+      const liked = track.liked ? "0" : "1";
       if (field === "artist") {
         return [artist, album, title, filename];
       }
       if (field === "album") {
         return [album, artist, title, filename];
+      }
+      if (field === "year") {
+        return [year, artist, album, title, filename];
+      }
+      if (field === "genre") {
+        return [genre, artist, album, title, filename];
+      }
+      if (field === "time") {
+        return [duration, title, artist, filename];
+      }
+      if (field === "liked") {
+        return [liked, title, artist, filename];
       }
       return [title, artist, album, filename];
     }
@@ -3551,36 +3750,10 @@
       return Array.from(seen);
     }
 
-    function libraryGroupSubtitle(field, tracks) {
-      if (!tracks.length) {
-        return "";
-      }
-      if (field === "artist") {
-        const albums = uniqueValues(tracks, (track) => track.album);
-        if (albums.length === 1) {
-          return albums[0];
-        }
-        if (albums.length > 1) {
-          return `${albums.length} albums`;
-        }
-        return "Unknown album";
-      }
-      if (field === "album") {
-        const artists = uniqueValues(tracks, (track) => track.artist);
-        if (artists.length === 1) {
-          return artists[0];
-        }
-        if (artists.length > 1) {
-          return `${artists.length} artists`;
-        }
-        return "Unknown artist";
-      }
-      return "";
-    }
-
     function setLibrarySearchTerm(value) {
       const next = String(value || "").trim();
       currentSearchTerm = next;
+      tableCurrentPage = 0;
       trackSearchInput.value = next;
       debouncedRefreshLibrary();
     }
@@ -3601,6 +3774,8 @@
       metadataDialogCopyEl.textContent = track.title || track.artist || track.album
         ? `Edit tags for ${track.title || "this track"}.`
         : "Update the track tags in the file and library.";
+      metadataFilenameEl.textContent = track.filename || track.path.split(/[/\\]/).pop() || "";
+      metadataFilenameEl.title = track.path;
       metadataTitleInputEl.value = track.title || "";
       metadataArtistInputEl.value = track.artist || "";
       metadataAlbumInputEl.value = track.album || "";
@@ -4770,8 +4945,8 @@
             float rimHue = mod(hue + 0.35 + uBassVelocity * 0.15, 1.0);
             vec3 rimColor = hsl2rgb(rimHue, 1.0, 0.25 + uTreble * 0.1);
 
-            // Inner pulse — intensifies color, never whitens
-            float pulse = 0.5 + uBass * 0.4 + uBloom * 0.4;
+            // Inner pulse — intensifies color on bass, never whitens
+            float pulse = 0.4 + uBass * 0.7 + uBloom * 0.6;
             vec3 innerGlow = baseColor * pulse;
 
             // Compose: deep glow + saturated rim
@@ -4957,11 +5132,11 @@
       const THREE = window.THREE;
       const t = time * 0.001;
 
-      // ── Camera: gentle orbit, bass pulls in slightly ──
-      s.camAngle += 0.001 + mid * 0.001;
-      s.targetCamRadius = 3.6 - bass * 0.3;
-      s.camRadius += (s.targetCamRadius - s.camRadius) * 0.02;
-      s.camTilt += (Math.sin(t * 0.12) * 0.5 - s.camTilt) * 0.01;
+      // ── Camera: orbit, bass pulls camera in hard ──
+      s.camAngle += 0.001 + mid * 0.002;
+      s.targetCamRadius = 4.8 - bass * 0.8 - s.bloomDecay * 0.4;
+      s.camRadius += (s.targetCamRadius - s.camRadius) * 0.08;
+      s.camTilt += (Math.sin(t * 0.12) * 0.5 + bass * 0.15 - s.camTilt) * 0.03;
       s.camera.position.x = Math.sin(s.camAngle) * s.camRadius;
       s.camera.position.z = Math.cos(s.camAngle) * s.camRadius;
       s.camera.position.y = s.camTilt;
@@ -4977,12 +5152,12 @@
       const positions = s.geo.attributes.position.array;
       const wPositions = s.wireGeo.attributes.position.array;
       // Shape morphing from mids + treble
-      const morphAmp = 0.05 + mid * 0.2 + treble * 0.12;
-      // Bass drives overall inflation — the whole form breathes
-      const bassInflate = 1.0 + bass * 0.25 + s.bloomDecay * 0.15;
+      const morphAmp = 0.08 + mid * 0.3 + treble * 0.18;
+      // Bass drives overall inflation — the whole form breathes hard
+      const bassInflate = 1.0 + bass * 0.55 + s.bloomDecay * 0.35;
       const noiseSpeed = 0.2 + mid * 0.35;
       const nt = t * noiseSpeed;
-      const lerpRate = 0.1;
+      const lerpRate = 0.18;
       for (let i = 0; i < positions.length; i += 3) {
         const bx = s.basePositions[i], by = s.basePositions[i + 1], bz = s.basePositions[i + 2];
         const n1 = Math.sin(bx * 3.7 + nt) * Math.cos(by * 4.1 + nt * 0.7) * Math.sin(bz * 2.9 + nt * 1.3);
@@ -5021,16 +5196,16 @@
       s.shaderMat.uniforms.uTime.value = t;
       s.shaderMat.uniforms.uBassVelocity.value = bassVelocity;
 
-      // ── Bloom: triggers on bass hits ──
-      if (bassVelocity > 0.03) {
-        s.bloomDecay = Math.min(1.0, s.bloomDecay + bassVelocity * 4.0);
+      // ── Bloom: triggers on bass hits — punchy ──
+      if (bassVelocity > 0.02) {
+        s.bloomDecay = Math.min(1.0, s.bloomDecay + bassVelocity * 6.0);
       }
       s.shaderMat.uniforms.uBloom.value = s.bloomDecay;
-      // Scale pulse — bass breathes, bloom punches
-      const bassScale = 1 + bass * 0.15 + s.bloomDecay * 0.2;
+      // Scale pulse — bass makes it dance, bloom punches it out
+      const bassScale = 1 + bass * 0.4 + s.bloomDecay * 0.45;
       s.mesh.scale.setScalar(bassScale);
-      s.wireMesh.scale.setScalar(bassScale * 1.02);
-      s.bloomDecay = Math.max(0, s.bloomDecay - 0.03);
+      s.wireMesh.scale.setScalar(bassScale * 1.03);
+      s.bloomDecay = Math.max(0, s.bloomDecay - 0.04);
 
       // ── Lens flare on treble spikes ──
       const trebleVelocity = Math.max(0, treble - (s._prevTreble || 0));
@@ -5059,10 +5234,10 @@
       s.wireMat.color.setHSL(hue, 0.95, 0.25 + treble * 0.1 + s.bloomDecay * 0.1);
       s.wireMat.opacity = 0.1 + bass * 0.1 + s.bloomDecay * 0.6;
 
-      // ── Particles: steady orbit, bass expands gently ──
+      // ── Particles: orbit with bass-driven expansion ──
       const pPositions = s.pGeo.attributes.position.array;
       const pCount = pPositions.length / 3;
-      const bassExpand = 1 + bass * 0.25;
+      const bassExpand = 1 + bass * 0.5 + s.bloomDecay * 0.2;
       for (let i = 0; i < pCount; i++) {
         const idx = i * 3;
         const speed = 1 + bass * 1.5;
@@ -5094,8 +5269,8 @@
       // ── Stars: gentle twinkle ──
       s.sMat.opacity = 0.2 + Math.sin(t * 0.5) * 0.08 + bass * 0.1;
 
-      // ── Render with motion trails ──
-      s.trailMat.opacity = 0.06 + (1.0 - bass) * 0.06;
+      // ── Render with motion trails — lighter on bass hits for smearing ──
+      s.trailMat.opacity = 0.04 + (1.0 - bass) * 0.08;
       s.renderer.render(s.trailScene, s.trailCamera);
       s.renderer.render(s.scene, s.camera);
     }
@@ -8362,20 +8537,11 @@
           smoothBass: 0, smoothMid: 0, smoothTreble: 0,
           prevBass: 0, prevTreble: 0,
           energyAccum: 0, beatAccum: 0,
-          // Chord progression
-          chordIndex: 0,
+          // Chord detection
           chordTimer: 0,
-          // Common chord shapes mapped to lanes: each sub-array is a "chord"
-          chordShapes: [
-            [0, 1, 2],      // I   — D F J
-            [1, 2, 3],      // IV  — F J K
-            [0, 2, 3],      // V   — D J K
-            [0, 1, 3],      // vi  — D F K
-            [0, 1],          // I5  — D F
-            [2, 3],          // V5  — J K
-            [1, 3],          // IV inv — F K
-            [0, 2],          // vi inv — D J
-          ],
+          currentChord: { root: 0, rootName: "C", quality: "maj", label: "C", lanes: [0, 1, 2], confidence: 0 },
+          prevChordLabel: "",
+          chordHoldTimer: 0,
           // Visual effects
           laneFlash: [0, 0, 0, 0], // flash timer per lane on hit
           hitEffects: [], // { x, y, color, life }
@@ -8520,28 +8686,36 @@
       }
 
       if (!s.gamePaused) {
-        // ═══ NOTE SPAWNING — chord-driven by music ═══
-        // Speed scales with energy
-        s.noteSpeed = KEY_NOTE_SPEED_BASE + s.smoothBass * 30 + s.smoothTreble * 15;
-        s.spawnTimer -= dt;
+        // ═══ CHORD DETECTION — analyze what's actually playing ═══
         s.chordTimer -= dt;
-
-        // Bass hits advance chord progression
-        if (bassVel > 0.15 && s.chordTimer <= 0) {
-          s.chordIndex = (s.chordIndex + 1) % s.chordShapes.length;
-          s.chordTimer = 0.4; // don't change chord more than ~2.5x/sec
+        s.chordHoldTimer -= dt;
+        if (s.chordTimer <= 0 && analyserData.length > 0) {
+          const sr = audioContext ? audioContext.sampleRate : 44100;
+          const chroma = computeChromagram(analyserData, sr);
+          const detected = detectChord(chroma);
+          // Only change chord if confidence is decent and it's a new chord
+          if (detected.confidence > 0.08 && detected.label !== s.prevChordLabel && s.chordHoldTimer <= 0) {
+            s.currentChord = detected;
+            s.prevChordLabel = detected.label;
+            s.chordHoldTimer = 0.3; // hold a chord for at least 300ms to avoid flicker
+          }
+          s.chordTimer = 0.1; // re-analyze 10x/sec
         }
 
-        const chord = s.chordShapes[s.chordIndex];
+        // ═══ NOTE SPAWNING — driven by detected chords + beat energy ═══
+        s.noteSpeed = KEY_NOTE_SPEED_BASE + s.smoothBass * 30 + s.smoothTreble * 15;
+        s.spawnTimer -= dt;
 
-        // Strong bass beat → spawn full chord (all lanes in the chord shape)
+        const chord = s.currentChord.lanes;
+
+        // Strong bass beat → spawn full chord (all lanes in the detected chord)
         if (bassVel > 0.12 && s.spawnTimer <= 0) {
           for (const lane of chord) {
             s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: bassVel });
           }
-          s.spawnTimer = 0.45; // much longer cooldown — fewer notes overall
+          s.spawnTimer = 0.45;
         }
-        // Treble accent → spawn 1-2 notes from the current chord
+        // Treble accent → spawn 1-2 notes from the detected chord
         else if (trebleVel > 0.10 && s.spawnTimer <= 0) {
           const pick = chord.length > 2 ? 2 : 1;
           const shuffled = [...chord].sort(() => Math.random() - 0.5);
@@ -8550,7 +8724,7 @@
           }
           s.spawnTimer = 0.35;
         }
-        // Mid energy → occasional single note from chord (passing tone)
+        // Mid energy → occasional single note (passing tone)
         else if (s.smoothMid > 0.35 && s.spawnTimer <= 0 && Math.random() < dt * 1.2) {
           const lane = chord[Math.floor(Math.random() * chord.length)];
           s.notes.push({ lane, y: -KEY_NOTE_H, hit: false, missed: false, glow: 0.1 });
@@ -8783,8 +8957,12 @@
       const totalNotes = s.totalHits + s.totalMisses;
       const accuracy = totalNotes > 0 ? Math.floor((s.totalHits / totalNotes) * 100) : 100;
       ctx.fillStyle = "rgba(0,0,0,0.4)";
-      ctx.fillRect(KEYS_W - 60, 0, 60, 14);
+      ctx.fillRect(KEYS_W - 60, 0, 60, 24);
       drawText(ctx, `${accuracy}%`, KEYS_W - 30, 4, accuracy > 80 ? "#0f0" : (accuracy > 50 ? "#ff0" : "#f33"), 1);
+      // Detected chord name
+      if (s.currentChord && s.currentChord.label) {
+        drawText(ctx, s.currentChord.label, KEYS_W - 34, 14, "#aaf", 1);
+      }
 
       // ── Instructions (bottom, outside lanes) ──
       const instrY = KEYS_H - 10;
@@ -8999,7 +9177,7 @@
           s.warnings.push({ x: cx, y: cy, timer: 0.35, type: "circle" });
           s.attacks.push({
             type: "circle", x: cx, y: cy,
-            radius: 0, maxRadius: 35 + s.smoothBass * 35, speed: 55 + s.smoothBass * 45,
+            radius: 0, maxRadius: 20 + s.smoothBass * 25, speed: 55 + s.smoothBass * 45,
             life: 2.0, hue: 0,
           });
           s.bassAttackCD = Math.max(0.8, 1.2 / diff);
@@ -9468,6 +9646,118 @@
       }
     }
 
+    // ── Chord detection from FFT ──
+
+    // Pitch class names: 0=C, 1=C#, 2=D, ... 11=B
+    const PITCH_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+    // Build a chromagram: sum FFT energy into 12 pitch classes across octaves 2-7
+    function computeChromagram(data, sampleRate) {
+      const chroma = new Float32Array(12);
+      if (!data || !data.length) return chroma;
+      const binCount = data.length;
+      const nyquist = sampleRate / 2;
+      const binWidth = nyquist / binCount;
+
+      // For each FFT bin, find which pitch class it's closest to and accumulate
+      for (let i = 1; i < binCount; i++) {
+        const freq = i * binWidth;
+        if (freq < 65 || freq > 4200) continue; // C2 to C8 range
+        const val = data[i] / 255;
+        if (val < 0.02) continue;
+        // Convert frequency to MIDI note, then to pitch class
+        const midi = 12 * Math.log2(freq / 440) + 69;
+        const pitchClass = Math.round(midi) % 12;
+        const pc = ((pitchClass % 12) + 12) % 12;
+        // Weight higher energy more (square to sharpen peaks)
+        chroma[pc] += val * val;
+      }
+
+      // Normalize so max = 1
+      let max = 0;
+      for (let i = 0; i < 12; i++) if (chroma[i] > max) max = chroma[i];
+      if (max > 0) for (let i = 0; i < 12; i++) chroma[i] /= max;
+      return chroma;
+    }
+
+    // Chord templates: intervals relative to root (in semitones)
+    const CHORD_TEMPLATES = [
+      { name: "maj",  intervals: [0, 4, 7],     lanes: 3 },
+      { name: "min",  intervals: [0, 3, 7],     lanes: 3 },
+      { name: "5",    intervals: [0, 7],         lanes: 2 },
+      { name: "7",    intervals: [0, 4, 7, 10],  lanes: 4 },
+      { name: "m7",   intervals: [0, 3, 7, 10],  lanes: 4 },
+      { name: "dim",  intervals: [0, 3, 6],     lanes: 3 },
+      { name: "aug",  intervals: [0, 4, 8],     lanes: 3 },
+      { name: "sus4", intervals: [0, 5, 7],     lanes: 3 },
+      { name: "sus2", intervals: [0, 2, 7],     lanes: 3 },
+    ];
+
+    // Lane patterns per chord type — how notes map to the 4 lanes
+    // Root note shifts which variation is picked
+    const CHORD_LANE_MAP = {
+      4: [ [0,1,2,3] ],  // 7th/m7 → all four lanes
+      3: [                // triads → 3 of 4 lanes
+        [0, 1, 2],
+        [1, 2, 3],
+        [0, 2, 3],
+        [0, 1, 3],
+      ],
+      2: [                // power/dyads → 2 lanes
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [0, 3],
+        [0, 2],
+        [1, 3],
+      ],
+      1: [ [0], [1], [2], [3] ],  // single note
+    };
+
+    // Match chromagram against all chord templates, return best match
+    function detectChord(chroma) {
+      let bestScore = -1;
+      let bestRoot = 0;
+      let bestTemplate = CHORD_TEMPLATES[0];
+
+      for (let root = 0; root < 12; root++) {
+        for (const tmpl of CHORD_TEMPLATES) {
+          // Score = sum of chroma energy at the chord tones minus energy at non-chord tones
+          let hit = 0;
+          let miss = 0;
+          const chordTones = new Set(tmpl.intervals.map(i => (root + i) % 12));
+          for (let pc = 0; pc < 12; pc++) {
+            if (chordTones.has(pc)) {
+              hit += chroma[pc];
+            } else {
+              miss += chroma[pc] * 0.5;
+            }
+          }
+          // Normalize by number of chord tones so bigger chords don't auto-win
+          const score = (hit / tmpl.intervals.length) - (miss / (12 - tmpl.intervals.length));
+          if (score > bestScore) {
+            bestScore = score;
+            bestRoot = root;
+            bestTemplate = tmpl;
+          }
+        }
+      }
+
+      // Map to lanes based on chord type and root
+      const laneCount = Math.min(bestTemplate.lanes, 4);
+      const patterns = CHORD_LANE_MAP[laneCount] || CHORD_LANE_MAP[3];
+      const lanes = patterns[bestRoot % patterns.length];
+
+      return {
+        root: bestRoot,
+        rootName: PITCH_NAMES[bestRoot],
+        quality: bestTemplate.name,
+        label: PITCH_NAMES[bestRoot] + (bestTemplate.name === "maj" ? "" : bestTemplate.name),
+        lanes: lanes,
+        confidence: bestScore,
+      };
+    }
+
     // ── Audio energy computation ──
 
     function computeAudioEnergy(data) {
@@ -9717,32 +10007,6 @@
       }
       resetShuffleState();
       renderQueue();
-    }
-
-    function libraryGroupTitle(field, track) {
-      if (field === "artist") {
-        return track.artist || "Unknown artist";
-      }
-      if (field === "album") {
-        return track.album || "Unknown album";
-      }
-      const source = normalizedSortText(track.title || "Unknown title");
-      const first = source.charAt(0).toUpperCase();
-      return /^[A-Z0-9]$/.test(first) ? first : "#";
-    }
-
-    function buildLibraryGroups(tracks, field) {
-      const groups = [];
-      let current = null;
-      for (const track of tracks) {
-        const title = libraryGroupTitle(field, track);
-        if (!current || current.title !== title) {
-          current = { title, tracks: [] };
-          groups.push(current);
-        }
-        current.tracks.push(track);
-      }
-      return groups;
     }
 
     function nextShuffleIndex() {
@@ -10717,150 +10981,151 @@
           emptyStateEl.textContent = "No indexed tracks yet.";
         }
         emptyStateEl.style.display = "block";
+        libraryPaginationEl.style.display = "none";
         return;
       }
       emptyStateEl.style.display = "none";
+      libraryPaginationEl.style.display = "flex";
 
-      const [field = "title"] = currentSortOrder.split("-");
-      const groups = buildLibraryGroups(tracks, field);
+      const totalPages = Math.ceil(tracks.length / tablePageSize);
+      if (tableCurrentPage >= totalPages) tableCurrentPage = totalPages - 1;
+      if (tableCurrentPage < 0) tableCurrentPage = 0;
+      const start = tableCurrentPage * tablePageSize;
+      const pageTracks = tracks.slice(start, start + tablePageSize);
+
       const fragment = document.createDocumentFragment();
+      for (const track of pageTracks) {
+        const inQueue = findQueueIndex(track.path) >= 0;
+        const tr = document.createElement("tr");
+        tr.className = inQueue ? "in-queue" : "";
+        tr.addEventListener("click", () => playFromLibrary(track));
+        makeActivatable(tr, () => playFromLibrary(track));
 
-      for (const group of groups) {
-        const section = document.createElement("section");
-        section.className = "library-group";
+        // Title
+        const tdTitle = document.createElement("td");
+        tdTitle.className = "col-title";
+        tdTitle.textContent = track.title || "Unknown title";
 
-        const head = document.createElement("div");
-        head.className = "library-group-head";
-        const heading = document.createElement("div");
-        heading.className = "library-group-heading";
-        const headTitle = document.createElement("div");
-        headTitle.className = "library-group-title";
-        headTitle.textContent = group.title;
-        const groupSubtitle = libraryGroupSubtitle(field, group.tracks);
-        if (groupSubtitle) {
-          const headSubtitle = document.createElement("div");
-          headSubtitle.className = "library-group-subtitle";
-          headSubtitle.textContent = groupSubtitle;
-          heading.appendChild(headTitle);
-          heading.appendChild(headSubtitle);
+        // Artist
+        const tdArtist = document.createElement("td");
+        tdArtist.className = "col-artist";
+        if (track.artist) {
+          const artistBtn = document.createElement("button");
+          artistBtn.className = "track-link";
+          artistBtn.type = "button";
+          artistBtn.textContent = track.artist;
+          artistBtn.title = `Search ${track.artist}`;
+          artistBtn.addEventListener("click", (event) => { event.stopPropagation(); setLibrarySearchTerm(track.artist); });
+          tdArtist.appendChild(artistBtn);
         } else {
-          heading.appendChild(headTitle);
-        }
-        const headMeta = document.createElement("div");
-        headMeta.className = "library-group-meta";
-        headMeta.textContent = `${group.tracks.length} track${group.tracks.length === 1 ? "" : "s"}`;
-        head.appendChild(heading);
-        head.appendChild(headMeta);
-        section.appendChild(head);
-
-        const list = document.createElement("div");
-        list.className = "track-list";
-
-        for (const track of group.tracks) {
-          const inQueue = findQueueIndex(track.path) >= 0;
-          const card = document.createElement("article");
-          card.className = inQueue ? "track-card in-queue" : "track-card";
-          card.addEventListener("click", () => playFromLibrary(track));
-          makeActivatable(card, () => playFromLibrary(track));
-
-          const thumb = document.createElement("div");
-          thumb.className = "track-thumb";
-          const thumbIcon = document.createElement("div");
-          thumbIcon.className = "track-thumb-icon";
-          thumbIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6"/></svg>';
-          const thumbImg = document.createElement("img");
-          thumbImg.alt = "";
-          thumbImg.dataset.artPath = track.path;
-          thumb.appendChild(thumbIcon);
-          thumb.appendChild(thumbImg);
-          artworkObserver.observe(thumbImg);
-
-          const meta = document.createElement("div");
-          meta.className = "track-meta";
-
-          const title = document.createElement("div");
-          title.className = "track-title";
-          title.textContent = track.title || "Unknown title";
-
-          const subtitleLine = document.createElement("div");
-          subtitleLine.className = "track-subtitle";
-          const parts = [];
-          if (track.artist) {
-            const artistBtn = document.createElement("button");
-            artistBtn.className = "track-link";
-            artistBtn.type = "button";
-            artistBtn.textContent = track.artist;
-            artistBtn.title = `Search ${track.artist}`;
-            artistBtn.addEventListener("click", (event) => { event.stopPropagation(); setLibrarySearchTerm(track.artist); });
-            subtitleLine.appendChild(artistBtn);
-          } else {
-            subtitleLine.appendChild(document.createTextNode("Unknown artist"));
-          }
-          if (track.album) {
-            subtitleLine.appendChild(document.createTextNode(" \u2014 "));
-            const albumBtn = document.createElement("button");
-            albumBtn.className = "track-link";
-            albumBtn.type = "button";
-            albumBtn.textContent = track.album;
-            albumBtn.title = `Search ${track.album}`;
-            albumBtn.addEventListener("click", (event) => { event.stopPropagation(); setLibrarySearchTerm(track.album); });
-            subtitleLine.appendChild(albumBtn);
-          }
-
-          meta.appendChild(title);
-          meta.appendChild(subtitleLine);
-
-          const actions = document.createElement("div");
-          actions.className = "track-actions";
-
-          const likeBtn = document.createElement("button");
-          likeBtn.className = track.liked ? "heart-btn is-liked" : "heart-btn";
-          likeBtn.type = "button";
-          likeBtn.ariaLabel = track.liked ? "Unlike this track" : "Like this track";
-          likeBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
-          likeBtn.addEventListener("click", (event) => {
-            event.stopPropagation();
-            toggleLike(track);
-          });
-          actions.appendChild(likeBtn);
-
-          const moreBtn = document.createElement("button");
-          moreBtn.className = "track-more-btn";
-          moreBtn.type = "button";
-          moreBtn.ariaLabel = "More actions";
-          moreBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
-          moreBtn.addEventListener("click", (event) => {
-            event.stopPropagation();
-            openTrackContextMenu(event, track, tracks);
-          });
-          actions.appendChild(moreBtn);
-
-          card.appendChild(thumb);
-          card.appendChild(meta);
-          card.appendChild(actions);
-          list.appendChild(card);
+          tdArtist.textContent = "Unknown";
         }
 
-        section.appendChild(list);
-        fragment.appendChild(section);
+        // Time
+        const tdTime = document.createElement("td");
+        tdTime.className = "col-time";
+        tdTime.textContent = track.duration ? formatTime(track.duration) : "";
+
+        // Album
+        const tdAlbum = document.createElement("td");
+        tdAlbum.className = "col-album";
+        if (track.album) {
+          const albumBtn = document.createElement("button");
+          albumBtn.className = "track-link";
+          albumBtn.type = "button";
+          albumBtn.textContent = track.album;
+          albumBtn.title = `Search ${track.album}`;
+          albumBtn.addEventListener("click", (event) => { event.stopPropagation(); setLibrarySearchTerm(track.album); });
+          tdAlbum.appendChild(albumBtn);
+        } else {
+          tdAlbum.textContent = "";
+        }
+
+        // Year
+        const tdYear = document.createElement("td");
+        tdYear.className = "col-year";
+        tdYear.textContent = track.year || "";
+
+        // Genre
+        const tdGenre = document.createElement("td");
+        tdGenre.className = "col-genre";
+        tdGenre.textContent = track.genre || "";
+
+        // Liked
+        const tdLiked = document.createElement("td");
+        tdLiked.className = "col-liked";
+        const likeBtn = document.createElement("button");
+        likeBtn.className = track.liked ? "heart-btn is-liked" : "heart-btn";
+        likeBtn.type = "button";
+        likeBtn.ariaLabel = track.liked ? "Unlike this track" : "Like this track";
+        likeBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
+        likeBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          toggleLike(track);
+        });
+        tdLiked.appendChild(likeBtn);
+
+        // Actions
+        const tdActions = document.createElement("td");
+        tdActions.className = "col-actions";
+        const moreBtn = document.createElement("button");
+        moreBtn.className = "track-more-btn";
+        moreBtn.type = "button";
+        moreBtn.ariaLabel = "More actions";
+        moreBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
+        moreBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openTrackContextMenu(event, track, tracks);
+        });
+        tdActions.appendChild(moreBtn);
+
+        tr.appendChild(tdTitle);
+        tr.appendChild(tdArtist);
+        tr.appendChild(tdTime);
+        tr.appendChild(tdAlbum);
+        tr.appendChild(tdYear);
+        tr.appendChild(tdGenre);
+        tr.appendChild(tdLiked);
+        tr.appendChild(tdActions);
+        fragment.appendChild(tr);
       }
       rowsEl.appendChild(fragment);
 
-      // "Load More" button for pagination
-      const existingLoadMore = rowsEl.querySelector(".library-load-more");
-      if (existingLoadMore) existingLoadMore.remove();
+      // Pagination info
+      const fromNum = start + 1;
+      const toNum = Math.min(start + tablePageSize, tracks.length);
+      libraryPageInfoEl.textContent = `${fromNum}–${toNum} of ${tracks.length} tracks`;
 
-      if (libraryHasMore) {
-        const loadMoreBtn = document.createElement("button");
-        loadMoreBtn.className = "secondary library-load-more";
-        loadMoreBtn.type = "button";
-        loadMoreBtn.style.cssText = "display:block;margin:12px auto;padding:8px 24px;";
-        const remaining = libraryTotalCount > allTracks.length
-          ? ` (${libraryTotalCount - allTracks.length} remaining)`
-          : "";
-        loadMoreBtn.textContent = `Load more tracks${remaining}`;
-        loadMoreBtn.addEventListener("click", loadMoreLibrary);
-        rowsEl.appendChild(loadMoreBtn);
+      // Page buttons
+      libraryPageBtnsEl.innerHTML = "";
+      const prevBtn = document.createElement("button");
+      prevBtn.textContent = "‹ Prev";
+      prevBtn.disabled = tableCurrentPage === 0;
+      prevBtn.addEventListener("click", () => { tableCurrentPage--; renderLibrary(tracks); });
+      libraryPageBtnsEl.appendChild(prevBtn);
+
+      const maxButtons = 7;
+      let startPage = Math.max(0, tableCurrentPage - Math.floor(maxButtons / 2));
+      let endPage = Math.min(totalPages, startPage + maxButtons);
+      if (endPage - startPage < maxButtons) startPage = Math.max(0, endPage - maxButtons);
+
+      for (let p = startPage; p < endPage; p++) {
+        const pageBtn = document.createElement("button");
+        pageBtn.textContent = String(p + 1);
+        pageBtn.className = p === tableCurrentPage ? "active" : "";
+        pageBtn.addEventListener("click", () => { tableCurrentPage = p; renderLibrary(tracks); });
+        libraryPageBtnsEl.appendChild(pageBtn);
+      }
+
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = "Next ›";
+      nextBtn.disabled = tableCurrentPage >= totalPages - 1;
+      nextBtn.addEventListener("click", () => { tableCurrentPage++; renderLibrary(tracks); });
+      libraryPageBtnsEl.appendChild(nextBtn);
+
+      // Auto-load more from backend if near the end of fetched data
+      if (libraryHasMore && start + tablePageSize >= allTracks.length - tablePageSize) {
+        loadMoreLibrary();
       }
     }
 
@@ -11168,7 +11433,7 @@
         libraryTotalCount = await invoke("library_count").catch(() => 0);
 
         const tracks = await invoke("list_library", {
-          limit: libraryPageSize,
+          limit: libraryFetchSize,
           offset: 0,
           genre: currentGenre || null,
           likedOnly: likedOnly || null,
@@ -11176,7 +11441,7 @@
         });
 
         allTracks = tracks;
-        libraryHasMore = tracks.length >= libraryPageSize;
+        libraryHasMore = tracks.length >= libraryFetchSize;
         applyLibraryView();
         await refreshGenres();
         const countInfo = libraryTotalCount > 0 ? ` of ${libraryTotalCount}` : "";
@@ -11193,7 +11458,7 @@
       try {
         setBusy(true, "Loading more tracks...");
         const moreTracks = await invoke("list_library", {
-          limit: libraryPageSize,
+          limit: libraryFetchSize,
           offset: allTracks.length,
           genre: currentGenre || null,
           likedOnly: likedOnly || null,
@@ -11201,7 +11466,7 @@
         });
 
         allTracks = allTracks.concat(moreTracks);
-        libraryHasMore = moreTracks.length >= libraryPageSize;
+        libraryHasMore = moreTracks.length >= libraryFetchSize;
         applyLibraryView();
         const countInfo = libraryTotalCount > 0 ? ` of ${libraryTotalCount}` : "";
         setStatus(`Showing ${allTracks.length}${countInfo} tracks.`, true);
@@ -11501,6 +11766,7 @@
 
     genreFilterSelect.addEventListener("change", (event) => {
       currentGenre = event.target.value;
+      tableCurrentPage = 0;
       refreshLibrary();
     });
 
@@ -11525,6 +11791,12 @@
         event.preventDefault();
         await exitVisualizerFullscreen();
       }
+      if (event.key === " " || event.code === "Space") {
+        const tag = (event.target.tagName || "").toLowerCase();
+        if (tag === "input" || tag === "textarea" || tag === "select" || event.target.isContentEditable) return;
+        event.preventDefault();
+        await togglePlayback();
+      }
     });
     const debouncedRefreshLibrary = debounce(() => {
       refreshLibrary();
@@ -11532,6 +11804,7 @@
 
     trackSearchInput.addEventListener("input", (event) => {
       currentSearchTerm = event.target.value || "";
+      tableCurrentPage = 0;
       saveSearchPlaylistBtn.style.display = currentSearchTerm.trim() ? "" : "none";
       debouncedRefreshLibrary();
     });
@@ -11554,10 +11827,16 @@
       }
     });
     playlistNameInput.addEventListener("input", updatePlaylistActionStates);
-    sortTitleBtn.addEventListener("click", () => setSortField("title"));
-    sortArtistBtn.addEventListener("click", () => setSortField("artist"));
-    sortAlbumBtn.addEventListener("click", () => setSortField("album"));
-    sortDirectionBtn.addEventListener("click", toggleSortDirection);
+    // Column header sort clicks
+    for (const th of libraryTableEl.querySelectorAll("th[data-sort]")) {
+      th.addEventListener("click", () => setSortField(th.dataset.sort));
+    }
+    // Page size selector
+    pageSizeSelectEl.addEventListener("change", () => {
+      tablePageSize = Number(pageSizeSelectEl.value);
+      tableCurrentPage = 0;
+      applyLibraryView();
+    });
     pathInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
