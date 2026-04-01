@@ -4952,12 +4952,12 @@
             float rimHue = mod(hue + 0.15 + uBassVelocity * 0.08, 1.0);
             vec3 rimColor = hsl2rgb(rimHue, 1.0, 0.25 + uTreble * 0.1);
 
-            // Inner pulse — intensifies color on bass, never whitens
-            float pulse = 0.4 + uBass * 0.7 + uBloom * 0.6;
+            // Inner pulse — bass drives brightness hard
+            float pulse = 0.3 + uBass * 1.2 + uBloom * 0.8;
             vec3 innerGlow = baseColor * pulse;
 
-            // Compose: deep glow + saturated rim
-            vec3 color = innerGlow + rimColor * fresnel * (0.8 + uBloom * 0.5);
+            // Compose: deep glow + saturated rim — bloom opens it up
+            vec3 color = innerGlow + rimColor * fresnel * (0.9 + uBloom * 0.7);
 
             // Iridescence — shifts hue, stays dark and saturated
             float iridescence = sin(dot(vNormal, vec3(1.0, 0.5, 0.3)) * 4.0 + uTime * 0.5) * 0.5 + 0.5;
@@ -5142,7 +5142,7 @@
       const THREE = window.THREE;
       const t = time * 0.001;
 
-      // ── Chord detection — drives musical bloom pulses ──
+      // ── Chord detection — chord changes drive deformation bursts ──
       s.chordTimer = (s.chordTimer || 0) - 1;
       if (s.chordTimer <= 0 && analyserData.length > 0) {
         const sr = audioContext ? audioContext.sampleRate : 44100;
@@ -5150,47 +5150,44 @@
         const detected = detectChord(chroma);
         const chordName = detected.root + detected.quality;
         if (chordName !== s.prevChord && detected.confidence > 0.3) {
-          s.chordBloom = Math.min(1.0, 0.6 + detected.confidence * 0.4);
+          // Chord change: spike the deformation envelope
+          s.chordBloom = Math.min(1.0, 0.7 + detected.confidence * 0.3);
           s.prevChord = chordName;
         }
-        s.chordTimer = 6; // ~100ms at 60fps
+        s.chordTimer = 6;
       }
 
-      // ── Extra-smooth bass/mid/treble for the orb (less spastic) ──
-      s.smoothBass += (bass - s.smoothBass) * 0.06;
-      s.smoothMid += (mid - s.smoothMid) * 0.05;
-      s.smoothTreble += (treble - s.smoothTreble) * 0.07;
-      const sb = s.smoothBass, sm = s.smoothMid, st = s.smoothTreble;
+      // Bass uses the already-smoothed input directly (fast, punchy pulse)
+      // Chord bloom decays slowly for sustained deformation
+      const cb = s.chordBloom;
 
-      // Combined bloom from chord changes + bass transients
-      const combinedBloom = Math.max(s.bloomDecay, s.chordBloom * 0.7);
-
-      // ── Camera: orbit, bass pulls camera in smoothly ──
-      s.camAngle += 0.001 + sm * 0.002;
-      s.targetCamRadius = 5.4 - sb * 0.6 - combinedBloom * 0.3;
-      s.camRadius += (s.targetCamRadius - s.camRadius) * 0.04;
-      s.camTilt += (Math.sin(t * 0.12) * 0.5 + sb * 0.1 - s.camTilt) * 0.02;
+      // ── Camera: orbit, bass pulls camera in hard on hits ──
+      s.camAngle += 0.001 + mid * 0.004;
+      s.targetCamRadius = 5.4 - bass * 1.2 - s.bloomDecay * 0.6;
+      s.camRadius += (s.targetCamRadius - s.camRadius) * 0.15;
+      s.camTilt += (Math.sin(t * 0.12) * 0.5 + bass * 0.25 - s.camTilt) * 0.06;
       s.camera.position.x = Math.sin(s.camAngle) * s.camRadius;
       s.camera.position.z = Math.cos(s.camAngle) * s.camRadius;
       s.camera.position.y = s.camTilt;
       s.camera.lookAt(0, 0, 0);
 
-      // ── Mesh rotation: slow, steady — mid adds gentle variation ──
-      s.mesh.rotation.y += 0.003 + sm * 0.003;
-      s.mesh.rotation.x += 0.001 + st * 0.001;
-      s.mesh.rotation.z += 0.0005;
+      // ── Mesh rotation: chords add rotational energy ──
+      s.mesh.rotation.y += 0.003 + mid * 0.006 + cb * 0.012;
+      s.mesh.rotation.x += 0.001 + treble * 0.004 + cb * 0.006;
+      s.mesh.rotation.z += 0.0005 + cb * 0.003;
       s.wireMesh.rotation.copy(s.mesh.rotation);
 
-      // ── Vertex displacement: smoothed bass drives scale, mids/treble drive shape ──
+      // ── Vertex displacement ──
+      // Bass = uniform inflate (pulsing), Chords = wild deformation (dancing)
       const positions = s.geo.attributes.position.array;
       const wPositions = s.wireGeo.attributes.position.array;
-      // Shape morphing from smoothed mids + treble
-      const morphAmp = 0.06 + sm * 0.2 + st * 0.12;
-      // Smoothed bass drives overall inflation — the whole form breathes
-      const bassInflate = 1.0 + sb * 0.45 + combinedBloom * 0.3;
-      const noiseSpeed = 0.15 + sm * 0.25;
+      // Chord changes crank up the morph amplitude — this is the "dancing"
+      const morphAmp = 0.08 + mid * 0.25 + cb * 0.7 + treble * 0.15;
+      // Bass drives overall inflation — the "pulse"
+      const bassInflate = 1.0 + bass * 0.8 + s.bloomDecay * 0.5;
+      const noiseSpeed = 0.25 + mid * 0.4 + cb * 0.6;
       const nt = t * noiseSpeed;
-      const lerpRate = 0.08;
+      const lerpRate = 0.18;
       for (let i = 0; i < positions.length; i += 3) {
         const bx = s.basePositions[i], by = s.basePositions[i + 1], bz = s.basePositions[i + 2];
         const n1 = Math.sin(bx * 3.7 + nt) * Math.cos(by * 4.1 + nt * 0.7) * Math.sin(bz * 2.9 + nt * 1.3);
@@ -5207,7 +5204,7 @@
       s.geo.attributes.position.needsUpdate = true;
       s.geo.computeVertexNormals();
 
-      // Wire mesh — lerped, follows bass inflation
+      // Wire mesh follows
       for (let i = 0; i < wPositions.length; i += 3) {
         const bx = s.wireBasePositions[i], by = s.wireBasePositions[i + 1], bz = s.wireBasePositions[i + 2];
         const n1 = Math.sin(bx * 3.7 + nt) * Math.cos(by * 4.1 + nt * 0.7) * Math.sin(bz * 2.9 + nt * 1.3);
@@ -5221,24 +5218,25 @@
       }
       s.wireGeo.attributes.position.needsUpdate = true;
 
-      // ── Shader uniforms — pass smoothed values ──
-      s.shaderMat.uniforms.uBass.value = sb;
-      s.shaderMat.uniforms.uMid.value = sm;
-      s.shaderMat.uniforms.uTreble.value = st;
+      // ── Shader uniforms ──
+      s.shaderMat.uniforms.uBass.value = bass;
+      s.shaderMat.uniforms.uMid.value = mid;
+      s.shaderMat.uniforms.uTreble.value = treble;
       s.shaderMat.uniforms.uTime.value = t;
       s.shaderMat.uniforms.uBassVelocity.value = bassVelocity;
 
-      // ── Bloom: chord changes + bass transients ──
-      if (bassVelocity > 0.03) {
-        s.bloomDecay = Math.min(1.0, s.bloomDecay + bassVelocity * 4.0);
+      // ── Bloom: bass transients trigger glow ──
+      if (bassVelocity > 0.015) {
+        s.bloomDecay = Math.min(1.0, s.bloomDecay + bassVelocity * 8.0);
       }
+      const combinedBloom = Math.max(s.bloomDecay, cb * 0.7);
       s.shaderMat.uniforms.uBloom.value = combinedBloom;
-      // Scale pulse — smoothed bass + bloom for musical breathing
-      const bassScale = 1 + sb * 0.35 + combinedBloom * 0.4;
+      // Scale pulse — bass drives the pump hard, chords add sustained swell
+      const bassScale = 1 + bass * 0.7 + s.bloomDecay * 0.6 + cb * 0.3;
       s.mesh.scale.setScalar(bassScale);
       s.wireMesh.scale.setScalar(bassScale * 1.03);
-      s.bloomDecay = Math.max(0, s.bloomDecay - 0.03);
-      s.chordBloom = Math.max(0, s.chordBloom - 0.015);
+      s.bloomDecay = Math.max(0, s.bloomDecay - 0.05);
+      s.chordBloom = Math.max(0, s.chordBloom - 0.012);
 
       // ── Lens flare on treble spikes ──
       const trebleVelocity = Math.max(0, treble - (s._prevTreble || 0));
@@ -5251,10 +5249,8 @@
         const flareSize = 1.5 + s.flareDecay * 4.0;
         s.flareSprite.scale.set(flareSize, flareSize, 1);
         s.flareMat.opacity = s.flareDecay * 0.55;
-        // Position at mesh surface toward camera
         const camDir = s.camera.position.clone().normalize().multiplyScalar(0.6);
         s.flareSprite.position.copy(camDir);
-        // Tint flare to match current hue — never white
         const flareHue = (0.60 + Math.sin(t * 0.1) * 0.08 + treble * 0.06) % 1;
         s.flareMat.color.setHSL(flareHue, 0.9, 0.3);
         s.flareDecay = Math.max(0, s.flareDecay - 0.04);
@@ -5262,22 +5258,21 @@
         s.flareSprite.visible = false;
       }
 
-      // ── Wire: bloom reveals the geometric skeleton — deep vibrant color ──
+      // ── Wire: chord bloom reveals wireframe skeleton ──
       const hue = (0.58 + Math.sin(t * 0.08) * 0.10) % 1;
-      s.wireMat.color.setHSL(hue, 0.95, 0.25 + st * 0.1 + combinedBloom * 0.1);
-      s.wireMat.opacity = 0.1 + sb * 0.1 + combinedBloom * 0.6;
+      s.wireMat.color.setHSL(hue, 0.95, 0.25 + treble * 0.15 + combinedBloom * 0.2);
+      s.wireMat.opacity = 0.1 + bass * 0.2 + combinedBloom * 0.7;
 
-      // ── Particles: orbit with smoothed bass expansion ──
+      // ── Particles: bass expands orbit, chords scatter ──
       const pPositions = s.pGeo.attributes.position.array;
       const pCount = pPositions.length / 3;
-      const bassExpand = 1 + sb * 0.4 + combinedBloom * 0.2;
+      const bassExpand = 1 + bass * 0.6 + cb * 0.4;
       for (let i = 0; i < pCount; i++) {
         const idx = i * 3;
-        const speed = 1 + sb * 1.0;
+        const speed = 1 + bass * 2.0 + cb * 0.8;
         pPositions[idx] += s.pVel[idx] * speed;
         pPositions[idx + 1] += s.pVel[idx + 1] + Math.sin(t * 1.5 + s.pPhase[i]) * 0.0005;
         pPositions[idx + 2] += s.pVel[idx + 2] * speed;
-        // Gentle radial correction
         const px = pPositions[idx], pz = pPositions[idx + 2];
         const dist = Math.sqrt(px * px + pz * pz);
         const targetR = s.pBaseR[i] * bassExpand;
@@ -5295,15 +5290,15 @@
         }
       }
       s.pGeo.attributes.position.needsUpdate = true;
-      s.pMat.opacity = 0.3 + sb * 0.3;
-      s.pMat.size = 0.018 + st * 0.012;
-      s.pMat.color.setHSL((hue + 0.10) % 1, 0.7, 0.5 + st * 0.15);
+      s.pMat.opacity = 0.3 + bass * 0.3;
+      s.pMat.size = 0.018 + treble * 0.015;
+      s.pMat.color.setHSL((hue + 0.10) % 1, 0.7, 0.5 + treble * 0.15);
 
       // ── Stars: gentle twinkle ──
-      s.sMat.opacity = 0.2 + Math.sin(t * 0.5) * 0.08 + sb * 0.1;
+      s.sMat.opacity = 0.2 + Math.sin(t * 0.5) * 0.08 + bass * 0.1;
 
-      // ── Render with motion trails — lighter on bass hits for smearing ──
-      s.trailMat.opacity = 0.04 + (1.0 - sb) * 0.08;
+      // ── Render with motion trails ──
+      s.trailMat.opacity = 0.04 + (1.0 - bass) * 0.08;
       s.renderer.render(s.trailScene, s.trailCamera);
       s.renderer.render(s.scene, s.camera);
     }
@@ -9812,11 +9807,15 @@
         else if (freq < 16000) { trebleSum += val; trebleCount++; }
       }
 
-      return {
-        bass: bassCount ? bassSum / bassCount : 0,
-        mid: midCount ? midSum / midCount : 0,
-        treble: trebleCount ? trebleSum / trebleCount : 0,
-      };
+      // Raw averages are typically 0.1-0.4; boost with power curve for punch
+      let b = bassCount ? bassSum / bassCount : 0;
+      let m = midCount ? midSum / midCount : 0;
+      let tr = trebleCount ? trebleSum / trebleCount : 0;
+      // Scale up and clamp — bass gets extra boost
+      b = Math.min(1, b * 2.5);
+      m = Math.min(1, m * 2.0);
+      tr = Math.min(1, tr * 2.0);
+      return { bass: b, mid: m, treble: tr };
     }
 
     // ── Visualizer mode management ──
@@ -9910,7 +9909,7 @@
       gainNode = audioContext.createGain();
       analyserNode = audioContext.createAnalyser();
       analyserNode.fftSize = 512;
-      analyserNode.smoothingTimeConstant = 0.8;
+      analyserNode.smoothingTimeConstant = 0.5;
       gainNode.gain.value = playbackPlayer().muted ? 0 : playbackPlayer().volume;
       applyEqFilters();
       updateBassBoostFilters();
@@ -9982,10 +9981,10 @@
               treble = energy.treble;
             }
 
-            // Moderate attack, smooth release — punchy but not jittery
-            const attackBass = bass > smoothedBass ? 0.25 : 0.08;
-            const attackMid = mid > smoothedMid ? 0.2 : 0.08;
-            const attackTreble = treble > smoothedTreble ? 0.3 : 0.1;
+            // Fast attack, moderate release — punchy and alive
+            const attackBass = bass > smoothedBass ? 0.5 : 0.12;
+            const attackMid = mid > smoothedMid ? 0.4 : 0.1;
+            const attackTreble = treble > smoothedTreble ? 0.5 : 0.12;
             smoothedBass = smoothedBass * (1 - attackBass) + bass * attackBass;
             smoothedMid = smoothedMid * (1 - attackMid) + mid * attackMid;
             smoothedTreble = smoothedTreble * (1 - attackTreble) + treble * attackTreble;
