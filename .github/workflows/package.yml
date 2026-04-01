@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install system dependencies
         if: runner.os == 'Linux'
@@ -52,7 +52,7 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux system dependencies
         run: |
@@ -89,7 +89,7 @@ jobs:
           find "${BUNDLE_DIR}/appimage" -name '*.AppImage.tar.gz.sig' -exec cp {} target/packages/linux/ \; 2>/dev/null || true
 
       - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coreamp-linux-bundles
           path: target/packages/linux/
@@ -110,7 +110,7 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: "10.13"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -134,7 +134,7 @@ jobs:
           find target/aarch64-apple-darwin/release/bundle/macos -name '*.app.tar.gz.sig' -exec cp {} target/packages/macos/ \; 2>/dev/null || true
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coreamp-macos-bundles
           path: target/packages/macos/
@@ -152,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts
 

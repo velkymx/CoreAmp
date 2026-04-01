@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.2] - 2026-03-16
+
+### Bug Fixes
+- **Fixed macOS 26 (Tahoe) crash on startup** — App would bounce once and crash due to `objc2` strict encoding checks panicking on changed ObjC method signatures. Enabled `relax-sign-encoding` feature to handle Apple's signed→unsigned type changes. (See: [tao#1171](https://github.com/tauri-apps/tao/issues/1171))
+
+### Dependencies
+- Added `objc2` with `relax-sign-encoding` feature for macOS 26 compatibility.
+
+## [0.3.1] - 2026-03-16
+
+### Bug Fixes
+- Fixed updater not producing signed bundles (added `createUpdaterArtifacts` to config).
+- Fixed updater plugin registration to follow Tauri v2 pattern.
+- Fixed GitHub Actions Node.js 20 deprecation warnings (upgraded to v5).
+
+### Dependencies
+- Updated `rusqlite` 0.38 → 0.39.
+- Updated `wry` 0.54.2 → 0.54.3 (WebView engine — macOS compatibility).
+- Updated all transitive dependencies to latest versions.
+
 ## [0.3.0] - 2026-03-16
 
 ### Auto-Updater
