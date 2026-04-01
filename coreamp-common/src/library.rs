@@ -183,9 +183,9 @@ pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
         }
     }
     let files_upserted = db::upsert_scanned_files(&changed_files)?;
-    
+
     db::backfill_duration_for_missing()?;
-    
+
     Ok(ScanSummary {
         roots_scanned: roots.len(),
         files_discovered: files.len(),

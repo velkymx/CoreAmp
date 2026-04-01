@@ -1,7 +1,7 @@
 use crate::library::ScannedFile;
 use crate::metadata::{self, TrackMetadata};
 use crate::metadata_db_path;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
