@@ -778,6 +778,7 @@ mod tests {
             year: None,
             genre: None,
             metadata_hash: String::from("hash-a"),
+            duration_secs: None,
         };
         let second = ScannedFile {
             path: PathBuf::from("/tmp/a.mp3"),
@@ -788,6 +789,7 @@ mod tests {
             year: Some(String::from("2026")),
             genre: Some(String::from("Genre B")),
             metadata_hash: String::from("hash-b"),
+            duration_secs: Some(180),
         };
         super::upsert_scanned_files_with_connection(&mut conn, &[first, second])
             .expect("upsert rows");
