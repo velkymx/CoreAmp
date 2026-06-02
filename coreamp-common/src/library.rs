@@ -1,6 +1,7 @@
 use crate::db;
 use crate::metadata;
 use crate::musicbrainz;
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -107,8 +108,14 @@ fn to_scanned_file(path: &Path, metadata_hash: String) -> Option<ScannedFile> {
 }
 
 fn collect_media_dir(root: &Path, results: &mut Vec<PreScannedFile>) {
+    let mut visited = HashSet::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(current_dir) = stack.pop() {
+        // Resolve symlinks so a cycle (e.g. sub/loop -> root) is only entered once.
+        let canonical = fs::canonicalize(&current_dir).unwrap_or_else(|_| current_dir.clone());
+        if !visited.insert(canonical) {
+            continue;
+        }
         let entries = match fs::read_dir(&current_dir) {
             Ok(entries) => entries,
             Err(_) => continue,
@@ -285,6 +292,36 @@ mod tests {
         assert!(!names.iter().any(|name| name == "notes.txt"));
 
         fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scan_terminates_on_symlink_cycle() {
+        use std::os::unix::fs::symlink;
+        use std::sync::mpsc;
+        use std::thread;
+        use std::time::Duration;
+
+        let root = make_temp_dir();
+        fs::write(root.join("song.mp3"), b"fake").expect("write mp3");
+        let sub = root.join("sub");
+        fs::create_dir_all(&sub).expect("create sub dir");
+        // sub/loop -> root creates a directory cycle.
+        symlink(&root, sub.join("loop")).expect("create symlink cycle");
+
+        let scan_root = root.clone();
+        let (tx, rx) = mpsc::channel();
+        let handle = thread::spawn(move || {
+            let files = scan_library_files(std::slice::from_ref(&scan_root));
+            let _ = tx.send(files.len());
+        });
+        let count = rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("scan should terminate, not loop forever on a symlink cycle");
+        handle.join().ok();
+        assert_eq!(count, 1, "song.mp3 should be discovered exactly once");
+
+        fs::remove_dir_all(root).ok();
     }
 
     #[test]
