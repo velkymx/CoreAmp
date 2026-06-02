@@ -15,11 +15,21 @@ vi.mock("@/playback/webDriver", () => ({
   },
 }));
 
-import { nativeAudioPause, nativeAudioResume } from "@/api/tauri";
+import {
+  nativeAudioPause,
+  nativeAudioResume,
+  nativeAudioPlay,
+  nativeAudioStop,
+} from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { usePlayerStore } from "@/stores/player";
 
 const track = { path: "/m/a.mp3", title: "A", artist: "X", album: "Y" };
+const mkQueue = () => [
+  { path: "/m/0.mp3", title: "0", artist: "X", album: "Y" },
+  { path: "/m/1.mp3", title: "1", artist: "X", album: "Y" },
+  { path: "/m/2.mp3", title: "2", artist: "X", album: "Y" },
+];
 
 describe("player.togglePlayback", () => {
   beforeEach(() => {
@@ -84,5 +94,97 @@ describe("player.togglePlayback", () => {
     await first;
     expect(second).toBe("busy");
     expect(nativeAudioPause).toHaveBeenCalledOnce();
+  });
+});
+
+describe("player.nextTrack / prevTrack", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  });
+
+  it("nextTrack advances the index and plays the next queued track", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 0,
+      isPlaying: true,
+    });
+    const result = await p.nextTrack();
+    expect(result).toBe("played");
+    expect(p.currentIndex).toBe(1);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/1.mp3");
+    expect(p.isPlaying).toBe(true);
+  });
+
+  it("nextTrack at the end of the queue stops playback and does not advance", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 2,
+      isPlaying: true,
+    });
+    const result = await p.nextTrack();
+    expect(result).toBe("ended");
+    expect(p.currentIndex).toBe(2);
+    expect(nativeAudioStop).toHaveBeenCalledOnce();
+    expect(nativeAudioPlay).not.toHaveBeenCalled();
+    expect(p.isPlaying).toBe(false);
+  });
+
+  it("prevTrack steps back to the previous track", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 2,
+      isPlaying: true,
+    });
+    const result = await p.prevTrack();
+    expect(result).toBe("played");
+    expect(p.currentIndex).toBe(1);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/1.mp3");
+  });
+
+  it("prevTrack at the start restarts the current track", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 0,
+      isPlaying: true,
+    });
+    const result = await p.prevTrack();
+    expect(result).toBe("played");
+    expect(p.currentIndex).toBe(0);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/0.mp3");
+  });
+
+  it("nextTrack on an empty queue is a no-op", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true, queue: [], currentIndex: -1 });
+    expect(await p.nextTrack()).toBe("noop");
+  });
+
+  it("re-entrancy: nextTrack while in flight returns 'busy'", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 0,
+      isPlaying: true,
+    });
+    const first = p.nextTrack();
+    const second = await p.nextTrack();
+    await first;
+    expect(second).toBe("busy");
+    expect(nativeAudioPlay).toHaveBeenCalledOnce();
   });
 });

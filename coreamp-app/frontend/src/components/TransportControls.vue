@@ -1,6 +1,6 @@
 <template>
   <div class="transport-controls d-inline-flex align-items-center gap-2">
-    <VibeButton variant="secondary" aria-label="Previous track" @click="emit('prev')">
+    <VibeButton variant="secondary" aria-label="Previous track" @click="player.prevTrack()">
       <VibeIcon icon="skip-start-fill" />
     </VibeButton>
     <VibeButton
@@ -11,7 +11,7 @@
     >
       <VibeIcon :icon="player.isPlaying ? 'pause-fill' : 'play-fill'" />
     </VibeButton>
-    <VibeButton variant="secondary" aria-label="Next track" @click="emit('next')">
+    <VibeButton variant="secondary" aria-label="Next track" @click="player.nextTrack()">
       <VibeIcon icon="skip-end-fill" />
     </VibeButton>
   </div>
@@ -20,9 +20,8 @@
 <script setup lang="ts">
 import { usePlayerStore } from "@/stores/player";
 
-// prev/next are emitted up; the shell wires them to queue actions in a later
-// milestone. The play/pause icon binds to player.isPlaying so it can never
-// drift out of sync the way the legacy manual setToggleIcon did.
-const emit = defineEmits<{ prev: []; next: [] }>();
+// Prev/Next/Play-Pause all drive the player store directly. The play/pause icon
+// binds to player.isPlaying so it can never drift out of sync the way the legacy
+// manual setToggleIcon did.
 const player = usePlayerStore();
 </script>

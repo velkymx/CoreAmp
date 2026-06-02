@@ -4,6 +4,7 @@ import * as api from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 
 export type ToggleResult = "paused" | "resumed" | "played" | "busy" | "noop";
+export type NavResult = "played" | "ended" | "busy" | "noop";
 
 interface PlayerState {
   queue: Track[];
@@ -33,6 +34,49 @@ export const usePlayerStore = defineStore("player", {
         await webDriver.resume();
       }
       this.isPlaying = true;
+    },
+
+    async stopPlayback(): Promise<void> {
+      if (this.source === "native" && this.nativeAvailable) {
+        await api.nativeAudioStop();
+      } else {
+        webDriver.pause();
+      }
+      this.isPlaying = false;
+    },
+
+    async nextTrack(): Promise<NavResult> {
+      if (this.inFlight) return "busy"; // H-B: no concurrent transitions
+      if (!this.queue.length || this.currentIndex < 0) return "noop";
+      this.inFlight = true;
+      try {
+        if (this.currentIndex + 1 < this.queue.length) {
+          this.currentIndex += 1;
+          await this.playCurrent();
+          return "played";
+        }
+        // End of the queue: stop, leaving the index on the last track.
+        await this.stopPlayback();
+        return "ended";
+      } finally {
+        this.inFlight = false;
+      }
+    },
+
+    async prevTrack(): Promise<NavResult> {
+      if (this.inFlight) return "busy"; // H-B: no concurrent transitions
+      if (!this.queue.length || this.currentIndex < 0) return "noop";
+      this.inFlight = true;
+      try {
+        // Step back, or restart the current track when already at the start.
+        if (this.currentIndex > 0) {
+          this.currentIndex -= 1;
+        }
+        await this.playCurrent();
+        return "played";
+      } finally {
+        this.inFlight = false;
+      }
     },
 
     async togglePlayback(): Promise<ToggleResult> {
