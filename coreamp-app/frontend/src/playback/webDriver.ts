@@ -30,6 +30,9 @@ export const webDriver = {
   seek(secs: number): void {
     audio().currentTime = secs;
   },
+  setVolume(level: number): void {
+    audio().volume = level;
+  },
 };
 
 export type WebDriver = typeof webDriver;

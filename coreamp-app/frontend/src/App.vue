@@ -10,7 +10,10 @@
     </VibeTabs>
     <footer class="player-bar p-2 border-top">
       <ProgressBar />
-      <TransportControls />
+      <div class="d-flex align-items-center justify-content-between gap-2">
+        <TransportControls />
+        <VolumeControl />
+      </div>
     </footer>
   </div>
 </template>
@@ -19,6 +22,7 @@
 import { ref, defineComponent, h, onMounted, onBeforeUnmount } from "vue";
 import TransportControls from "@/components/TransportControls.vue";
 import ProgressBar from "@/components/ProgressBar.vue";
+import VolumeControl from "@/components/VolumeControl.vue";
 import { usePlayerStore } from "@/stores/player";
 
 const activeTab = ref("home");

@@ -28,3 +28,5 @@ export const nativeAudioPlay = (path: string) =>
   call<void>("native_audio_play", { path });
 export const nativeAudioSeek = (secs: number) =>
   call<void>("native_audio_seek", { secs });
+export const nativeAudioSetVolume = (volume: number) =>
+  call<void>("native_audio_set_volume", { volume });

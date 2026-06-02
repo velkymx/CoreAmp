@@ -7,6 +7,7 @@ vi.mock("@/api/tauri", () => ({
   nativeAudioStop: vi.fn().mockResolvedValue(undefined),
   nativeAudioSeek: vi.fn().mockResolvedValue(undefined),
   nativeAudioStatus: vi.fn().mockResolvedValue(undefined),
+  nativeAudioSetVolume: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
@@ -15,6 +16,7 @@ vi.mock("@/playback/webDriver", () => ({
     pause: vi.fn(),
     resume: vi.fn().mockResolvedValue(undefined),
     seek: vi.fn(),
+    setVolume: vi.fn(),
   },
 }));
 
@@ -25,6 +27,7 @@ import {
   nativeAudioStop,
   nativeAudioSeek,
   nativeAudioStatus,
+  nativeAudioSetVolume,
 } from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { usePlayerStore } from "@/stores/player";
@@ -264,5 +267,56 @@ describe("player.seek / syncFromNativeStatus", () => {
     });
     expect(p.positionSecs).toBe(42);
     expect(p.durationSecs).toBe(120);
+  });
+});
+
+describe("player.setVolume / toggleMute", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("setVolume on native applies the level via nativeAudioSetVolume", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true });
+    await p.setVolume(0.5);
+    expect(nativeAudioSetVolume).toHaveBeenCalledWith(0.5);
+    expect(p.volume).toBe(0.5);
+  });
+
+  it("setVolume clamps to [0, 1]", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true });
+    await p.setVolume(5);
+    expect(p.volume).toBe(1);
+    expect(nativeAudioSetVolume).toHaveBeenLastCalledWith(1);
+    await p.setVolume(-2);
+    expect(p.volume).toBe(0);
+    expect(nativeAudioSetVolume).toHaveBeenLastCalledWith(0);
+  });
+
+  it("setVolume on web applies via webDriver.setVolume", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "web" });
+    await p.setVolume(0.4);
+    expect(webDriver.setVolume).toHaveBeenCalledWith(0.4);
+    expect(p.volume).toBe(0.4);
+  });
+
+  it("toggleMute silences then restores the stored volume", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true, volume: 0.8, muted: false });
+    await p.toggleMute();
+    expect(p.muted).toBe(true);
+    expect(nativeAudioSetVolume).toHaveBeenLastCalledWith(0);
+    await p.toggleMute();
+    expect(p.muted).toBe(false);
+    expect(nativeAudioSetVolume).toHaveBeenLastCalledWith(0.8);
+    expect(p.volume).toBe(0.8);
+  });
+
+  it("changing volume while muted unmutes", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true, muted: true });
+    await p.setVolume(0.3);
+    expect(p.muted).toBe(false);
+    expect(nativeAudioSetVolume).toHaveBeenLastCalledWith(0.3);
   });
 });

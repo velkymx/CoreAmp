@@ -15,6 +15,8 @@ interface PlayerState {
   inFlight: boolean;
   positionSecs: number;
   durationSecs: number | null;
+  volume: number;
+  muted: boolean;
 }
 
 export const usePlayerStore = defineStore("player", {
@@ -27,8 +29,33 @@ export const usePlayerStore = defineStore("player", {
     inFlight: false,
     positionSecs: 0,
     durationSecs: null,
+    volume: 0.8,
+    muted: false,
   }),
   actions: {
+    // Apply an effective output level (0..1) to the active playback source.
+    async applyVolume(level: number): Promise<void> {
+      if (this.source === "native" && this.nativeAvailable) {
+        await api.nativeAudioSetVolume(level);
+      } else {
+        webDriver.setVolume(level);
+      }
+    },
+
+    // Set the output volume (0..1). A deliberate volume change unmutes.
+    async setVolume(level: number): Promise<void> {
+      const clamped = Math.min(Math.max(level, 0), 1);
+      this.volume = clamped;
+      this.muted = false;
+      await this.applyVolume(clamped);
+    },
+
+    // Toggle mute, applying 0 while muted and restoring the stored volume.
+    async toggleMute(): Promise<void> {
+      this.muted = !this.muted;
+      await this.applyVolume(this.muted ? 0 : this.volume);
+    },
+
     // Scrub to a position (seconds), clamped to [0, duration]. Routes to the
     // native engine or the web element depending on the active source.
     async seek(targetSecs: number): Promise<void> {
