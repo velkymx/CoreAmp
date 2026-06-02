@@ -852,14 +852,26 @@ git commit -m "build: point Tauri at Vite build and drop unsafe-eval from CSP"
 
 **Files:** none (verification only).
 
-- [ ] **Step 1: Build the Rust app (runs the Vite build via beforeBuildCommand)**
+> IMPORTANT: `tauri.conf.json` sets `devUrl: http://localhost:1420`. A **debug**
+> binary loads the frontend from `devUrl` (the Vite dev server), NOT from
+> `dist`. So launching `./target/debug/coreamp-app` without the dev server
+> running shows a blank window with console error "Could not connect to the
+> server. 1420". Use ONE of the two correct paths below.
 
-Run: `cargo build -p coreamp-app`
-Expected: Vite build runs, then Rust compiles. Finishes without error.
+- [ ] **Step 1a (dev path): start the Vite dev server, then launch the debug binary**
 
-- [ ] **Step 2: Launch and confirm the shell renders**
+Run: `npm --prefix coreamp-app/frontend run dev > /tmp/vite_dev.log 2>&1 &`
+Wait until `curl -s -o /dev/null http://localhost:1420` succeeds (~2s).
+Then build (if needed) and launch: `cargo build -p coreamp-app && ./target/debug/coreamp-app > /tmp/coreamp_vue.log 2>&1 &`
 
-Run: `./target/debug/coreamp-app > /tmp/coreamp_vue.log 2>&1 &` then after ~6s screenshot with `screencapture -x /tmp/coreamp_vue.png` and open it.
+- [ ] **Step 1b (release/shipping path, alternative): `cargo tauri build`**
+
+`cargo tauri build` runs `beforeBuildCommand` (the Vite build into `dist`) and
+the release binary serves `dist` directly — no dev server needed.
+
+- [ ] **Step 2: Confirm the shell renders**
+
+After ~7s screenshot with `screencapture -x /tmp/coreamp_vue.png` and open it.
 Expected: window shows the VibeTabs bar (Home/Library/Liked/Playlists/Audio/Settings) and the transport footer with three buttons. Not a blank frame.
 
 - [ ] **Step 3: Stop the app**
