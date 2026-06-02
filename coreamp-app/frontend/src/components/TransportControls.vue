@@ -1,7 +1,7 @@
 <template>
   <div class="transport-controls d-inline-flex align-items-center gap-2">
     <VibeButton variant="secondary" aria-label="Previous track" @click="emit('prev')">
-      <VibeIcon name="skip-start-fill" />
+      <VibeIcon icon="skip-start-fill" />
     </VibeButton>
     <VibeButton
       variant="primary"
@@ -9,10 +9,10 @@
       aria-label="Play or pause"
       @click="player.togglePlayback()"
     >
-      <VibeIcon :name="player.isPlaying ? 'pause-fill' : 'play-fill'" />
+      <VibeIcon :icon="player.isPlaying ? 'pause-fill' : 'play-fill'" />
     </VibeButton>
     <VibeButton variant="secondary" aria-label="Next track" @click="emit('next')">
-      <VibeIcon name="skip-end-fill" />
+      <VibeIcon icon="skip-end-fill" />
     </VibeButton>
   </div>
 </template>

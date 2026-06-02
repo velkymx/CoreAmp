@@ -6,7 +6,7 @@ import { usePlayerStore } from "@/stores/player";
 
 const stubs = {
   VibeButton: { template: "<button><slot/></button>" },
-  VibeIcon: { props: ["name"], template: '<i :data-icon="name"></i>' },
+  VibeIcon: { props: ["icon"], template: '<i :data-icon="icon"></i>' },
 };
 
 describe("TransportControls", () => {
