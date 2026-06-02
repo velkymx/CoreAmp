@@ -222,6 +222,19 @@ Principle: fail loud to the user; never leave the UI in a stuck or lying state.
 - **Coverage target** — every Pinia action and every component with logic.
   Pure-display SFCs need no test.
 
+## Implementation Constraints
+
+- **Review the VibeUI component docs before implementing each region.** Before
+  building any view or control, consult the `@velkymx/vibeui` component
+  documentation and its exported API (props, slots, events) for the relevant
+  components. Do not infer behavior — verify it against the docs.
+- **Always use a VibeUI component when one exists for the need.** Prefer the
+  library component over hand-rolled markup or custom CSS widgets wherever VibeUI
+  offers an equivalent (buttons, sliders, tabs, cards, lists, modals, dropdowns,
+  tables, pagination, forms, toasts, etc.). Hand-rolling is permitted only when
+  no VibeUI component covers the need (e.g. the orb and EQ-curve visualizers in
+  the Open Items), and that gap must be called out in the plan.
+
 ## Open Items (resolve during planning)
 
 1. **`Visualizer.vue` internals** — port the existing orb + audioMotion
