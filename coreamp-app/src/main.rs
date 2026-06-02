@@ -97,6 +97,8 @@ struct NativeAudioStatus {
     finished: bool,
     current_path: Option<String>,
     detail: Option<String>,
+    position_secs: Option<f64>,
+    duration_secs: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -130,6 +132,8 @@ struct NativeAudioRuntimeStatus {
     finished: bool,
     current_path: Option<String>,
     detail: Option<String>,
+    position_secs: Option<f64>,
+    duration_secs: Option<f64>,
 }
 
 impl Default for NativeAudioRuntimeStatus {
@@ -141,6 +145,8 @@ impl Default for NativeAudioRuntimeStatus {
             finished: false,
             current_path: None,
             detail: None,
+            position_secs: None,
+            duration_secs: None,
         }
     }
 }
@@ -537,6 +543,10 @@ enum NativeAudioCommand {
         response: mpsc::Sender<Result<(), String>>,
     },
     Stop {
+        response: mpsc::Sender<Result<(), String>>,
+    },
+    Seek {
+        secs: f64,
         response: mpsc::Sender<Result<(), String>>,
     },
     SetVolume {
@@ -1287,15 +1297,16 @@ fn load_track_into_sink(
     path: &str,
     current_volume: f32,
     dsp_settings: Arc<SharedNativeDspSettings>,
-) -> Result<(), String> {
+) -> Result<Option<Duration>, String> {
     let file = File::open(path).map_err(|err| err.to_string())?;
     let source = Decoder::new(BufReader::new(file)).map_err(|err| err.to_string())?;
+    let duration = source.total_duration();
     let source = NativeDspSource::new(source, dsp_settings);
     player.stop();
     player.clear();
     player.set_volume(current_volume);
     player.append(source);
-    Ok(())
+    Ok(duration)
 }
 
 fn run_native_audio_thread(
@@ -1307,6 +1318,7 @@ fn run_native_audio_thread(
     let mut stream: Option<MixerDeviceSink> = None;
     let mut player: Option<Player> = None;
     let mut current_path: Option<String> = None;
+    let mut current_duration: Option<Duration> = None;
     let mut current_volume: f32 = 0.8;
     let mut selected_output_device_name = selected_output_device
         .lock()
@@ -1326,7 +1338,7 @@ fn run_native_audio_thread(
                         let active_player = player
                             .as_ref()
                             .ok_or_else(|| String::from("Missing native audio player"))?;
-                        load_track_into_sink(
+                        let track_duration = load_track_into_sink(
                             active_player,
                             &path,
                             current_volume,
@@ -1334,6 +1346,7 @@ fn run_native_audio_thread(
                         )?;
                         active_player.play();
                         current_path = Some(path.clone());
+                        current_duration = track_duration;
                         with_runtime_status(&status, |runtime| {
                             runtime.available = true;
                             runtime.active = true;
@@ -1341,12 +1354,15 @@ fn run_native_audio_thread(
                             runtime.finished = false;
                             runtime.current_path = Some(path.clone());
                             runtime.detail = None;
+                            runtime.position_secs = Some(0.0);
+                            runtime.duration_secs = track_duration.map(|d| d.as_secs_f64());
                         });
                         Ok(())
                     })();
 
                     if let Err(err) = &result {
                         let detail = err.clone();
+                        current_duration = None;
                         with_runtime_status(&status, |runtime| {
                             runtime.available = false;
                             runtime.active = false;
@@ -1354,6 +1370,8 @@ fn run_native_audio_thread(
                             runtime.finished = false;
                             runtime.current_path = None;
                             runtime.detail = Some(detail);
+                            runtime.position_secs = None;
+                            runtime.duration_secs = None;
                         });
                     }
                     let _ = response.send(result);
@@ -1396,13 +1414,35 @@ fn run_native_audio_thread(
                         player = Some(created_player);
                     }
                     current_path = None;
+                    current_duration = None;
                     with_runtime_status(&status, |runtime| {
                         runtime.active = false;
                         runtime.paused = false;
                         runtime.finished = false;
                         runtime.current_path = None;
+                        runtime.position_secs = None;
+                        runtime.duration_secs = None;
                     });
                     let _ = response.send(Ok(()));
+                }
+                NativeAudioCommand::Seek { secs, response } => {
+                    let result = if let Some(active_player) = player.as_ref() {
+                        let target = clamp_seek_target(
+                            secs,
+                            current_duration.map(|d| d.as_secs_f64()),
+                        );
+                        active_player
+                            .try_seek(Duration::from_secs_f64(target))
+                            .map_err(|err| err.to_string())
+                            .inspect(|()| {
+                                with_runtime_status(&status, |runtime| {
+                                    runtime.position_secs = Some(target);
+                                });
+                            })
+                    } else {
+                        Err(String::from("No native track loaded"))
+                    };
+                    let _ = response.send(result);
                 }
                 NativeAudioCommand::SetVolume { volume, response } => {
                     current_volume = volume.clamp(0.0, 1.0);
@@ -1495,15 +1535,24 @@ fn run_native_audio_thread(
 
         if let Some(active_player) = player.as_ref()
             && current_path.is_some()
-            && active_player.empty()
         {
-            current_path = None;
-            with_runtime_status(&status, |runtime| {
-                runtime.active = false;
-                runtime.paused = false;
-                runtime.finished = true;
-                runtime.current_path = None;
-            });
+            if active_player.empty() {
+                current_path = None;
+                current_duration = None;
+                with_runtime_status(&status, |runtime| {
+                    runtime.active = false;
+                    runtime.paused = false;
+                    runtime.finished = true;
+                    runtime.current_path = None;
+                    runtime.position_secs = None;
+                    runtime.duration_secs = None;
+                });
+            } else {
+                let position_secs = active_player.get_pos().as_secs_f64();
+                with_runtime_status(&status, |runtime| {
+                    runtime.position_secs = Some(position_secs);
+                });
+            }
         }
     }
 }
@@ -1568,6 +1617,11 @@ fn native_audio_stop() -> Result<(), String> {
 }
 
 #[tauri::command]
+fn native_audio_seek(secs: f64) -> Result<(), String> {
+    dispatch_native_audio_command(|response| NativeAudioCommand::Seek { secs, response })
+}
+
+#[tauri::command]
 fn native_audio_set_volume(volume: f32) -> Result<(), String> {
     dispatch_native_audio_command(|response| NativeAudioCommand::SetVolume { volume, response })
 }
@@ -1602,6 +1656,16 @@ fn native_audio_set_output_device(name: Option<String>) -> Result<(), String> {
     dispatch_native_audio_command(|response| NativeAudioCommand::SetOutputDevice { name, response })
 }
 
+/// Clamp a requested seek position to a valid range: never below zero, and
+/// never past the track's total duration when it is known.
+fn clamp_seek_target(target_secs: f64, total_secs: Option<f64>) -> f64 {
+    let floored = target_secs.max(0.0);
+    match total_secs {
+        Some(total) if total >= 0.0 => floored.min(total),
+        _ => floored,
+    }
+}
+
 #[tauri::command]
 fn native_audio_status() -> NativeAudioStatus {
     let controller = native_audio_controller();
@@ -1615,6 +1679,8 @@ fn native_audio_status() -> NativeAudioStatus {
                 finished: false,
                 current_path: None,
                 detail: Some(String::from("Native audio status lock poisoned")),
+                position_secs: None,
+                duration_secs: None,
             };
         }
     };
@@ -1626,6 +1692,8 @@ fn native_audio_status() -> NativeAudioStatus {
         finished: status.finished,
         current_path: status.current_path.clone(),
         detail: status.detail.clone(),
+        position_secs: status.position_secs,
+        duration_secs: status.duration_secs,
     };
     status.finished = false;
     snapshot
@@ -1833,6 +1901,7 @@ fn main() {
             native_audio_play,
             native_audio_pause,
             native_audio_resume,
+            native_audio_seek,
             native_audio_stop,
             native_audio_set_volume,
             native_audio_set_dsp_settings,
@@ -1846,4 +1915,30 @@ fn main() {
             eprintln!("CoreAmp app failed to start: {err}");
             process::exit(1);
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clamp_seek_target;
+
+    #[test]
+    fn clamp_seek_target_floors_negative_to_zero() {
+        assert_eq!(clamp_seek_target(-5.0, Some(120.0)), 0.0);
+    }
+
+    #[test]
+    fn clamp_seek_target_passes_through_in_range() {
+        assert_eq!(clamp_seek_target(42.5, Some(120.0)), 42.5);
+    }
+
+    #[test]
+    fn clamp_seek_target_caps_at_total_duration() {
+        assert_eq!(clamp_seek_target(200.0, Some(120.0)), 120.0);
+    }
+
+    #[test]
+    fn clamp_seek_target_without_total_only_floors() {
+        assert_eq!(clamp_seek_target(200.0, None), 200.0);
+        assert_eq!(clamp_seek_target(-1.0, None), 0.0);
+    }
 }

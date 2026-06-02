@@ -9,16 +9,31 @@
       <VibeTab name="settings" label="Settings"><Placeholder label="Settings" /></VibeTab>
     </VibeTabs>
     <footer class="player-bar p-2 border-top">
+      <ProgressBar />
       <TransportControls />
     </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, defineComponent, h } from "vue";
+import { ref, defineComponent, h, onMounted, onBeforeUnmount } from "vue";
 import TransportControls from "@/components/TransportControls.vue";
+import ProgressBar from "@/components/ProgressBar.vue";
+import { usePlayerStore } from "@/stores/player";
 
 const activeTab = ref("home");
+const player = usePlayerStore();
+
+// Poll the native engine for live playback position to drive the progress bar.
+let progressTimer: ReturnType<typeof setInterval> | undefined;
+onMounted(() => {
+  progressTimer = setInterval(() => {
+    void player.refreshNativeStatus();
+  }, 500);
+});
+onBeforeUnmount(() => {
+  if (progressTimer !== undefined) clearInterval(progressTimer);
+});
 
 const Placeholder = defineComponent({
   props: { label: { type: String, required: true } },

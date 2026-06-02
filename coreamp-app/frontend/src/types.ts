@@ -14,4 +14,6 @@ export interface NativeStatus {
   finished: boolean;
   current_path: string | null;
   detail: string | null;
+  position_secs: number | null;
+  duration_secs: number | null;
 }

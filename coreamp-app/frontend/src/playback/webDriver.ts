@@ -20,6 +20,16 @@ export const webDriver = {
   async resume(): Promise<void> {
     await audio().play();
   },
+  position(): number {
+    return audio().currentTime;
+  },
+  duration(): number {
+    const d = audio().duration;
+    return Number.isFinite(d) ? d : 0;
+  },
+  seek(secs: number): void {
+    audio().currentTime = secs;
+  },
 };
 
 export type WebDriver = typeof webDriver;

@@ -26,3 +26,5 @@ export const nativeAudioResume = () => call<void>("native_audio_resume");
 export const nativeAudioStop = () => call<void>("native_audio_stop");
 export const nativeAudioPlay = (path: string) =>
   call<void>("native_audio_play", { path });
+export const nativeAudioSeek = (secs: number) =>
+  call<void>("native_audio_seek", { secs });

@@ -5,6 +5,8 @@ vi.mock("@/api/tauri", () => ({
   nativeAudioResume: vi.fn().mockResolvedValue(undefined),
   nativeAudioPlay: vi.fn().mockResolvedValue(undefined),
   nativeAudioStop: vi.fn().mockResolvedValue(undefined),
+  nativeAudioSeek: vi.fn().mockResolvedValue(undefined),
+  nativeAudioStatus: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
@@ -12,6 +14,7 @@ vi.mock("@/playback/webDriver", () => ({
     isPaused: vi.fn(() => true),
     pause: vi.fn(),
     resume: vi.fn().mockResolvedValue(undefined),
+    seek: vi.fn(),
   },
 }));
 
@@ -20,6 +23,8 @@ import {
   nativeAudioResume,
   nativeAudioPlay,
   nativeAudioStop,
+  nativeAudioSeek,
+  nativeAudioStatus,
 } from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { usePlayerStore } from "@/stores/player";
@@ -186,5 +191,78 @@ describe("player.nextTrack / prevTrack", () => {
     await first;
     expect(second).toBe("busy");
     expect(nativeAudioPlay).toHaveBeenCalledOnce();
+  });
+});
+
+describe("player.seek / syncFromNativeStatus", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("seek on native source calls nativeAudioSeek and updates position", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true, durationSecs: 120 });
+    await p.seek(30);
+    expect(nativeAudioSeek).toHaveBeenCalledWith(30);
+    expect(p.positionSecs).toBe(30);
+  });
+
+  it("seek clamps to [0, duration]", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true, durationSecs: 120 });
+    await p.seek(999);
+    expect(nativeAudioSeek).toHaveBeenCalledWith(120);
+    expect(p.positionSecs).toBe(120);
+    await p.seek(-5);
+    expect(nativeAudioSeek).toHaveBeenLastCalledWith(0);
+    expect(p.positionSecs).toBe(0);
+  });
+
+  it("seek on web source calls webDriver.seek", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "web", durationSecs: 100 });
+    await p.seek(40);
+    expect(webDriver.seek).toHaveBeenCalledWith(40);
+    expect(p.positionSecs).toBe(40);
+  });
+
+  it("refreshNativeStatus polls the engine and syncs when native is active", async () => {
+    (nativeAudioStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
+      available: true,
+      active: true,
+      paused: false,
+      finished: false,
+      current_path: "/m/a.mp3",
+      detail: null,
+      position_secs: 12,
+      duration_secs: 200,
+    });
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true });
+    await p.refreshNativeStatus();
+    expect(nativeAudioStatus).toHaveBeenCalledOnce();
+    expect(p.positionSecs).toBe(12);
+    expect(p.durationSecs).toBe(200);
+  });
+
+  it("refreshNativeStatus is a no-op when source is not native", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "web", nativeAvailable: false });
+    await p.refreshNativeStatus();
+    expect(nativeAudioStatus).not.toHaveBeenCalled();
+  });
+
+  it("syncFromNativeStatus updates position and duration", () => {
+    const p = usePlayerStore();
+    p.syncFromNativeStatus({
+      available: true,
+      active: true,
+      paused: false,
+      finished: false,
+      current_path: "/m/a.mp3",
+      detail: null,
+      position_secs: 42,
+      duration_secs: 120,
+    });
+    expect(p.positionSecs).toBe(42);
+    expect(p.durationSecs).toBe(120);
   });
 });

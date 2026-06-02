@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { Source, Track } from "@/types";
+import type { NativeStatus, Source, Track } from "@/types";
 import * as api from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 
@@ -13,6 +13,8 @@ interface PlayerState {
   source: Source;
   nativeAvailable: boolean;
   inFlight: boolean;
+  positionSecs: number;
+  durationSecs: number | null;
 }
 
 export const usePlayerStore = defineStore("player", {
@@ -23,8 +25,39 @@ export const usePlayerStore = defineStore("player", {
     source: "web",
     nativeAvailable: false,
     inFlight: false,
+    positionSecs: 0,
+    durationSecs: null,
   }),
   actions: {
+    // Scrub to a position (seconds), clamped to [0, duration]. Routes to the
+    // native engine or the web element depending on the active source.
+    async seek(targetSecs: number): Promise<void> {
+      const clamped =
+        this.durationSecs != null
+          ? Math.min(Math.max(targetSecs, 0), this.durationSecs)
+          : Math.max(targetSecs, 0);
+      if (this.source === "native" && this.nativeAvailable) {
+        await api.nativeAudioSeek(clamped);
+      } else {
+        webDriver.seek(clamped);
+      }
+      this.positionSecs = clamped;
+    },
+
+    // Pull live playback position/duration from a native status poll.
+    syncFromNativeStatus(status: NativeStatus): void {
+      if (status.position_secs != null) this.positionSecs = status.position_secs;
+      this.durationSecs = status.duration_secs;
+    },
+
+    // Poll the native engine for live position/duration. No-op unless the native
+    // source is active, so the UI interval is cheap when playing via the web path.
+    async refreshNativeStatus(): Promise<void> {
+      if (this.source !== "native" || !this.nativeAvailable) return;
+      const status = await api.nativeAudioStatus();
+      this.syncFromNativeStatus(status);
+    },
+
     async playCurrent(): Promise<void> {
       const track = this.queue[this.currentIndex];
       if (!track) return;

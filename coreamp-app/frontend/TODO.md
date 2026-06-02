@@ -28,7 +28,7 @@ Legend: `[x]` done · `[ ]` todo · `(cmd)` backing Tauri command(s)
 ## Milestone 2 — Player parity + Visualizer
 Transport / now-playing / output controls.
 - [x] Prev / Next wired to queue navigation in the player store (cmd: native_audio_play/stop)
-- [ ] Progress bar: scrub + time display, two-way with playback position (`VibeSlider`)
+- [x] Progress bar: scrub + time display, two-way with playback position (`VibeSlider`)
 - [ ] Volume control: speaker icon + slider, mute (cmd: native_audio_set_volume)
 - [ ] Shuffle toggle (queue shuffle without interrupting current track)
 - [ ] Repeat cycle: off / queue / track
