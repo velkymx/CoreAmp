@@ -1702,6 +1702,13 @@ fn main() {
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
+
+            // Restrict the asset: protocol to the user's library and playlist
+            // directories rather than the whole filesystem (code-review C6).
+            let asset_scope = app.asset_protocol_scope();
+            for dir in library::asset_scope_roots() {
+                let _ = asset_scope.allow_directory(&dir, true);
+            }
             #[cfg(feature = "devtools")]
             if let Some(window) = app.get_webview_window("main") {
                 window.open_devtools();
