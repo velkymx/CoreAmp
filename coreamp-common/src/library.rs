@@ -227,6 +227,21 @@ pub fn index_explicit_paths(paths: &[PathBuf]) -> Result<ScanSummary, String> {
     })
 }
 
+fn combine_asset_roots(library_dirs: Vec<PathBuf>, playlists: PathBuf) -> Vec<PathBuf> {
+    let mut roots = library_dirs;
+    if !roots.contains(&playlists) {
+        roots.push(playlists);
+    }
+    roots
+}
+
+/// Directories the `asset:` protocol is allowed to serve from at runtime.
+/// Scopes file disclosure to the user's music library and playlist storage
+/// instead of the whole filesystem (code-review finding C6).
+pub fn asset_scope_roots() -> Vec<PathBuf> {
+    combine_asset_roots(configured_library_dirs(), crate::playlists_dir())
+}
+
 pub fn enrich_missing_metadata(limit: usize, proxy: Option<&str>) -> Result<usize, String> {
     let candidates = db::list_candidates_for_enrichment(limit)?;
     let mut enriched_count = 0usize;
@@ -250,7 +265,9 @@ pub fn enrich_missing_metadata(limit: usize, proxy: Option<&str>) -> Result<usiz
 
 #[cfg(test)]
 mod tests {
-    use super::{is_supported_media_file, scan_explicit_paths, scan_library_files};
+    use super::{
+        combine_asset_roots, is_supported_media_file, scan_explicit_paths, scan_library_files,
+    };
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -322,6 +339,29 @@ mod tests {
         assert_eq!(count, 1, "song.mp3 should be discovered exactly once");
 
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn asset_roots_include_library_dirs_and_playlists() {
+        let library = vec![PathBuf::from("/music/a"), PathBuf::from("/music/b")];
+        let playlists = PathBuf::from("/config/playlists");
+        let roots = combine_asset_roots(library.clone(), playlists.clone());
+        for dir in &library {
+            assert!(roots.contains(dir), "library dir {dir:?} must be in scope");
+        }
+        assert!(
+            roots.contains(&playlists),
+            "playlists dir must be in scope for m3u/local assets"
+        );
+    }
+
+    #[test]
+    fn asset_roots_do_not_duplicate_playlists() {
+        let playlists = PathBuf::from("/config/playlists");
+        let library = vec![playlists.clone(), PathBuf::from("/music/a")];
+        let roots = combine_asset_roots(library, playlists.clone());
+        let count = roots.iter().filter(|r| **r == playlists).count();
+        assert_eq!(count, 1, "playlists dir must not be duplicated");
     }
 
     #[test]
