@@ -175,8 +175,13 @@ pub fn scan_explicit_paths(paths: &[PathBuf]) -> Vec<PreScannedFile> {
     files
 }
 
-pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
-    let files = scan_library_files(roots);
+// Shared indexing core for both directory + explicit-path scans: upsert the
+// changed files, then backfill durations. Used by both entry points so an
+// explicit import gets the same duration backfill as a library scan.
+fn index_scanned_files(
+    files: &[PreScannedFile],
+    roots_scanned: usize,
+) -> Result<ScanSummary, String> {
     let scanned_paths: Vec<String> = files
         .iter()
         .map(|file| file.path.to_string_lossy().to_string())
@@ -194,14 +199,17 @@ pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
         }
     }
     let files_upserted = db::upsert_scanned_files(&changed_files)?;
-
     db::backfill_duration_for_missing()?;
-
     Ok(ScanSummary {
-        roots_scanned: roots.len(),
+        roots_scanned,
         files_discovered: files.len(),
         files_upserted,
     })
+}
+
+pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
+    let files = scan_library_files(roots);
+    index_scanned_files(&files, roots.len())
 }
 
 pub fn index_configured_library() -> Result<ScanSummary, String> {
@@ -211,28 +219,7 @@ pub fn index_configured_library() -> Result<ScanSummary, String> {
 
 pub fn index_explicit_paths(paths: &[PathBuf]) -> Result<ScanSummary, String> {
     let files = scan_explicit_paths(paths);
-    let scanned_paths: Vec<String> = files
-        .iter()
-        .map(|file| file.path.to_string_lossy().to_string())
-        .collect();
-    let cached_hashes = db::metadata_hashes_for_paths(&scanned_paths)?;
-    let mut changed_files = Vec::new();
-    for file in files.iter() {
-        let path_str = file.path.to_string_lossy().to_string();
-        let is_unchanged =
-            matches!(cached_hashes.get(&path_str), Some(hash) if hash == &file.metadata_hash);
-        if !is_unchanged
-            && let Some(scanned) = to_scanned_file(&file.path, file.metadata_hash.clone())
-        {
-            changed_files.push(scanned);
-        }
-    }
-    let files_upserted = db::upsert_scanned_files(&changed_files)?;
-    Ok(ScanSummary {
-        roots_scanned: paths.len(),
-        files_discovered: files.len(),
-        files_upserted,
-    })
+    index_scanned_files(&files, paths.len())
 }
 
 fn combine_asset_roots(library_dirs: Vec<PathBuf>, playlists: PathBuf) -> Vec<PathBuf> {
