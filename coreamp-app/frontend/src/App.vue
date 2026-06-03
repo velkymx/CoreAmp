@@ -46,9 +46,11 @@ import AddToPlaylistModal from "@/components/AddToPlaylistModal.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useUiStore, type TabName } from "@/stores/ui";
 import { applyShortcut, shouldIgnoreTarget } from "@/composables/useShortcuts";
+import { useColorMode } from "@velkymx/vibeui";
 
 const player = usePlayerStore();
 const ui = useUiStore();
+const { initColorMode } = useColorMode();
 
 // Global transport keyboard shortcuts: Space play/pause, ←/→ seek, ↑/↓ volume,
 // n/p next/prev, m mute, s shuffle, r repeat. Skipped while typing or when a
@@ -63,6 +65,7 @@ function onGlobalKey(e: KeyboardEvent): void {
 let progressTimer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
   player.init();
+  initColorMode(); // apply stored / system color mode
   window.addEventListener("keydown", onGlobalKey);
   progressTimer = setInterval(() => {
     void player.refreshStatus();

@@ -8,7 +8,10 @@
       <VolumeControl class="mb-3 player-volume" />
       <div class="d-flex align-items-center justify-content-between gap-2">
         <TransportControls />
-        <LikeButton />
+        <div class="d-flex align-items-center gap-2">
+          <LikeButton />
+          <ThemeToggle />
+        </div>
       </div>
     </div>
   </div>
@@ -21,6 +24,7 @@ import ProgressBar from "@/components/ProgressBar.vue";
 import VolumeControl from "@/components/VolumeControl.vue";
 import TransportControls from "@/components/TransportControls.vue";
 import LikeButton from "@/components/LikeButton.vue";
+import ThemeToggle from "@/components/ThemeToggle.vue";
 </script>
 
 <style scoped>
