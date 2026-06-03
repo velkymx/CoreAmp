@@ -73,6 +73,21 @@ describe("TrackTable", () => {
     expect(rows[0].classes()).not.toContain("is-active");
   });
 
+  it("renders no header unless sortable", () => {
+    const w = mount(TrackTable, { props: { tracks: [row()] }, global: { stubs } });
+    expect(w.find('[data-test="sort-title"]').exists()).toBe(false);
+  });
+
+  it("emits sort when a column header is clicked and shows the active arrow", async () => {
+    const w = mount(TrackTable, {
+      props: { tracks: [row()], sortable: true, sortKey: "title", sortDir: "asc" },
+      global: { stubs },
+    });
+    expect(w.get('[data-test="sort-title"]').text()).toContain("▲");
+    await w.get('[data-test="sort-duration"]').trigger("click");
+    expect(w.emitted("sort")?.[0]).toEqual(["duration"]);
+  });
+
   it("shows an empty state when there are no tracks", () => {
     const w = mount(TrackTable, { props: { tracks: [] }, global: { stubs } });
     expect(w.find('[data-test="track-empty"]').exists()).toBe(true);

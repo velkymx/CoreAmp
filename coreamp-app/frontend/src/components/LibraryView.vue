@@ -31,8 +31,11 @@
     <div class="library-content flex-grow-1 overflow-auto">
       <TrackTable
         v-if="library.view === 'tracks'"
-        :tracks="library.tracks"
+        :tracks="library.sortedTracks"
         :active-path="player.currentTrack?.path ?? null"
+        sortable
+        :sort-key="library.sortKey"
+        :sort-dir="library.sortDir"
         @play="onPlay"
         @like="library.toggleLike"
         @play-next="(t) => player.playNext(toQueueTrack(t))"
@@ -40,6 +43,7 @@
         @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
         @edit="(t) => ui.openEdit(t)"
         @browse="(v) => library.setSearch(v)"
+        @sort="(k) => library.toggleSort(k)"
       />
       <SummaryGrid
         v-else
@@ -128,7 +132,7 @@ const summaryItems = computed<SummaryItem[]>(() => {
 });
 
 function onPlay(index: number): void {
-  void player.playTracks(library.tracks.map(toQueueTrack), index);
+  void player.playTracks(library.sortedTracks.map(toQueueTrack), index);
 }
 
 // Clicking a summary card drills into the matching tracks: genres use the

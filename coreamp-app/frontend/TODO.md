@@ -45,13 +45,13 @@ Transport / now-playing / output controls.
 ## Milestone 3 — Library + Liked
 - [x] Library list with album-art thumbnails (cmd: list_library, library_count) — placeholder art icon for now; real per-row artwork deferred (perf: read_track_artwork per row)
 - [x] Segmented control: Tracks / Artists / Albums / Genres (`VibeButtonGroup`/`VibeTabs`)
-- [ ] Tracks table sortable + searchable (`VibeDataTable` + `VibePagination`) — searchable done; column sort + pagination pending
+- [x] Tracks table sortable + searchable — search + click-to-sort columns (title/album/duration, asc/desc, nulls-last) done; pagination still pending
 - [x] Summary grids: Artists / Albums / Genres cards (cmd: list_artists, list_albums, list_genres, list_genre_summaries)
 - [x] Search box + genre filter
 - [ ] Unknown-title handling shows under "U"
-- [x] Row context menu (`VibeDropdown`): Play next / Queue next / Play from here / Stop after current / Clear played / Add to playlist / Edit metadata — Play next + Add to queue done; Add to playlist + Edit metadata pending
+- [x] Row context menu (`VibeDropdown`): Play next / Add to queue / Add to playlist / Edit metadata — all done
 - [x] Inline Like on rows (cmd: toggle_liked)
-- [ ] Clickable metadata (album/artist/genre) → filtered view — summary cards drill in; in-row album/artist click pending
+- [x] Clickable metadata (album/artist/genre) → filtered view — summary cards + in-row artist/album clicks both filter the Library
 - [x] Liked view reuses the track table
 - [x] Record play on playback (cmd: record_play)
 
@@ -60,7 +60,7 @@ Transport / now-playing / output controls.
 - [x] Load playlist into queue (cmd: load_playlist)
 - [x] Save / create playlist from queue or search (cmd: save_playlist)
 - [x] Delete playlist (cmd: delete_playlist)
-- [ ] Append tracks to playlist (cmd: append_to_playlist); membership check (cmd: playlist_contains) — store action exists; row "Add to playlist" UI pending (with context menu)
+- [x] Append tracks to playlist (cmd: append_to_playlist) — row "Add to playlist…" modal (append to existing or create new)
 - [ ] Import `.m3u` by drag-and-drop (cmd: import_playlist_file) — store action exists; drag-drop wiring pending (Milestone 7)
 - [x] De-dup playlist + cleanup button (cmd: dedup_playlist)
 - [x] Queue panel: reorder via drag (`VibeSortable`) — reorder via up/down buttons + remove; true drag (VibeSortable) pending

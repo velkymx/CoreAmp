@@ -4,6 +4,22 @@
       No tracks
     </div>
     <table v-else class="table table-hover table-sm align-middle mb-0">
+      <thead v-if="sortable">
+        <tr class="track-head">
+          <th class="track-art-cell"></th>
+          <th data-test="sort-title" @click="$emit('sort', 'title')">
+            Title<span class="sort-ind">{{ indicator("title") }}</span>
+          </th>
+          <th class="d-none d-md-table-cell" data-test="sort-album" @click="$emit('sort', 'album')">
+            Album<span class="sort-ind">{{ indicator("album") }}</span>
+          </th>
+          <th class="text-end" data-test="sort-duration" @click="$emit('sort', 'duration')">
+            Time<span class="sort-ind">{{ indicator("duration") }}</span>
+          </th>
+          <th></th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         <tr
           v-for="(track, index) in tracks"
@@ -100,10 +116,22 @@ import { ref } from "vue";
 import type { LibraryTrack } from "@/types";
 import { formatTime } from "@/util/time";
 
-defineProps<{
-  tracks: LibraryTrack[];
-  activePath?: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    tracks: LibraryTrack[];
+    activePath?: string | null;
+    sortable?: boolean;
+    sortKey?: "title" | "artist" | "album" | "duration" | null;
+    sortDir?: "asc" | "desc";
+  }>(),
+  { activePath: null, sortable: false, sortKey: null, sortDir: "asc" },
+);
+
+// Sort arrow for a column header, blank when that column isn't the active sort.
+function indicator(key: "title" | "album" | "duration"): string {
+  if (props.sortKey !== key) return "";
+  return props.sortDir === "asc" ? " ▲" : " ▼";
+}
 
 const emit = defineEmits<{
   (e: "play", index: number): void;
@@ -113,6 +141,7 @@ const emit = defineEmits<{
   (e: "add-to-playlist", track: LibraryTrack): void;
   (e: "edit", track: LibraryTrack): void;
   (e: "browse", value: string): void;
+  (e: "sort", key: "title" | "album" | "duration"): void;
 }>();
 
 const openIndex = ref(-1);
@@ -136,6 +165,17 @@ function emitMenu(
 <style scoped>
 .track-row {
   cursor: pointer;
+}
+.track-head th {
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--bs-secondary-color, #6c757d);
+}
+.sort-ind {
+  font-size: 0.7rem;
 }
 .track-row.is-active {
   background: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.15));
