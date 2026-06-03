@@ -84,6 +84,21 @@ export const usePlayerStore = defineStore("player", {
       this.source = this.nativeAvailable ? "native" : "web";
     },
 
+    // Switch the output path (native rodio vs in-webview Web Audio). Restarts the
+    // current track on the new path if something was playing. Refuses to select
+    // native when the engine isn't available.
+    async setSource(next: Source): Promise<void> {
+      if (next === this.source) return;
+      if (next === "native" && !this.nativeAvailable) {
+        useNotifyStore().error("Native audio engine is unavailable.");
+        return;
+      }
+      const wasPlaying = this.isPlaying;
+      await this.stopPlayback();
+      this.source = next;
+      if (wasPlaying && this.currentIndex >= 0) await this.playCurrent();
+    },
+
     // Toggle the like flag on the current track via the backend, updating the
     // in-memory track so the heart reflects immediately (the Liked view reads
     // the same flag from the DB).

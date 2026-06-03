@@ -36,11 +36,11 @@ Transport / now-playing / output controls.
 - [x] Boost cycle control: Off / Boost+ / Boost++ (in Audio tab via audio store cycleBoost)
 - [ ] Gapless toggle + true seamless transition (BACKEND GAP: no gapless command exists in coreamp-app; needs native preload/queue support before a UI toggle is meaningful)
 - [x] Signal details: format / sample rate / bit depth / channels / bitrate (cmd: read_track_signal_details)
-- [ ] Native vs web output toggle; fallback handling surfaced
+- [x] Native vs web output toggle; fallback handling surfaced — player.setSource restarts current track on the chosen path; visualizer offers a "switch to Web output" shortcut
 - [x] Output device selection (cmd: list_native_output_devices, native_audio_set_output_device, native_audio_selected_output_device)
 - [x] Now-playing artwork + title/artist (cmd: read_track_artwork)
-- [ ] `Visualizer.vue` — OPEN ITEM: port orb + audioMotion (public/vendor) vs reimplement
-- [ ] Web Audio graph + `<audio>` lifecycle owned in one place (resolve spec open item)
+- [x] `Visualizer.vue` — RESOLVED: plugin host (the VibeHero) with swappable plugins (Bars / Spectrum / Oscilloscope), canvas + RAF, idle animation when no live audio
+- [x] Web Audio graph + `<audio>` lifecycle owned in one place — AudioContext→MediaElementSource→Analyser graph lives in webDriver; getAnalyser() feeds the visualizer
 
 ## Milestone 3 — Library + Liked
 - [x] Library list with album-art thumbnails (cmd: list_library, library_count) — placeholder art icon for now; real per-row artwork deferred (perf: read_track_artwork per row)

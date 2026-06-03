@@ -816,3 +816,48 @@ describe("player.init", () => {
     expect(webDriver.resume).toHaveBeenCalled();
   });
 });
+
+describe("player.setSource", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  });
+
+  it("switching to web stops native and restarts current on web", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 0,
+      isPlaying: true,
+    });
+    await p.setSource("web");
+    expect(nativeAudioStop).toHaveBeenCalledOnce();
+    expect(p.source).toBe("web");
+    expect(webDriver.load).toHaveBeenCalledWith("/m/0.mp3");
+    expect(webDriver.resume).toHaveBeenCalled();
+  });
+
+  it("does not restart when nothing was playing", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true, isPlaying: false });
+    await p.setSource("web");
+    expect(p.source).toBe("web");
+    expect(webDriver.resume).not.toHaveBeenCalled();
+  });
+
+  it("refuses native when unavailable", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "web", nativeAvailable: false });
+    await p.setSource("native");
+    expect(p.source).toBe("web");
+  });
+
+  it("is a no-op when the source is unchanged", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "web" });
+    await p.setSource("web");
+    expect(nativeAudioStop).not.toHaveBeenCalled();
+  });
+});

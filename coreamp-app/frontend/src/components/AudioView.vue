@@ -1,5 +1,9 @@
 <template>
   <div class="audio-view p-3 overflow-auto h-100">
+    <VibeHero fluid gradient="linear-gradient(135deg, #0f2027, #203a43, #2c5364)" class="viz-hero mb-3 p-2 rounded">
+      <Visualizer />
+    </VibeHero>
+
     <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
       <VibeFormSwitch v-model="eqEnabled" label="EQ" data-test="eq-enabled" />
       <VibeFormSelect
@@ -73,6 +77,7 @@
 import { computed } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
 import EqGraph from "@/components/EqGraph.vue";
+import Visualizer from "@/components/Visualizer.vue";
 import { useAudioStore, type EqPresetName } from "@/stores/audio";
 
 const audio = useAudioStore();
