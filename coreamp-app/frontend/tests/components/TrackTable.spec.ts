@@ -54,6 +54,15 @@ describe("TrackTable", () => {
     expect(w.emitted("play")).toBeUndefined();
   });
 
+  it("clicking artist or album emits browse without playing", async () => {
+    const w = mount(TrackTable, { props: { tracks: [row()] }, global: { stubs } });
+    await w.get('[data-test="track-artist"]').trigger("click");
+    expect(w.emitted("browse")?.[0]).toEqual(["Artist"]);
+    await w.get('[data-test="track-album"]').trigger("click");
+    expect(w.emitted("browse")?.[1]).toEqual(["Album"]);
+    expect(w.emitted("play")).toBeUndefined();
+  });
+
   it("marks the active row", () => {
     const w = mount(TrackTable, {
       props: { tracks: [row(), row({ path: "/m/b.mp3" })], activePath: "/m/b.mp3" },

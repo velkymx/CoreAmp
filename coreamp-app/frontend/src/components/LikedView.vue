@@ -9,6 +9,7 @@
       @enqueue="(t) => player.enqueue(toQueueTrack(t))"
       @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
       @edit="(t) => ui.openEdit(t)"
+      @browse="onBrowse"
     />
   </div>
 </template>
@@ -20,11 +21,13 @@ import * as api from "@/api/tauri";
 import TrackTable from "@/components/TrackTable.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useUiStore } from "@/stores/ui";
+import { useLibraryStore } from "@/stores/library";
 import { toQueueTrack } from "@/util/track";
 import { useNotify } from "@/composables/useNotify";
 
 const player = usePlayerStore();
 const ui = useUiStore();
+const library = useLibraryStore();
 const { run } = useNotify();
 const tracks = ref<LibraryTrack[]>([]);
 
@@ -39,6 +42,15 @@ watch(() => ui.dataVersion, load);
 
 function onPlay(index: number): void {
   void player.playTracks(tracks.value.map(toQueueTrack), index);
+}
+
+// Clicking artist/album metadata jumps to a filtered Library view.
+async function onBrowse(value: string): Promise<void> {
+  library.search = value;
+  library.genreFilter = null;
+  library.view = "tracks";
+  await library.loadTracks();
+  ui.setTab("library");
 }
 
 // Unliking from the Liked view removes the row immediately.

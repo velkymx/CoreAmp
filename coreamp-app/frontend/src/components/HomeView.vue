@@ -18,6 +18,7 @@
         @enqueue="(t) => player.enqueue(toQueueTrack(t))"
         @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
         @edit="(t) => ui.openEdit(t)"
+        @browse="onArtist"
       />
     </section>
   </div>

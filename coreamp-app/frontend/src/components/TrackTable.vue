@@ -23,11 +23,28 @@
               {{ track.title || track.filename }}
             </div>
             <div class="track-sub text-truncate text-secondary small">
-              {{ track.artist || "Unknown artist" }}
+              <button
+                v-if="track.artist"
+                type="button"
+                class="meta-link"
+                data-test="track-artist"
+                @click.stop="$emit('browse', track.artist)"
+              >
+                {{ track.artist }}
+              </button>
+              <span v-else>Unknown artist</span>
             </div>
           </td>
-          <td class="track-album text-truncate text-secondary d-none d-md-table-cell">
-            {{ track.album || "" }}
+          <td class="track-album text-truncate d-none d-md-table-cell">
+            <button
+              v-if="track.album"
+              type="button"
+              class="meta-link text-secondary"
+              data-test="track-album"
+              @click.stop="$emit('browse', track.album)"
+            >
+              {{ track.album }}
+            </button>
           </td>
           <td class="track-duration text-secondary text-end font-monospace small">
             {{ formatTime(track.duration) }}
@@ -95,6 +112,7 @@ const emit = defineEmits<{
   (e: "enqueue", track: LibraryTrack): void;
   (e: "add-to-playlist", track: LibraryTrack): void;
   (e: "edit", track: LibraryTrack): void;
+  (e: "browse", value: string): void;
 }>();
 
 const openIndex = ref(-1);
@@ -121,6 +139,17 @@ function emitMenu(
 }
 .track-row.is-active {
   background: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.15));
+}
+.meta-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  max-width: 100%;
+  text-align: left;
+}
+.meta-link:hover {
+  text-decoration: underline;
 }
 .track-art {
   width: 36px;
