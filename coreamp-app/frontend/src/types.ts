@@ -5,6 +5,7 @@ export interface Track {
   title: string | null;
   artist: string | null;
   album: string | null;
+  liked: boolean;
 }
 
 export interface NativeStatus {

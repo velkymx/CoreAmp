@@ -8,6 +8,7 @@ vi.mock("@/api/tauri", () => ({
   nativeAudioSeek: vi.fn().mockResolvedValue(undefined),
   nativeAudioStatus: vi.fn().mockResolvedValue(undefined),
   nativeAudioSetVolume: vi.fn().mockResolvedValue(undefined),
+  toggleLiked: vi.fn().mockResolvedValue(true),
 }));
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
@@ -28,15 +29,16 @@ import {
   nativeAudioSeek,
   nativeAudioStatus,
   nativeAudioSetVolume,
+  toggleLiked,
 } from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { usePlayerStore } from "@/stores/player";
 
-const track = { path: "/m/a.mp3", title: "A", artist: "X", album: "Y" };
+const track = { path: "/m/a.mp3", title: "A", artist: "X", album: "Y", liked: false };
 const mkQueue = () => [
-  { path: "/m/0.mp3", title: "0", artist: "X", album: "Y" },
-  { path: "/m/1.mp3", title: "1", artist: "X", album: "Y" },
-  { path: "/m/2.mp3", title: "2", artist: "X", album: "Y" },
+  { path: "/m/0.mp3", title: "0", artist: "X", album: "Y", liked: false },
+  { path: "/m/1.mp3", title: "1", artist: "X", album: "Y", liked: false },
+  { path: "/m/2.mp3", title: "2", artist: "X", album: "Y", liked: false },
 ];
 
 describe("player.togglePlayback", () => {
@@ -353,6 +355,36 @@ describe("player.toggleShuffle", () => {
     expect(p.shufflePos).toBe(0);
     expect(p.currentIndex).toBe(1);
     expect(nativeAudioPlay).toHaveBeenCalledWith("/m/1.mp3");
+  });
+});
+
+describe("player.toggleLike", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("currentTrack returns the queued track at the current index", () => {
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 1 });
+    expect(p.currentTrack?.path).toBe("/m/1.mp3");
+  });
+
+  it("currentTrack is null when nothing is loaded", () => {
+    const p = usePlayerStore();
+    expect(p.currentTrack).toBeNull();
+  });
+
+  it("toggleLike calls toggle_liked and updates the current track's liked flag", async () => {
+    (toggleLiked as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 0 });
+    await p.toggleLike();
+    expect(toggleLiked).toHaveBeenCalledWith("/m/0.mp3");
+    expect(p.currentTrack?.liked).toBe(true);
+  });
+
+  it("toggleLike is a no-op with no current track", async () => {
+    const p = usePlayerStore();
+    await p.toggleLike();
+    expect(toggleLiked).not.toHaveBeenCalled();
   });
 });
 

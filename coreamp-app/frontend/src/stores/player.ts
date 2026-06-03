@@ -42,7 +42,21 @@ export const usePlayerStore = defineStore("player", {
     shufflePos: 0,
     repeatMode: "off",
   }),
+  getters: {
+    currentTrack(state): Track | null {
+      return state.queue[state.currentIndex] ?? null;
+    },
+  },
   actions: {
+    // Toggle the like flag on the current track via the backend, updating the
+    // in-memory track so the heart reflects immediately (the Liked view reads
+    // the same flag from the DB).
+    async toggleLike(): Promise<void> {
+      const track = this.queue[this.currentIndex];
+      if (!track) return;
+      track.liked = await api.toggleLiked(track.path);
+    },
+
     // Apply an effective output level (0..1) to the active playback source.
     async applyVolume(level: number): Promise<void> {
       if (this.source === "native" && this.nativeAvailable) {

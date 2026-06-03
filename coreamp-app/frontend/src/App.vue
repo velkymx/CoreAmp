@@ -12,7 +12,10 @@
       <ProgressBar />
       <div class="d-flex align-items-center justify-content-between gap-2">
         <TransportControls />
-        <VolumeControl />
+        <div class="d-flex align-items-center gap-2">
+          <LikeButton />
+          <VolumeControl />
+        </div>
       </div>
     </footer>
   </div>
@@ -23,6 +26,7 @@ import { ref, defineComponent, h, onMounted, onBeforeUnmount } from "vue";
 import TransportControls from "@/components/TransportControls.vue";
 import ProgressBar from "@/components/ProgressBar.vue";
 import VolumeControl from "@/components/VolumeControl.vue";
+import LikeButton from "@/components/LikeButton.vue";
 import { usePlayerStore } from "@/stores/player";
 
 const activeTab = ref("home");
