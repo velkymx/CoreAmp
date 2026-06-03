@@ -1,295 +1,429 @@
 # CoreAmp TODO
 
-## Phase 0 - Project Setup
-- [x] Review `PRD.md` and translate requirements into an implementation checklist.
-- [x] Initialize Rust workspace with `coreamp-app`, `coreamp-daemon`, and shared `coreamp-common`.
-- [x] Add starter app/daemon binaries with Linux/macOS config path conventions.
-- [x] Add CI checks (`cargo fmt`, `cargo clippy`, `cargo test`, `cargo check`).
+Forward-looking only. Completed work (Phases 0–4, the audiophile roadmap P0/P1,
+the UI redesign, and the Vue/VibeUI migration) has moved to `CHANGELOG.md`.
 
-## Phase 1 - Core Playback (MVP)
-- [x] Scaffold Tauri v2 desktop shell for `coreamp-app`.
-- [x] Implement basic transport controls (play/pause/seek/volume).
-- [x] Integrate CPAL output path for audio playback.
-- [x] Support drag-and-drop for `.mp3`, `.flac`, `.ogg`.
-- [x] Add system tray integration with `Quit` and `Scan Library`.
+Reference: legacy-vs-new gap analysis 2026-06-03; specs/plans in
+`docs/superpowers/`.
 
-## Phase 2 - Library & Playlists
-- [x] Add SQLite `local.db` schema bootstrap (`files` table).
-- [x] Implement library file indexing for configured folders.
-- [x] Implement M3U read/write in `~/.config/CoreAmp/playlists/`.
-- [x] Add metadata read/write for common tags (artist/album/title/year).
-- [x] Wire UI playlist panel and queue interactions.
+---
 
-## Phase 3 - Daemon Auto-Fill
-- [x] Add background scanner loop with configurable interval.
-- [x] Implement cache lookup against `local.db`.
-- [x] Parse MP3/file data into db
-- [x] Display MP3 meta data (if available) in the UI
-- [x] Integrate MusicBrainz lookup for missing metadata.
-- [x] Update tags only when fields are empty.
-- [x] Add IPC events between daemon and app (scan status + update notifications).
+## Frontend gaps vs the legacy UI
 
-## Phase 4 - Polish and Packaging
-- [x] Follow Apple Design Guidelines https://help.apple.com/pdf/applestyleguide/en_US/apple-style-guide.pdf
-- [x] Add minimal settings screen (scan interval, API proxy).
-- [x] Add performance profiling and startup optimization pass.
-- [x] Add optional video path scaffolding (feature-flagged).
-- [x] Add Linux service templates (`systemd`) and macOS launch agent template (`launchd`).
-- [x] Prepare packaging workflow for Linux (`.deb`, `.AppImage`) and macOS (`.pkg`/`.zip`).
+### Visualizer
+- [ ] Port the remaining three.js reactive modes: **Vortex**, **Nebula**,
+      **Storm** (legacy had 6 modes; new has Bars/Spectrum/Oscilloscope/Orb).
 
-## Prioritized Audiophile Roadmap
+### Audio / EQ
+- [ ] Save / delete **named user EQ presets** (localStorage; no backend needed).
+- [ ] Apply **boost / limiter / crossfeed** to the web audio path (currently
+      only EQ + preamp affect the sound).
 
-### P0 - Sound Quality and Playback Credibility
-- [x] Add parametric EQ with multiple bands, gain, frequency, Q, presets, and bypass.
-- [x] Add first-pass `Audio` tab to the right of `Playlists`.
-- [x] Add first-pass web-output parametric EQ with 5 bands, `Frequency`, `Gain`, and `Q`.
-- [x] Add EQ presets (`Flat`, `Warm`, `Presence`, `V Curve`, `Bass Cut`) and reset behavior.
-- [x] Add EQ curve preview graph.
-- [x] Persist named user EQ presets.
-- [x] Bring EQ support to native output.
-- [x] Add true audio device selection so users can choose DACs, headphones, and speakers explicitly.
-- [x] Implement gapless playback for albums, live recordings, DJ mixes, and classical works.
-- [x] Add `Gapless` control beside `Boost` in the player row.
-- [x] Upgrade `Gapless` from UI/state toggle to true seamless transition playback.
-- [x] Show playback signal details in the player (`format`, `sample rate`, `bit depth`, `channels`, `bitrate`).
-- [x] Upgrade the native audio path so effects and playback behavior match web output more closely.
-- [x] Build a modular DSP chain for EQ, bass boost, preamp, limiter, crossfeed, and future effects.
-- [x] Add `Play next`, `Queue next`, `Play from here`, `Stop after current`, and `Clear played`.
-- [x] Add the ability to LIKE a song and then have it show up on the Liked Playlist
-- [x] Filter Library by Genre
-- [x] De-dup playlist, have a clean up button that removes duplicate tracks
-- [x] Unknown title should show up in the U section
-- [x] Add a new tab to explore your most loved artists and recently played songs.
-- [x] Add Create Playlist from search results for quick playlist creation
-- [x] Metadata should be clickable and take to the search - eg. if you click the album name you should get the album tracks. or you click the Artist name, etc etc
-- [ ] Track info sidebar, shows album art, year released, tracklist and lyrics
-### P1 - Library and Album Listening
-- [ ] Expand metadata support for `album artist`, `track number`, `disc number`, `composer`, and `genre`.
-- [ ] Add album-centric browsing views for `Albums`, `Artists`, and `Genres`.
-- [ ] Group library playback around album order, not just track search.
-- [ ] Add folder art / album art coverage improvements where embedded art is missing.
-- [ ] Search sort by Genre
-- [x] Add https://github.com/hvianna/audioMotion-analyzer to replace the EQ visualizer
-- [x] Investigate https://tympanus.net/codrops/2025/06/18/coding-a-3d-audio-visualizer-with-three-js-gsap-web-audio-api/ for an audio visualizer
+### Player UI
+- [ ] Expanded "showcase" player view (big now-playing with its own transport).
+- [ ] Light / dark **theme toggle** in-app.
 
-### P1.5 - Library UI Redesign
-- [x] Consolidate tabs: merge Import into Settings, reduce from 10 to 6 tabs (Home, Library, Liked, Playlists, Audio, Settings)
-- [x] Add segmented control within Library tab for Tracks/Artists/Albums/Genres views
-- [x] Track list redesign: add album art thumbnails to track rows
-- [x] Collapse 8 action buttons into context menu (right-click or "..." button), keep only Like inline
-- [x] Better in-queue indicator (background tint instead of subtle border change)
-- [x] Summary views polish: album art in Artists/Albums/Genres cards (grid layout like Apple Music)
-- [x] Dashboard artwork cards instead of plain text lists for both Top Artists and Recently Played
-- [x] Remove inline styles from dashboard rendering, use CSS classes
-- [ ] Fix range slider gradient bug (all stops at 0%)
-- [ ] Fix mobile layout constraints (320px max-height, stacked action buttons)
+### Library / metadata
+- [ ] Track-info sidebar (album art, year, tracklist).
+- [ ] Album-centric browsing (play in album order).
+- [ ] Expanded metadata editing (album artist / track no. / disc no. /
+      composer / genre).
+- [ ] Search sort by genre.
+- [ ] Unknown-title grouping under "U".
+- [ ] Folder/album art coverage when embedded art is missing.
 
-### P2 - Loudness, Queue, and Listening Controls
-- [ ] Add ReplayGain support with `track gain` and `album gain` modes.
+### System integration (Milestone 7)
+- [ ] Tray controls (`tray://control`) wired to the stores.
+- [ ] Daemon events (`daemon://event`) wired to the stores.
+- [ ] Updater: check / install update UI.
+- [ ] Visual parity pass: Apple-dark theme overrides on the Bootstrap base.
+- [ ] Mobile / small-window layout constraints.
 
-- [ ] Add optional crossfade after gapless playback is stable.
-- [ ] Add a clipping / peak indicator and better signal metering.
+## In-app games (roadmap)
+- [x] Sound Runner — mp3-shaped platformer (see CHANGELOG).
+- [ ] **Fishing game** ("Cast & Catch") — spec:
+      `docs/superpowers/specs/2026-06-03-fishing-game-design.md` (approved,
+      awaiting plan/build).
+- [ ] **Beat hero** rhythm game — note bars from the music (onset/beat
+      detection); notes map to the **home-row keys** (a s d f j k l ;) so it
+      doubles as a typing/keyboard trainer.
 
-### P3 - Native Audio and DSP Architecture
+## Audiophile / post-parity
+- [ ] ReplayGain (track gain + album gain modes).
+- [ ] True **gapless** playback — needs a backend `native_audio` gapless/preload
+      command before a UI toggle is meaningful.
+- [ ] Crossfade (after gapless is stable).
+- [ ] Clipping / peak meter + better signal metering.
+- [ ] Importable / savable DSP presets.
+- [ ] Evaluate exclusive / hog mode where platform APIs allow it.
 
-- [ ] Add importable / savable DSP presets.
-- [ ] Evaluate exclusive / hog mode support where platform APIs allow it.
-- [x] Replace the old boost toggle with one cycling control: `Boost Off`, `Boost+`, `Boost++`.
+## Tooling / cutover
+- [ ] Fix the `cargo tauri build` `beforeBuildCommand` path bug (it runs
+      `npm --prefix frontend` from `frontend/`, yielding `frontend/frontend`;
+      currently worked around by blanking it during bundling).
+- [ ] Full smoke pass: play a `~/Music` track, exercise every tab.
+- [ ] Confirm `dist` is pure build output; delete legacy `dist/index.html` note.
+- [ ] Merge `epic/vibeui-migration` → release branch.
 
-## Acceptance Criteria Tracking
-- [ ] Installable via `cargo install` path without extra proprietary runtime dependencies.
+## Acceptance criteria (open)
+- [ ] Installable via `cargo install` without extra proprietary runtime deps.
 - [ ] Idle resource targets met (<100MB RAM, <1% CPU).
-- [x] No telemetry or account requirements.
 - [ ] Metadata auto-fill updates missing fields after background operation.
-- [ ] UI remains minimal and uncluttered.
 
-## UI/UX Checklist
 
-- [x] Indexed Tracks is sortable and searchable
+# Code Review — 2026-06-02
 
-# Modern Apple App Design Checklist
+Scope: full Rust workspace (`coreamp-common`, `coreamp-daemon`, `coreamp-app`).
+Reviewed: ~4,000 LOC across 10 files. Clippy clean; findings below are runtime / design issues
+clippy does not catch. No behavioral change suggestions unless explicitly required for safety.
 
-Here is your 2026 UI/UX audit checklist to ensure your app feels cutting-edge.
+## Critical
 
-1. Interaction & Motion
-Predictive Navigation: Use AI to highlight the button the user is most likely to click next based on their habits (e.g., subtle pulsing or a slight color shift).
+### C1. `coreamp-common/src/db.rs:12-24` — Global `Mutex<Connection>` held during file I/O
+`OnceLock<Mutex<Connection>>` serializes every DB op. `backfill_duration_for_missing`
+(`db.rs:595-624`) opens, parses, and writes per file **while holding the lock** — a 50k-track
+library freezes the entire app/daemon for the duration. `upsert_scanned_files`
+(`db.rs:194-198`) does the same when called from `index_library_dirs` (the
+`to_scanned_file` call at `library.rs:180` is outside the lock, but
+`upsert_scanned_files` re-locks; in practice the long path is the per-file
+`lofty::read_from_path` in `backfill`).
+**Fix**: switch to a connection pool (e.g., `r2d2_sqlite`), or release the lock between
+I/O, or run backfill on a worker thread that opens its own connection. Enable WAL
+(`PRAGMA journal_mode=WAL`) so readers don't block writers.
 
-Micro-Gestures: Beyond swipes, incorporate haptic-rich interactions. Every scroll or toggle should have a distinct physical "click" feel through the phone's vibration motor.
+### C2. `coreamp-common/src/db.rs:573-593` — `get_all_metadata_hashes` loads entire DB into memory
+For every scan, the full `metadata_hash` column is pulled into a `HashMap<String, String>`
+even though the upsert already uses `ON CONFLICT`. For a 100k-track library this is
+~5–10 MB of duplicated strings per scan, allocated twice (path + hash).
+**Fix**: query only the candidate paths for the current scan (intersect with
+`scan_library_files` results), or fold the cache check into the `INSERT ... ON CONFLICT`
+and compute hash only for unmatched rows.
 
-Variable Refresh Rates: Ensure your animations are optimized for 120Hz+ displays. Movement should be fluid, mimicking organic physics rather than linear transitions.
+### C3. `coreamp-common/src/musicbrainz.rs:79-109` — No rate limiting, no contact, stale UA
+`enrich_missing_metadata` fires 25 sequential `reqwest` calls with no throttle.
+MusicBrainz mandates 1 req/sec and a descriptive UA with contact info. Current UA
+`"CoreAmp/0.2.0 (https://github.com/yourusername/coreamp)"` (L87) is **stale** (app is
+0.4.0) and has no email; will trigger 503 / IP block. Failures are silently swallowed
+(`library.rs:231` `Err(_) => continue`) so the operator never sees it.
+**Fix**: enforce ≥1s between requests (token bucket or `thread::sleep`), update UA to
+`CoreAmp/0.4.0 (https://github.com/velkymx/CoreAmp; contact@…)`, and surface persistent
+failures to the daemon-event log.
 
-2. Visual Aesthetic (The "Post-Glass" Era)
-Dynamic Mesh Gradients: Move away from solid colors. Use shifting, blurred gradients that react to the time of day or the user's current mood/activity.
+### C4. `coreamp-app/src/main.rs:776-805` — `hydrate_track_from_file` re-parses every file on every list call
+`list_library` invokes `library_track_from_row` for each row, which calls
+`hydrate_track_from_file`, which calls `metadata::read_track_metadata` (opens the file,
+runs `lofty::read_from_path`). For 300 rows that's 300 file opens + tag parses **per
+UI render**. A 10k-track library is unusable.
+**Fix**: do hydration at scan/upsert time and store the merged result in the DB, or add
+an in-memory LRU keyed by path+mtime.
 
-Bento Box Layouts: Use modular, rounded containers to organize information. This remains the gold standard for scannability and responsive scaling.
+### C5. `coreamp-common/src/library.rs:109-134` — `collect_media_dir` follows symlink cycles
+`path.is_dir()` follows symlinks and pushes them back onto the stack. A self-referencing
+or mutually-referencing symlink will recurse until the OS limit (or OOM on some FS).
+**Fix**: track visited canonical paths in a `HashSet<PathBuf>` (compare via
+`std::fs::canonicalize`) and skip already-seen inodes.
 
-Neomorphic Depth 2.0: Not the extreme "soft plastic" look of years past, but subtle shadows and inner glows that give elements a physical, tactile presence.
+### C6. `coreamp-app/tauri.conf.json:14-17` — Asset protocol scope is `["**"]`
+The frontend can read any file on disk through the `asset:` protocol. With the existing
+CSP allowing `unsafe-inline` scripts (`tauri.conf.json:13`), any XSS lets an attacker
+exfiltrate `~/.ssh/id_rsa`, keychains, etc.
+**Fix**: scope the asset protocol to user-configured roots only
+(e.g., `~/Music`, `~/.config/CoreAmp/playlists`, `~/.config/CoreAmp/ipc`).
 
-Adaptive Dark Mode: Don't just flip white to black. Implement "True Dark" for OLED screens (pure blacks) with adjustable contrast levels for accessibility.
+## High
 
-3. The "Intelligence" Layer
-Zero-State Personalization: Your "Empty State" screens shouldn't be empty. They should offer smart suggestions or "Quick Starts" based on past data.
+### H1. `coreamp-common/src/ipc.rs:65-97` — `next_event_id` and `trim_events_file` are not atomic
+`read → parse → write` for the sequence file (L65-75). Two concurrent writers collide
+and produce duplicate `id`s. `trim_events_file` (L77-97) reads the whole file, slices,
+re-joins, and re-writes — O(n) on **every** publish, with no locking against the
+polling reader in `coreamp-app/src/main.rs:1710-1725`.
+**Fix**: use an `AtomicU64` (mmap or in-process) for the sequence; for trimming, snapshot
+file size on first write per minute and trim out-of-band.
 
-Natural Language Input: Replace complex forms with a single "Ask me anything" bar that can parse data and fill out fields automatically.
+### H2. `coreamp-app/src/main.rs:1710-1725` — IPC poll thread is a leak
+Thread loops forever with no shutdown signal. After the Tauri app exits, the thread
+keeps `fs::read_to_string`ing until process death. Also reads and JSON-parses the
+**entire** events file every 2 s — O(n) per poll, scaled by 30/min.
+**Fix**: keep a file offset; read incrementally with `seek`+`read`, or use `notify` to
+wake on changes. Use a `CancellationToken` / `AtomicBool` to exit on app teardown.
 
-Contextual Awareness: The app should change its UI based on location or hardware state (e.g., "Driving Mode" with larger buttons, or "Focus Mode" with muted notifications).
+### H3. `coreamp-common/src/db.rs:12-24` — Poisoned mutex is fatal
+A panic in any DB call poisons the `Mutex<Connection>`; every subsequent op returns
+the poison error. `map_err(|err| err.to_string())` propagates and the app is dead.
+**Fix**: on `lock().unwrap_or_else(|p| p.into_inner())` to recover.
 
-4. Typography & Content
-Variable Typefaces: Use fonts that can dynamically adjust weight and width to fit any screen size perfectly without "breaking" the layout.
+### H4. `coreamp-common/src/library.rs:201-221` — Inconsistent backfill
+`index_library_dirs` (L187) calls `backfill_duration_for_missing`; `index_explicit_paths`
+does not. Same scan, different behavior. A track added via the picker never gets a
+duration.
+**Fix**: extract a shared `index_inner` helper that always backfills.
 
-Micro-Copy with Personality: Ditch the robotic "Error 404" or "Success." Use a tone of voice that feels human, witty, and aligned with your brand.
+### H5. `coreamp-app/src/main.rs:605-618, 1758-1776` — Tauri scan runs synchronously on the IPC thread
+`scan_library` (a `#[tauri::command]`) blocks the IPC worker for the full duration of
+the scan + backfill. The tray menu handler at L1759-1776 does the same on the tray
+event thread, freezing the tray until the scan finishes.
+**Fix**: spawn the scan on a worker (`tauri::async_runtime::spawn`), emit progress
+events; have the tray handler trigger an `app.emit` and return immediately.
 
-Data Scrimming: Instead of massive tables, use interactive mini-charts that reveal details only when hovered over or tapped.
+### H6. `coreamp-app/src/main.rs:1180-1203` — `read_track_signal_details` decodes the file just to get `total_duration`
+`Decoder::new(BufReader::new(file))` may buffer the file (depending on format). For a
+Vorbis/Opus file, `total_duration()` iterates the file. Blocks the IPC thread.
+**Fix**: read duration via `lofty` (which already has it from headers) without a
+full decoder.
 
-Based on the Apple Style Guide, here's a checklist for your designer to create an app that feels like a modern Apple product:
+### H7. `coreamp-app/src/main.rs:437-451` — DSP coefficient recompute on every sample
+`NativeDspSource::next` calls `refresh_runtime` on every sample, which checks
+`shared_settings.version()`. A user dragging an EQ slider bumps the version; every
+sample for the next minute reallocates `channel_states` (Vec of BiquadStates ×
+channels × bands) and re-runs `from_settings`.
+**Fix**: snapshot once per `current_span_len` batch, or debounce version updates
+(coalesce settings writes over 50ms).
 
-## Visual & Interface Design
+### H8. `coreamp-app/src/main.rs:914` — `use std::io::Cursor;` mid-file
+Convention violation; import sits between `#[tauri::command]`s. Clippy allows it;
+lints like `clippy::items_after_statements` would catch it under the right group.
+**Fix**: move to the top with the other imports.
 
-- [x] Use system fonts (San Francisco on macOS/iOS, appropriate typeface for platform)
-- [x] Implement Dark Mode and Light Mode appearances
-- [x] Use semantic colors that adapt to light/dark environments
-- [x] Include proper spacing and hierarchy in layouts
-- [ ] Design for accessibility (sufficient contrast, readable text sizes)
-- [ ] Use SF Symbols for consistent iconography
-- [x] Implement proper button states (normal, hover, active, disabled)
+### H9. `coreamp-common/src/library.rs:50-62` — `COREAMP_LIBRARY_DIRS` is colon-delimited
+On Windows the path separator is `;`. This hard-coded `:` misparses Windows paths.
+Also, on Linux it doesn't honor `XDG_MUSIC_DIR`.
+**Fix**: use `std::env::split_paths` (platform-aware), and fall back to
+`XDG_MUSIC_DIR` from `xdg-user-dirs`.
 
-## Interaction Patterns
+### H10. `coreamp-app/src/main.rs:60-67` — Daemon event poll `last_id` can permanently miss events
+`read_daemon_events(None, Some(1))` returns the **last** event from the file. If the
+app starts after the daemon has published events 1–500 (then trimmed to 1–500
+already-trimmed), the new app reads 1 as the last event and starts from there. Fine.
+But: if the seq file is reset / events file rotated / `last_id` loaded before the
+daemon writes its first event, `unwrap_or(0)` silently starts at 0, and the app re-emits
+all 500 historical events on first poll. UI floods.
+**Fix**: persist `last_id` to disk; or only emit events with `id > persisted_floor` on
+startup.
 
-- [ ] Use standard gestures: tap, swipe, long press, pinch
-- [ ] Include haptic feedback where appropriate
-- [x] Implement smooth animations and transitions
-- [x] Use standard controls: buttons, checkboxes, radio buttons, sliders
-- [x] Design clear visual feedback for user actions
-- [ ] Follow platform-specific navigation patterns
+## Medium
 
-## Content & Language
+### M1. `coreamp-common/src/db.rs:100-132` — Migrations on every `apply_schema`
+Each `get_db` call re-runs `PRAGMA table_info` and the 5 `ALTER TABLE` checks. Cheap,
+but still 5 round-trips per cold start. Acceptable; flag as future perf.
 
-- [x] Use sentence-style capitalization in UI text (except proper names)
-- [x] Write concise, action-oriented button labels
-- [ ] Avoid jargon; use plain language
-- [ ] Use contractions naturally in interface text
-- [ ] Capitalize feature names consistently
-- [ ] Write inclusive, accessible copy
+### M2. `coreamp-common/src/db.rs:81-83` — Dead column `cover_url`
+Defined in schema, never read or written. Either wire it up (artwork cache) or drop it.
 
-## Platform Consistency
+### M3. `coreamp-common/src/db.rs:360-425` — Repeated `query_map` boilerplate
+`list_all_artists`, `list_all_albums`, `list_all_genres`, `list_all_genre_summaries`,
+`list_top_artists` all hand-roll the `Vec::new` + `for row in rows` pattern. Extract
+`fn collect<T>(stmt, ...) -> Result<Vec<T>, String>` helper.
 
-- [ ] Match the design language of the target platform (iOS, macOS, watchOS, etc.)
-- [ ] Use native controls instead of custom ones
-- [ ] Follow Human Interface Guidelines for your platform
-- [x] Respect system settings (accessibility, appearance preferences)
-- [ ] Support Dynamic Type for text sizing
+### M4. `coreamp-common/src/library.rs:171-221` — `index_library_dirs` and `index_explicit_paths` are duplicates
+~25 lines copy-pasted. Extract a shared helper.
 
-## Polish & Details
+### M5. `coreamp-common/src/metadata.rs:200-216` — `is_missing` and `normalize_owned` are duplicates
+`is_missing(Option<Cow<str>>)` and `normalize_owned(Option<String>)` both trim+empty-check.
+Reuse the existing `is_present` and `normalize` helpers.
 
-- [x] Ensure consistent corner radius across UI elements
-- [x] Use appropriate shadow and depth effects
-- [x] Design for edge cases and error states
-- [x] Include loading and progress indicators
-- [ ] Test on multiple device sizes and orientations
+### M6. `coreamp-common/src/db.rs:201-273` — `list_library_files` placeholder order is fragile
+SQL references `?1`, `?2`, `?3`, `?4` but the `params!` order is `[limit, genre,
+search, offset]`. Works, but indices are non-sequential in the SQL string. Comment the
+binding map, or build the query with `push_bind`.
 
-## Playlists
+### M7. `coreamp-app/src/main.rs:1141-1165` — `parse_wav_bit_depth` reads only 512 bytes
+Real-world WAV files with large `LIST`/`INFO` chunks before `fmt ` will return `None`
+and `bit_depth` is reported as unknown. Read in a loop until the `fmt ` chunk is found,
+or accept the loss and surface a clear "(unknown)" in the UI.
 
-- [x] Create or save a playlist from the current queue.
-- [x] Add library tracks to the selected playlist.
-- [x] Import `.m3u` playlists by drag and drop.
-- [x] Reorder the queue with drag and drop.
-- [x] Shuffle the current queue without interrupting the current track.
+### M8. `coreamp-app/src/main.rs:171-194, 1266-1273` — `find_output_device_by_name` runs twice on `SetOutputDevice`
+L1430 looks the device up for validation, then `ensure_output_stream` looks it up
+again. Cheap but unnecessary; pass the `Device` through.
 
-In a Rust/Tauri environment, the trick is ensuring the UI (Frontend) stays snappy while the State (Backend/Rust) remains the "source of truth" for what song plays next.1. Create PlaylistAction: User clicks "New Playlist" or "Save Current Queue."Backend Logic: * Generate a new .m3u file in ~/.OpenAmp/playlists/.Register the new file in the SQLite metadata.db for quick sidebar access.UI: An editable text field appears in the sidebar to name the playlist.2. Add to PlaylistMethod A (External): Dragging files from macOS Finder or Linux File Manager (e.g., Dolphin/Nautilus) directly into a playlist name.Method B (Internal): Right-click a song in the "Library" view → "Add to Playlist" → [Select Name].Technical Handling: * The app must resolve the Path to the file immediately.Tauri's on_drag_drop handler parses the file paths and appends them to the end of the target .m3u file.3. Drag and Drop ReorderingUser Experience: Classic "grab and slide." A visual line indicates where the track will land.Frontend Logic: Use a library like dnd-kit or SortableJS. It’s purely visual until the user "drops."Backend Update: * On "Drop," the Frontend sends the new index array to Rust.The Swap: Rust rewrites the .m3u file with the new sequence.Note: This must be atomic to prevent the playlist from clearing out if the app crashes mid-save.4. Shuffle PlaylistThe "Winamp" Way (Linear Shuffle): 1.  The user toggles the Shuffle button.2.  The app generates a "shuffled index" of the current playlist.3.  If a song is currently playing, it becomes "Index 0" of the new shuffled sequence so the music doesn't jump.The "iTunes" Way (Random Jump):The playlist stays in its visual order.When a song ends, the app picks a random integer between $0$ and $N$ (playlist length) that hasn't been played in the current session.
+### M9. `coreamp-app/src/main.rs:1088-1097` — `update_track_metadata_for_path` silent no-op
+If the path is not in the DB, `db::update_track_metadata` returns `Ok(false)` and the
+UI gets a stale track from `track_from_path` (which hydrates from file). No signal that
+nothing was persisted.
+**Fix**: return an error if `changed == 0`, or `INSERT` when missing.
 
-## Music Player UI Must Have Checklist
-Core Layout
+### M10. `coreamp-app/src/main.rs:222-229` — `with_runtime_status` silently drops poison
+`native_audio_status` (L1608) handles poison explicitly; `with_runtime_status` does not.
+Inconsistent. Unify on `unwrap_or_else(|p| p.into_inner())`.
 
-- [x] Rounded card container
-- [x] Dark background surface
-- [x] Window style header area
-- [x] Consistent internal padding
-- [x] Left and right content columns
+### M11. `coreamp-app/src/main.rs:1088-1097` — Race: scan can clobber user edits
+`to_scanned_file` re-reads tags from the file. After a user edits tags via
+`write_tags` (which changes mtime), the next scan sees the user's new tags. So far
+consistent. But: if `write_tags` fails mid-write (disk full, perms), the file is in an
+intermediate state. The next scan reads partial data and overwrites the DB.
+**Fix**: validate the post-write file by re-reading it, or use a write-then-fsync
+guarded by lofty's atomicity guarantees.
 
-Header
+### M12. `coreamp-common/src/library.rs:75-88` — Hash includes full path
+Move the library, all hashes invalidate and every file is re-read and re-parsed on the
+next scan. Hash relative to the scan root instead, or store only `mtime + size`.
 
-- [x] Three window control dots (red, yellow, green)
-- [x] Centered player title text
-- [x] Subtle header separation from content
+### M13. `coreamp-app/src/main.rs:1727-1742` — Menu items rebuilt but never updated
+The tray `previous`/`play`/`next` items have static labels. If the goal is dynamic
+"Now Playing" display, this is a stub. Either drop the labels or wire to a state
+event.
 
-Audio Visualizer
+### M14. `coreamp-app/src/main.rs:1780-1791` — No way to reopen the window on Linux/Windows after close
+Default Tauri behavior: closing the main window exits the app. The tray click handler
+does call `window.show()` but only if a window exists. After the main window is
+destroyed on Linux, the tray is dead-end.
+**Fix**: on window `CloseRequested`, hide instead of close (or recreate the window
+on tray click).
 
-- [x] Animated vertical bars
-- [x] At least 16 bars for smooth movement
-- [x] Gradient colored bars (yellow to green)
-- [x] Real time animation driven by audio data
+### M15. `coreamp-common/src/metadata.rs:218-226` — `parse_year_timestamp` accepts year 0
+`u16::parse("0000")` succeeds and yields `Timestamp { year: 0 }`. Tag written with year 0.
+**Fix**: `if year == 0 { return None }`.
 
-Track Metadata
+## Low
 
-- [x] Song title display
-- [x] Artist name display
-- [x] Clear hierarchy (title larger than artist)
-- [x] Proper spacing between text elements
+### L1. `coreamp-app/src/main.rs:1141-1165` — `parse_wav_bit_depth` doesn't validate WAVE spec
+Non-PCM (WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_EXTENSIBLE) reports raw `bits_per_sample`
+which can be 32 (float) or 0 (extensible container). The UI displays 32 and the user
+thinks it's 32-bit PCM. Cosmetic.
 
-Volume Control
+### L2. `coreamp-app/src/main.rs:460-505` — `clamp(-1.0, 1.0)` after limiter
+The limiter already asymptotes to ±1.0; the final `clamp` is defensive but masks
+any bug in `soft_limit` (e.g., NaN propagation). Use `clamp` only as a NaN guard:
+`if !output.is_finite() { 0.0 } else { output.clamp(-1.0, 1.0) }`.
 
-- [x] Speaker icon
-- [x] Horizontal slider
-- [x] Draggable volume thumb
-- [x] Visual fill showing current volume
+### L3. `coreamp-common/src/playlist.rs:56-60` — Temp-file collision risk
+Temp suffix is `unix_millis`. Two `write_playlist` calls in the same millisecond to
+different playlists share the same suffix and overwrite each other's temp file.
+**Fix**: use `tempfile` crate or include a random component.
 
-Progress Bar
+### L4. `coreamp-common/src/playlist.rs:8-22` — `sanitize_playlist_name` allows `..`
+Trimmed, `..` becomes `..` (no separators to replace). `with_m3u_extension` adds
+`.m3u` → `...m3u`. Not a traversal, but the resulting filename is surprising. Reject
+or normalize `..` segments explicitly.
 
-- [x] Track progress indicator
-- [x] Background track
-- [x] Filled progress line
-- [x] Scrubbable handle
+### L5. `coreamp-app/src/main.rs:7-9` — Inconsistent use of `Arc<SharedNativeDspSettings>` vs `Mutex<NativeDspSettings>`
+The combo of `AtomicU64` version + `Mutex<NativeDspSettings>` is correct but heavy.
+A `parking_lot::RwLock` (or just a `Mutex`) is simpler and the atomic is unused for
+ordering — only equality. Either drop the version (always snapshot) or use the atomic
+as the only source of truth with `unsafe` to publish a `NativeDspSettings` (no, that
+needs an Arc). Simplest: keep the `Mutex`, drop the `AtomicU64`.
 
-Playback Controls
+### L6. `coreamp-common/src/metadata.rs:144-156` — `artwork_from_tag` trusts the tag's MIME
+A malicious tag can claim `image/jpeg` and embed arbitrary bytes. `image::load_from_memory`
+is robust but historically has had decode panics on crafted inputs. Validate the
+header (magic bytes) before passing to the decoder.
 
-- [x] Shuffle button
-- [x] Previous track button
-- [x] Play / pause button
-- [x] Next track button
-- [x] Repeat button
+### L7. `coreamp-app/src/main.rs:1720` — `let _ = app_handle.emit(...)` discards error
+If emit fails (channel closed during teardown), no signal. Acceptable here but
+inconsistent with the rest of the file that does `if let Err(...) = ...`.
 
-Utility Controls
+### L8. `coreamp-app/src/main.rs:1759-1776` — Tray scan emits `ScanResult` but no event name conflict check
+Multiple scans triggered (tray click, IPC, GUI button) can race; each emits events
+that the UI must deduplicate. Consider a single source of truth with a request-id.
 
-- [x] Playlist or library button
-- [x] Equalizer/settings button
-- [x] Special action icon (lightning icon in design)
+### L9. `coreamp-common/src/db.rs:596-624` — `backfill_duration_for_missing` swallows per-row errors
+`.ok()` on the UPDATE hides failures. For diagnostic purposes, increment a counter and
+expose it via the scan summary.
 
-Icon System
+### L10. `coreamp-common/src/musicbrainz.rs:6-13` — `extract_year` accepts `0000`
+Same as M15.
 
-- [x] Consistent icon style
-- [x] Equal icon alignment
-- [x] Hover states
-- [x] Active states for toggled controls
+### L11. `coreamp-app/src/main.rs:1727-1742` — Tray menu does not show playing state
+The `toggle_playback` label is static "Play/Pause". UX: show "Pause" when playing,
+"Play" when paused. Minor.
 
-Interaction
+### L12. `coreamp-app/src/main.rs:1608-1631` — `native_audio_status` resets `finished` to `false` on every read
+If a UI poll reads status between the audio thread setting `finished = true` and
+the next Play, the event is lost. Either keep the latch until acknowledged by the
+caller, or emit a dedicated `track-finished` event.
 
-- [x] Play button toggles play and pause
-- [x] Volume slider updates audio level
-- [x] Progress bar scrubbing updates playback time
-- [x] Shuffle and repeat maintain state
+### L13. `coreamp-app/src/main.rs:1066-1086` — `normalize_metadata_input` closure captures nothing
+Trivial, but using a free function `fn clean(value: Option<String>) -> Option<String>`
+is more idiomatic than the `let clean = |...|` closure.
 
-Visual Feedback
+## Security
 
-- [x] Hover highlight on controls
-- [x] Active state color change (green accent)
-- [x] Subtle button press animation
+- **S1 (HIGH)** — Asset protocol `["**"]` scope. See C6.
+- **S2 (MEDIUM)** — CSP allows `'unsafe-inline'` and `'unsafe-eval'` for scripts
+  (`tauri.conf.json:13`). Combined with the asset scope, an XSS in the bundled JS
+  (e.g., a vulnerable npm dep in `dist/`) becomes a local-file-read primitive. Remove
+  `'unsafe-eval'` in release builds; keep `'unsafe-inline'` only if needed by the
+  framework (audit).
+- **S3 (LOW)** — `tauri-plugin-updater` `pubkey` is base64-decoded at runtime; verify the
+  pinned key matches the `minisign` public key committed to the repo (the comment
+  "minisign public key:" is present, which is good). Ensure the key is rotated out of
+  band.
+- **S4 (LOW)** — `pick_scan_paths` shells out to `osascript` with a hard-coded script
+  (`coreamp-app/src/main.rs:875-890`). The script content is constant; no injection
+  vector, but any future change to inject `kind` into the script must escape it.
+- **S5 (LOW)** — `save_settings` accepts any `api_proxy` string and passes it to
+  `reqwest::Proxy::all` (`coreamp-common/src/musicbrainz.rs:88-91`). A malicious string
+  is rejected by `Proxy::all`, but the error message echoes the user input — log
+  injection risk. Already handled by the `?` propagation; just be aware.
 
-Accessibility
+## Edge cases that will break this
 
-- [x] All buttons keyboard accessible
-- [x] Focus states visible
-- [x] Buttons include aria labels
-- [x] Volume and progress sliders accessible
+1. **Empty `HOME` env var** → `config_dir` falls back to `.` (cwd). If launched from a
+   directory the user can write to, IPC and DB land there. `library.rs:38-46` has the
+   same fallback for library roots. Scoped writes only.
+2. **`COREAMP_LIBRARY_DIRS` containing non-existent paths** → silently scanned as
+   empty; no error reported. Daemon publishes `scan-started` with roots=0 and
+   `scan-skipped`. UX bug.
+3. **Two CoreAmp instances writing to the same DB** → SQLite locking; without WAL,
+   `SQLITE_BUSY` errors. `Mutex<Connection>` masks this on the app side, but if
+   the daemon is also running, the daemon's connection and the app's `Mutex<Connection>`
+   are two separate processes and the file lock will stall one of them.
+4. **Track file deleted between scan and playback** → `native_audio_play` opens,
+   `Decoder::new` errors, returns `Err` to caller, sets `available = false`. OK, but
+   `current_path` is also set to `Some(path)` so subsequent UI status reads the
+   dead path. Cosmetic.
+5. **Track file replaced (same path, different content) mid-playback** → the open
+   `File` handle still points to the old inode on some OSes. `Decoder` continues
+   reading the old content silently. No re-decode on play. Probably fine for music.
+6. **Library on a network share (SMB/NFS) where mtime is rounded** → `metadata_hash`
+   is stale on every scan, all files re-processed. Trivial for now but will dominate
+   scan time on large libraries.
+7. **Symlink cycle in library root** → see C5.
+8. **APFS firmlinks / hardlinks** → `fs::metadata` follows them, file appears N times
+   in scan, N rows in DB. Probably desired; flag for awareness.
+9. **MusicBrainz rate-limit hit** → all 25 enrichments in a scan return 503, silently
+   swallowed. Operator never knows. See C3.
+10. **EQ band count changed from N to M at runtime** → `ChannelDspState::new` is
+    called per channel (re-allocates Vec of BiquadStates). Audio glitches for one
+    sample. Acceptable.
+11. **Volume 0.0 set during Play** → no audio output, no event. Status reports
+    `active = true`, `current_path = Some(...)`. UI must not assume "no audio = paused".
+12. **Path with non-UTF8 bytes on Unix** → `to_string_lossy()` produces `OsStr`-lossy
+    strings; comparisons against the DB (which stored the same lossy string) work,
+    but display in the UI shows `?` characters. Cosmetic.
+13. **Playlist file manually edited to contain a directory path** →
+    `load_playlist` → `track_from_path` → `db::get_library_file` returns None →
+    `read_track_metadata` is called on a directory. `lofty::read_from_path` fails
+    silently and returns `TrackMetadata::default()`. Track shows as
+    `title=None, artist=None, duration=None`. Should reject directories explicitly.
 
-Audio System
+## Rust best-practice notes
 
-- [x] Audio element or audio engine
-- [x] Playback state tracking
-- [x] Time tracking for progress bar
-- [x] Integration with visualizer analyzer
+- **Module organization**: `coreamp-common/src/lib.rs` is fine, but `metadata::read_track_metadata` returns
+  by value with optionals that are then merged. A builder/accumulator is overkill; current shape is OK.
+- **Error type**: every public function returns `Result<T, String>`. A `thiserror` enum
+  (e.g., `CoreAmpError { Db, Io, Tag, Network, ... }`) would let the UI render
+  appropriate messages and let the daemon log structured errors.
+- **Panics**: no `unwrap()` in hot paths; the codebase is good here. `Mutex::lock().unwrap_or_default`
+  in the audio thread would be a bug (silently dropping a state update on poison);
+  it's `unwrap_or_default` for the *device name* (line 1311), which is fine because
+  the device name is just a string.
+- **Cloning**: `LibraryTrack` cloning in `list_library` is acceptable (300 rows).
+- **Tests**: `db.rs` has good coverage. `library.rs` covers extensions + recursion.
+  `metadata.rs`, `musicbrainz.rs` have a few. `ipc.rs`, `settings.rs`, `playlist.rs`
+  are partially covered. `coreamp-app/src/main.rs` (1842 lines) has **zero tests**.
+  The DSP code (`NativeDspSource`, biquad math) is the most important thing to test
+  and is currently untested.
+- **Concurrency**: `mpsc` for the audio thread is correct. `Mutex<NativeAudioRuntimeStatus>`
+  is held briefly. `Arc<SharedNativeDspSettings>` for cross-thread DSP config is OK.
+- **Edition 2024** with let-chains: `if let Some(x) = ... && condition` is used
+  throughout (e.g., `ipc.rs:134-138`, `library.rs:178-184`, `coreamp-app/src/main.rs:922-936`).
+  Consistent.
 
-Performance
+## Recommended fix priority
 
-- [x] Visualizer updates using requestAnimationFrame
-- [x] Avoid layout reflow in animations
-- [ ] Lightweight icon set (SVG recommended)
+1. C1, C2, C3, C4 (performance + rate limit + re-parse storm) — single biggest user-facing
+   impact.
+2. C5, C6 (correctness + security) — silent data loss / file disclosure.
+3. H1, H2, H3, H4, H5, H6 (concurrency + scan blocking) — UX and stability.
+4. DSP test coverage (no test file for `coreamp-app/src/main.rs`).
+5. M*, L*, S* as cleanup.

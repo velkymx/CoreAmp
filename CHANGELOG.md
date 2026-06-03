@@ -1,5 +1,58 @@
 # Changelog
 
+## [Unreleased] - Vue/VibeUI frontend migration
+
+Replaced the legacy monolithic `dist/index.html` UI with a Vue 3 + Pinia +
+VibeUI frontend (`coreamp-app/frontend`), reaching feature parity with the old
+UI and beyond. Backend (Rust/Tauri commands) unchanged.
+
+### Player
+- Now-playing panel: embedded album art, title/artist, signal line
+  (format / sample rate / bit depth / channels / bitrate).
+- Transport: play/pause, prev/next, shuffle (current-first), repeat
+  (off/queue/track), like, volume + mute.
+- Progress bar with working scrubbing/seek driven by the audio element.
+- Player-first layout: player card + queue panel on top, tabs below.
+
+### Library & Liked
+- `VibeDataTable` track list with column sort, search, and pagination.
+- Segmented Tracks / Artists / Albums / Genres; artwork card grids for
+  summaries; search box + genre filter; album-art row thumbnails.
+- Inline like; row context menu (Play next / Add to queue / Add to playlist /
+  Edit metadata); clickable artist/album metadata → filtered view.
+- Liked view; play recording (`record_play`).
+
+### Playlists & Queue
+- Browse / open-into-queue / save-from-queue / de-dup / delete.
+- Queue panel: reorder (move up/down), remove, Clear played, Stop after current.
+- Add-to-playlist modal (append or create); `.m3u` drag-and-drop import.
+
+### Home & Settings
+- Dashboard: Top Artists + Recently Played artwork cards.
+- Settings: scan interval, API proxy, scan library / add folders, clear history,
+  app version.
+- Edit-metadata modal (`update_track_metadata_for_path`).
+
+### Audio / EQ
+- Real Web Audio EQ: source → preamp → 5 peaking biquads → analyser → output;
+  moving a slider or picking a preset (Flat/Warm/Presence/V Curve/Bass Cut)
+  changes the sound. EQ bypass; boost cycle (Off/Boost+/Boost++); preamp.
+- Live EQ response curve over a music-reactive spectrum.
+- Single Web Audio output path (mp3-focused).
+
+### Visualizer & games
+- Visualizer modes: Bars, Spectrum, Oscilloscope, Orb (3D, ported three.js
+  reactive scene); hover-reveal controls, pseudo-fullscreen, locked 16:9.
+- Shared single-RAF frequency composable feeding all visuals.
+- "Sound Runner" game: a Mario-style platformer whose terrain is generated from
+  the playing mp3's loudness/bass envelope, Space-Invader enemies,
+  music-reactive sky/clouds, global top-5 high scores (replaces Astro Chicken).
+
+### Infrastructure
+- Global notification/toast system surfacing all async failures (playback, DSP,
+  library, playlists, settings, output).
+- Typed Tauri API boundary; ~200 frontend unit/component tests (vitest).
+
 ## [0.3.2] - 2026-03-16
 
 ### Bug Fixes
