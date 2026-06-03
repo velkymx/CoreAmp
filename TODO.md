@@ -30,8 +30,8 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 
 ## Security
 
-* [ ] Restrict asset protocol access to approved library/config locations.
-* [ ] Harden production CSP configuration.
+* [x] Restrict asset protocol access to approved library/config locations.
+* [x] Harden production CSP configuration.
 
 ## Networking
 
@@ -43,7 +43,6 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 ## Stability
 
 * [ ] Verify multi-process database access behavior.
-* [ ] Add DSP and playback test coverage.
 
 ## Build & Release
 
