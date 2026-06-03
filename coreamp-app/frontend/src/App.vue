@@ -47,9 +47,11 @@ import { useUiStore, type TabName } from "@/stores/ui";
 const player = usePlayerStore();
 const ui = useUiStore();
 
-// Poll the native engine for live playback position to drive the progress bar.
+// Activate the native audio path (or fall back to web), then poll the native
+// engine for live playback position to drive the progress bar.
 let progressTimer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
+  void player.init();
   progressTimer = setInterval(() => {
     void player.refreshNativeStatus();
   }, 500);

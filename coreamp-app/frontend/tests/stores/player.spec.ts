@@ -18,6 +18,7 @@ vi.mock("@/api/tauri", () => ({
 }));
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
+    load: vi.fn(),
     isLoaded: vi.fn(() => false),
     isPaused: vi.fn(() => true),
     pause: vi.fn(),
@@ -752,5 +753,66 @@ describe("player queue management", () => {
     expect(nativeAudioStop).toHaveBeenCalledOnce();
     expect(p.stopAfterCurrent).toBe(false);
     expect(await p.nextTrack()).toBe("played");
+  });
+});
+
+describe("player.init", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  });
+
+  it("selects the native source when the engine reports available", async () => {
+    vi.mocked(nativeAudioStatus).mockResolvedValue({
+      available: true,
+      active: false,
+      paused: false,
+      finished: false,
+      current_path: null,
+      detail: null,
+      position_secs: null,
+      duration_secs: null,
+    });
+    const p = usePlayerStore();
+    await p.init();
+    expect(p.nativeAvailable).toBe(true);
+    expect(p.source).toBe("native");
+  });
+
+  it("falls back to web when native is unavailable", async () => {
+    vi.mocked(nativeAudioStatus).mockResolvedValue({
+      available: false,
+      active: false,
+      paused: false,
+      finished: false,
+      current_path: null,
+      detail: null,
+      position_secs: null,
+      duration_secs: null,
+    });
+    const p = usePlayerStore();
+    await p.init();
+    expect(p.nativeAvailable).toBe(false);
+    expect(p.source).toBe("web");
+  });
+
+  it("falls back to web when the probe throws", async () => {
+    vi.mocked(nativeAudioStatus).mockRejectedValue(new Error("boom"));
+    const p = usePlayerStore();
+    await p.init();
+    expect(p.source).toBe("web");
+  });
+
+  it("web playback loads the file before resuming", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "web",
+      nativeAvailable: false,
+      queue: mkQueue(),
+      currentIndex: 0,
+    });
+    await p.playCurrent();
+    expect(webDriver.load).toHaveBeenCalledWith("/m/0.mp3");
+    expect(webDriver.resume).toHaveBeenCalled();
   });
 });

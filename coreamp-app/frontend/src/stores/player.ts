@@ -70,6 +70,19 @@ export const usePlayerStore = defineStore("player", {
     },
   },
   actions: {
+    // Probe the native engine at startup. If it reports available, drive
+    // playback through the native (rodio + DSP) path; otherwise fall back to
+    // the in-webview HTMLAudioElement.
+    async init(): Promise<void> {
+      try {
+        const status = await api.nativeAudioStatus();
+        this.nativeAvailable = Boolean(status?.available);
+      } catch {
+        this.nativeAvailable = false;
+      }
+      this.source = this.nativeAvailable ? "native" : "web";
+    },
+
     // Toggle the like flag on the current track via the backend, updating the
     // in-memory track so the heart reflects immediately (the Liked view reads
     // the same flag from the DB).
@@ -268,6 +281,8 @@ export const usePlayerStore = defineStore("player", {
       if (this.source === "native" && this.nativeAvailable) {
         await api.nativeAudioPlay(track.path);
       } else {
+        webDriver.load(track.path);
+        webDriver.setVolume(this.muted ? 0 : this.volume);
         await webDriver.resume();
       }
       this.isPlaying = true;
