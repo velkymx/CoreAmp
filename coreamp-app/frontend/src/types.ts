@@ -21,6 +21,14 @@ export interface TrackSignalDetails {
   bitrate_kbps: number | null;
 }
 
+export interface NativeOutputDevice {
+  name: string;
+  is_default: boolean;
+  channels: number | null;
+  sample_rate_hz: number | null;
+  sample_format: string | null;
+}
+
 export interface NativeStatus {
   available: boolean;
   active: boolean;

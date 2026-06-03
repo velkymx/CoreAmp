@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import type {
+  NativeOutputDevice,
   NativeStatus,
   Source,
   Track,
@@ -32,6 +33,8 @@ interface PlayerState {
   artwork: TrackArtwork | null;
   signal: TrackSignalDetails | null;
   metaToken: number;
+  outputDevices: NativeOutputDevice[];
+  selectedOutputDevice: string | null;
 }
 
 // Thumbnail edge (px) requested from the backend for now-playing artwork.
@@ -56,6 +59,8 @@ export const usePlayerStore = defineStore("player", {
     artwork: null,
     signal: null,
     metaToken: 0,
+    outputDevices: [],
+    selectedOutputDevice: null,
   }),
   getters: {
     currentTrack(state): Track | null {
@@ -93,6 +98,25 @@ export const usePlayerStore = defineStore("player", {
     async toggleMute(): Promise<void> {
       this.muted = !this.muted;
       await this.applyVolume(this.muted ? 0 : this.volume);
+    },
+
+    // Load the available native output devices and which one is currently
+    // selected (null = system default).
+    async loadOutputDevices(): Promise<void> {
+      const [devices, selection] = await Promise.all([
+        api.listNativeOutputDevices(),
+        api.nativeAudioSelectedOutputDevice(),
+      ]);
+      this.outputDevices = devices;
+      this.selectedOutputDevice = selection.selected_name;
+    },
+
+    // Switch the native output device (null routes to the system default). The
+    // local selection only advances once the backend accepts the change, so a
+    // rejected switch leaves the picker on the device that is actually active.
+    async setOutputDevice(name: string | null): Promise<void> {
+      await api.nativeAudioSetOutputDevice(name);
+      this.selectedOutputDevice = name;
     },
 
     // Scrub to a position (seconds), clamped to [0, duration]. Routes to the

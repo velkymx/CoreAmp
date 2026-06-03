@@ -1,5 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { NativeStatus, TrackArtwork, TrackSignalDetails } from "@/types";
+import type {
+  NativeOutputDevice,
+  NativeStatus,
+  TrackArtwork,
+  TrackSignalDetails,
+} from "@/types";
 
 export class TauriError extends Error {
   command: string;
@@ -36,3 +41,9 @@ export const readTrackArtwork = (path: string, maxSize?: number) =>
   call<TrackArtwork | null>("read_track_artwork", { path, maxSize });
 export const readTrackSignalDetails = (path: string) =>
   call<TrackSignalDetails>("read_track_signal_details", { path });
+export const listNativeOutputDevices = () =>
+  call<NativeOutputDevice[]>("list_native_output_devices");
+export const nativeAudioSelectedOutputDevice = () =>
+  call<{ selected_name: string | null }>("native_audio_selected_output_device");
+export const nativeAudioSetOutputDevice = (name: string | null) =>
+  call<void>("native_audio_set_output_device", { name });

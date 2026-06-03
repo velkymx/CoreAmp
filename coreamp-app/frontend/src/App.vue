@@ -15,6 +15,7 @@
         <TransportControls />
         <div class="d-flex align-items-center gap-2">
           <LikeButton />
+          <OutputDevicePicker class="player-output" />
           <VolumeControl />
         </div>
       </div>
@@ -29,6 +30,7 @@ import ProgressBar from "@/components/ProgressBar.vue";
 import VolumeControl from "@/components/VolumeControl.vue";
 import LikeButton from "@/components/LikeButton.vue";
 import NowPlaying from "@/components/NowPlaying.vue";
+import OutputDevicePicker from "@/components/OutputDevicePicker.vue";
 import { usePlayerStore } from "@/stores/player";
 
 const activeTab = ref("home");
@@ -70,5 +72,8 @@ const HomePlaceholder = defineComponent({
   flex: 1 1 0;
   min-width: 0;
   max-width: 40%;
+}
+.player-output {
+  max-width: 12rem;
 }
 </style>

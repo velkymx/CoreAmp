@@ -33,11 +33,11 @@ Transport / now-playing / output controls.
 - [x] Shuffle toggle (queue shuffle without interrupting current track)
 - [x] Repeat cycle: off / queue / track
 - [x] Like button on the player (cmd: toggle_liked) + Liked sync
-- [ ] Boost cycle control: Off / Boost+ / Boost++
-- [ ] Gapless toggle + true seamless transition
+- [ ] Boost cycle control: Off / Boost+ / Boost++ (needs DSP-settings store; couples to Milestone 5)
+- [ ] Gapless toggle + true seamless transition (BACKEND GAP: no gapless command exists in coreamp-app; needs native preload/queue support before a UI toggle is meaningful)
 - [x] Signal details: format / sample rate / bit depth / channels / bitrate (cmd: read_track_signal_details)
 - [ ] Native vs web output toggle; fallback handling surfaced
-- [ ] Output device selection (cmd: list_native_output_devices, native_audio_set_output_device, native_audio_selected_output_device)
+- [x] Output device selection (cmd: list_native_output_devices, native_audio_set_output_device, native_audio_selected_output_device)
 - [x] Now-playing artwork + title/artist (cmd: read_track_artwork)
 - [ ] `Visualizer.vue` — OPEN ITEM: port orb + audioMotion (public/vendor) vs reimplement
 - [ ] Web Audio graph + `<audio>` lifecycle owned in one place (resolve spec open item)

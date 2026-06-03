@@ -11,6 +11,9 @@ vi.mock("@/api/tauri", () => ({
   toggleLiked: vi.fn().mockResolvedValue(true),
   readTrackArtwork: vi.fn().mockResolvedValue(null),
   readTrackSignalDetails: vi.fn().mockResolvedValue(null),
+  listNativeOutputDevices: vi.fn().mockResolvedValue([]),
+  nativeAudioSelectedOutputDevice: vi.fn().mockResolvedValue({ selected_name: null }),
+  nativeAudioSetOutputDevice: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
@@ -34,6 +37,9 @@ import {
   toggleLiked,
   readTrackArtwork,
   readTrackSignalDetails,
+  listNativeOutputDevices,
+  nativeAudioSelectedOutputDevice,
+  nativeAudioSetOutputDevice,
 } from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { usePlayerStore } from "@/stores/player";
@@ -592,5 +598,56 @@ describe("player.loadNowPlayingMeta", () => {
     await expect(p.loadNowPlayingMeta()).resolves.toBeUndefined();
     expect(p.artwork).toBeNull();
     expect(p.signal).toBeNull();
+  });
+});
+
+describe("player.output devices", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const dev = (name: string, is_default = false) => ({
+    name,
+    is_default,
+    channels: 2,
+    sample_rate_hz: 48000,
+    sample_format: "f32",
+  });
+
+  it("loadOutputDevices stores the device list and current selection", async () => {
+    vi.mocked(listNativeOutputDevices).mockResolvedValue([
+      dev("Built-in", true),
+      dev("DAC"),
+    ]);
+    vi.mocked(nativeAudioSelectedOutputDevice).mockResolvedValue({
+      selected_name: "DAC",
+    });
+    const p = usePlayerStore();
+    await p.loadOutputDevices();
+    expect(p.outputDevices.map((d) => d.name)).toEqual(["Built-in", "DAC"]);
+    expect(p.selectedOutputDevice).toBe("DAC");
+  });
+
+  it("setOutputDevice forwards the name and updates the selection", async () => {
+    const p = usePlayerStore();
+    await p.setOutputDevice("DAC");
+    expect(nativeAudioSetOutputDevice).toHaveBeenCalledWith("DAC");
+    expect(p.selectedOutputDevice).toBe("DAC");
+  });
+
+  it("setOutputDevice(null) selects the system default", async () => {
+    const p = usePlayerStore();
+    p.$patch({ selectedOutputDevice: "DAC" });
+    await p.setOutputDevice(null);
+    expect(nativeAudioSetOutputDevice).toHaveBeenCalledWith(null);
+    expect(p.selectedOutputDevice).toBeNull();
+  });
+
+  it("setOutputDevice keeps the prior selection if the backend rejects", async () => {
+    vi.mocked(nativeAudioSetOutputDevice).mockRejectedValueOnce(new Error("busy"));
+    const p = usePlayerStore();
+    p.$patch({ selectedOutputDevice: "Built-in" });
+    await expect(p.setOutputDevice("DAC")).rejects.toThrow("busy");
+    expect(p.selectedOutputDevice).toBe("Built-in");
   });
 });
