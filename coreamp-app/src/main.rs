@@ -612,37 +612,49 @@ fn parse_cli_mode() -> Result<CliMode, String> {
     Ok(mode)
 }
 
-#[tauri::command]
-fn scan_library() -> Result<ScanResult, String> {
-    let roots = library::configured_library_dirs();
-    let summary = library::index_library_dirs(&roots)?;
-    Ok(ScanResult {
+// Build the IPC result from the scanned roots + summary (pure).
+fn scan_result(roots: &[PathBuf], summary: &library::ScanSummary) -> ScanResult {
+    ScanResult {
         roots: roots
             .iter()
             .map(|path| path.display().to_string())
-            .collect::<Vec<_>>(),
+            .collect(),
         roots_scanned: summary.roots_scanned,
         files_discovered: summary.files_discovered,
         files_upserted: summary.files_upserted,
-    })
+    }
 }
 
-#[tauri::command]
-fn scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
+// Synchronous scan cores. Used directly by the CLI + tray (in their own
+// threads); the Tauri commands wrap these on a blocking worker so the IPC
+// thread is never blocked by a scan.
+fn run_scan() -> Result<ScanResult, String> {
+    let roots = library::configured_library_dirs();
+    let summary = library::index_library_dirs(&roots)?;
+    Ok(scan_result(&roots, &summary))
+}
+
+fn run_scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
     let explicit_paths = paths
         .into_iter()
         .map(PathBuf::from)
         .collect::<Vec<PathBuf>>();
     let summary = library::index_explicit_paths(&explicit_paths)?;
-    Ok(ScanResult {
-        roots: explicit_paths
-            .iter()
-            .map(|path| path.display().to_string())
-            .collect::<Vec<_>>(),
-        roots_scanned: summary.roots_scanned,
-        files_discovered: summary.files_discovered,
-        files_upserted: summary.files_upserted,
-    })
+    Ok(scan_result(&explicit_paths, &summary))
+}
+
+#[tauri::command]
+async fn scan_library() -> Result<ScanResult, String> {
+    tauri::async_runtime::spawn_blocking(run_scan)
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
+async fn scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
+    tauri::async_runtime::spawn_blocking(move || run_scan_paths(paths))
+        .await
+        .map_err(|err| err.to_string())?
 }
 
 #[tauri::command]
@@ -1692,7 +1704,7 @@ fn main() {
 
     match cli_mode {
         CliMode::Scan => {
-            match scan_library() {
+            match run_scan() {
                 Ok(summary) => {
                     println!(
                         "scan complete roots={} discovered={} upserted={}",
@@ -1807,24 +1819,16 @@ fn main() {
                         let _ = app.emit("tray://control", "next");
                     }
                     "scan_library" => {
-                        let roots = library::configured_library_dirs();
-                        match library::index_library_dirs(&roots) {
-                            Ok(summary) => {
-                                let payload = ScanResult {
-                                    roots: roots
-                                        .iter()
-                                        .map(|path| path.display().to_string())
-                                        .collect::<Vec<_>>(),
-                                    roots_scanned: summary.roots_scanned,
-                                    files_discovered: summary.files_discovered,
-                                    files_upserted: summary.files_upserted,
-                                };
+                        // Run off the tray event thread so the menu never freezes.
+                        let app = app.clone();
+                        thread::spawn(move || match run_scan() {
+                            Ok(payload) => {
                                 let _ = app.emit("tray://scan-complete", payload);
                             }
                             Err(err) => {
                                 let _ = app.emit("tray://scan-failed", err);
                             }
-                        }
+                        });
                     }
                     _ => {}
                 })
@@ -1897,7 +1901,25 @@ fn main() {
 mod tests {
     use super::clamp_seek_target;
     use super::library_track_from_row;
+    use super::scan_result;
     use coreamp_common::db::LibraryRow;
+    use coreamp_common::library::ScanSummary;
+    use std::path::PathBuf;
+
+    #[test]
+    fn scan_result_maps_roots_and_summary() {
+        let roots = vec![PathBuf::from("/m/a"), PathBuf::from("/m/b")];
+        let summary = ScanSummary {
+            roots_scanned: 2,
+            files_discovered: 10,
+            files_upserted: 3,
+        };
+        let result = scan_result(&roots, &summary);
+        assert_eq!(result.roots, vec!["/m/a".to_string(), "/m/b".to_string()]);
+        assert_eq!(result.roots_scanned, 2);
+        assert_eq!(result.files_discovered, 10);
+        assert_eq!(result.files_upserted, 3);
+    }
 
     fn sample_row() -> LibraryRow {
         LibraryRow {
