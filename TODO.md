@@ -64,17 +64,16 @@ Features users expect from a modern desktop music player.
 
 ## Library Browsing
 * [ ] Play From Here.
-* [ ] Sort by Title.
-* [ ] Sort by Artist.
-* [ ] Sort by Album.
-* [ ] A-Z / Z-A toggle.
+* [x] Sort by Title. (VibeDataTable column sort)
+* [x] Sort by Artist. (VibeDataTable column sort)
+* [x] Sort by Album. (VibeDataTable column sort)
+* [x] A-Z / Z-A toggle. (VibeDataTable asc/desc)
 * [ ] Search sort by genre.
 * [ ] Unknown-title grouping under U.
 * [ ] Recently Added view.
 * [ ] Album-centric browse and play-in-order workflow.
 * [x] Fix duration backfill for tracks added through explicit path import.
 * [ ] Mobile and small-window layout support.
-* [ ] Fix duration backfill for tracks added through explicit path import.
 * [ ] Album artist editing.
 * [ ] Track number editing.
 * [ ] Disc number editing.
