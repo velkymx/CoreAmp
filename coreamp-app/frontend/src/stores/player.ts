@@ -71,17 +71,12 @@ export const usePlayerStore = defineStore("player", {
     },
   },
   actions: {
-    // Probe the native engine at startup. If it reports available, drive
-    // playback through the native (rodio + DSP) path; otherwise fall back to
-    // the in-webview HTMLAudioElement.
-    async init(): Promise<void> {
-      try {
-        const status = await api.nativeAudioStatus();
-        this.nativeAvailable = Boolean(status?.available);
-      } catch {
-        this.nativeAvailable = false;
-      }
-      this.source = this.nativeAvailable ? "native" : "web";
+    // CoreAmp plays through the in-webview Web Audio path (single output).
+    // Native is disabled so every transport routes to the web driver, which is
+    // also what feeds the EQ + visualizer.
+    init(): void {
+      this.source = "web";
+      this.nativeAvailable = false;
     },
 
     // Switch the output path (native rodio vs in-webview Web Audio). Restarts the
@@ -171,9 +166,19 @@ export const usePlayerStore = defineStore("player", {
       this.durationSecs = status.duration_secs;
     },
 
-    // Poll the native engine for live position/duration. No-op unless the native
-    // source is active, so the UI interval is cheap when playing via the web path.
-    async refreshNativeStatus(): Promise<void> {
+    // Poll the active output for live position/duration to drive the progress
+    // bar. Web reads the <audio> element; native (disabled) reads its status.
+    async refreshStatus(): Promise<void> {
+      if (this.source === "web") {
+        this.positionSecs = webDriver.position();
+        const dur = webDriver.duration();
+        this.durationSecs = dur > 0 ? dur : null;
+        // The web element signals end-of-track; advance the queue.
+        if (webDriver.hasEnded() && this.isPlaying) {
+          void this.nextTrack();
+        }
+        return;
+      }
       if (this.source !== "native" || !this.nativeAvailable) return;
       const status = await api.nativeAudioStatus();
       this.syncFromNativeStatus(status);

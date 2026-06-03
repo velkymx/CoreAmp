@@ -64,8 +64,7 @@ const topArtistItems = computed<SummaryItem[]>(() =>
 );
 
 function onPlayRecent(track: LibraryTrack): void {
-  const index = recent.value.findIndex((t) => t.path === track.path);
-  void player.playTracks(recent.value.map(toQueueTrack), Math.max(index, 0));
+  void player.playTracks([toQueueTrack(track)], 0);
 }
 
 async function onLike(path: string): Promise<void> {

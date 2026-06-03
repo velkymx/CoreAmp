@@ -129,9 +129,9 @@ const summaryItems = computed<SummaryItem[]>(() => {
   }));
 });
 
+// Clicking a track replaces the queue with just that track and plays it.
 function onPlay(track: LibraryTrack): void {
-  const index = library.tracks.findIndex((t) => t.path === track.path);
-  void player.playTracks(library.tracks.map(toQueueTrack), Math.max(index, 0));
+  void player.playTracks([toQueueTrack(track)], 0);
 }
 
 // Clicking a summary card drills into the matching tracks: genres use the

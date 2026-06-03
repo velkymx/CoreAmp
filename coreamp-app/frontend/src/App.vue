@@ -53,10 +53,10 @@ const ui = useUiStore();
 // engine for live playback position to drive the progress bar.
 let progressTimer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
-  void player.init();
+  player.init();
   progressTimer = setInterval(() => {
-    void player.refreshNativeStatus();
-  }, 500);
+    void player.refreshStatus();
+  }, 250);
 });
 onBeforeUnmount(() => {
   if (progressTimer !== undefined) clearInterval(progressTimer);

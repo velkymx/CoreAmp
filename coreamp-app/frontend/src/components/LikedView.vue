@@ -41,8 +41,7 @@ onMounted(load);
 watch(() => ui.dataVersion, load);
 
 function onPlay(track: LibraryTrack): void {
-  const index = tracks.value.findIndex((t) => t.path === track.path);
-  void player.playTracks(tracks.value.map(toQueueTrack), Math.max(index, 0));
+  void player.playTracks([toQueueTrack(track)], 0);
 }
 
 // Clicking artist/album metadata jumps to a filtered Library view.

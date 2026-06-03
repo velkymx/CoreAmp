@@ -25,6 +25,9 @@ vi.mock("@/playback/webDriver", () => ({
     resume: vi.fn().mockResolvedValue(undefined),
     seek: vi.fn(),
     setVolume: vi.fn(),
+    position: vi.fn(() => 0),
+    duration: vi.fn(() => 0),
+    hasEnded: vi.fn(() => false),
   },
 }));
 
@@ -242,30 +245,25 @@ describe("player.seek / syncFromNativeStatus", () => {
     expect(p.positionSecs).toBe(40);
   });
 
-  it("refreshNativeStatus polls the engine and syncs when native is active", async () => {
-    (nativeAudioStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
-      available: true,
-      active: true,
-      paused: false,
-      finished: false,
-      current_path: "/m/a.mp3",
-      detail: null,
-      position_secs: 12,
-      duration_secs: 200,
-    });
+  it("refreshStatus reads position/duration from the web element", async () => {
+    (webDriver.position as ReturnType<typeof vi.fn>).mockReturnValue(12);
+    (webDriver.duration as ReturnType<typeof vi.fn>).mockReturnValue(200);
+    (webDriver.hasEnded as ReturnType<typeof vi.fn>).mockReturnValue(false);
     const p = usePlayerStore();
-    p.$patch({ source: "native", nativeAvailable: true });
-    await p.refreshNativeStatus();
-    expect(nativeAudioStatus).toHaveBeenCalledOnce();
+    p.$patch({ source: "web" });
+    await p.refreshStatus();
     expect(p.positionSecs).toBe(12);
     expect(p.durationSecs).toBe(200);
+    expect(nativeAudioStatus).not.toHaveBeenCalled();
   });
 
-  it("refreshNativeStatus is a no-op when source is not native", async () => {
+  it("refreshStatus advances the queue when the web track ends", async () => {
+    (webDriver.hasEnded as ReturnType<typeof vi.fn>).mockReturnValue(true);
     const p = usePlayerStore();
-    p.$patch({ source: "web", nativeAvailable: false });
-    await p.refreshNativeStatus();
-    expect(nativeAudioStatus).not.toHaveBeenCalled();
+    p.$patch({ source: "web", isPlaying: true, queue: mkQueue(), currentIndex: 0 });
+    const spy = vi.spyOn(p, "nextTrack");
+    await p.refreshStatus();
+    expect(spy).toHaveBeenCalledOnce();
   });
 
   it("syncFromNativeStatus updates position and duration", () => {
@@ -762,45 +760,12 @@ describe("player.init", () => {
     (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
   });
 
-  it("selects the native source when the engine reports available", async () => {
-    vi.mocked(nativeAudioStatus).mockResolvedValue({
-      available: true,
-      active: false,
-      paused: false,
-      finished: false,
-      current_path: null,
-      detail: null,
-      position_secs: null,
-      duration_secs: null,
-    });
+  it("forces the web output path and disables native", () => {
     const p = usePlayerStore();
-    await p.init();
-    expect(p.nativeAvailable).toBe(true);
-    expect(p.source).toBe("native");
-  });
-
-  it("falls back to web when native is unavailable", async () => {
-    vi.mocked(nativeAudioStatus).mockResolvedValue({
-      available: false,
-      active: false,
-      paused: false,
-      finished: false,
-      current_path: null,
-      detail: null,
-      position_secs: null,
-      duration_secs: null,
-    });
-    const p = usePlayerStore();
-    await p.init();
+    p.$patch({ source: "native", nativeAvailable: true });
+    p.init();
+    expect(p.source).toBe("web");
     expect(p.nativeAvailable).toBe(false);
-    expect(p.source).toBe("web");
-  });
-
-  it("falls back to web when the probe throws", async () => {
-    vi.mocked(nativeAudioStatus).mockRejectedValue(new Error("boom"));
-    const p = usePlayerStore();
-    await p.init();
-    expect(p.source).toBe("web");
   });
 
   it("web playback loads the file before resuming", async () => {

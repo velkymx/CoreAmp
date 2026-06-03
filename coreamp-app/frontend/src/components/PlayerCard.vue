@@ -8,10 +8,7 @@
       <VolumeControl class="mb-3 player-volume" />
       <div class="d-flex align-items-center justify-content-between gap-2">
         <TransportControls />
-        <div class="d-flex align-items-center gap-2">
-          <LikeButton />
-          <OutputDevicePicker class="player-output" />
-        </div>
+        <LikeButton />
       </div>
     </div>
   </div>
@@ -24,7 +21,6 @@ import ProgressBar from "@/components/ProgressBar.vue";
 import VolumeControl from "@/components/VolumeControl.vue";
 import TransportControls from "@/components/TransportControls.vue";
 import LikeButton from "@/components/LikeButton.vue";
-import OutputDevicePicker from "@/components/OutputDevicePicker.vue";
 </script>
 
 <style scoped>

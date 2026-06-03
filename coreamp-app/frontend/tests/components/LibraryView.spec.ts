@@ -70,7 +70,7 @@ describe("LibraryView", () => {
     expect(spy).toHaveBeenCalledWith("artists");
   });
 
-  it("clicking a track row plays the queue from that index", async () => {
+  it("clicking a track queues only that track and plays it", async () => {
     const { listLibrary } = await import("@/api/tauri");
     vi.mocked(listLibrary).mockResolvedValue([row(), row({ path: "/m/b.mp3" })]);
     const w = mount(LibraryView, { global: { stubs } });
@@ -82,7 +82,10 @@ describe("LibraryView", () => {
     await w.vm.$nextTick();
     await w.find('[data-path="/m/b.mp3"]').trigger("click");
     expect(spy).toHaveBeenCalledOnce();
-    expect(spy.mock.calls[0][1]).toBe(1);
+    const [queue, index] = spy.mock.calls[0];
+    expect(queue).toHaveLength(1);
+    expect(queue[0].path).toBe("/m/b.mp3");
+    expect(index).toBe(0);
   });
 
   it("typing in the search box drives setSearch", async () => {

@@ -69,6 +69,10 @@ export const webDriver = {
     const d = audio().duration;
     return Number.isFinite(d) ? d : 0;
   },
+  // True when the current track has played to the end (drives queue advance).
+  hasEnded(): boolean {
+    return audio().ended;
+  },
   seek(secs: number): void {
     audio().currentTime = secs;
   },
