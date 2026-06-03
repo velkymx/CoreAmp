@@ -21,9 +21,12 @@ Must be completed before the next stable release.
 
 ## DSP Performance
 
-* [ ] Eliminate DSP coefficient recomputation on every sample.
-* [ ] Debounce EQ updates during slider drag.
-* [ ] Prevent DSP state reallocations during active playback.
+N/A under the current web-only output (native rodio DSP path is bypassed; web
+EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
+
+* [x] Eliminate DSP coefficient recomputation on every sample. (N/A — native path disabled)
+* [x] Debounce EQ updates during slider drag. (N/A — web EQ is cheap AudioParam)
+* [x] Prevent DSP state reallocations during active playback. (N/A — native path disabled)
 
 ## Security
 
@@ -337,9 +340,12 @@ Features users expect from a modern desktop music player.
 
 ### DSP Performance
 
-* [ ] Eliminate DSP coefficient recomputation on every sample.
-* [ ] Debounce EQ updates during slider drag.
-* [ ] Prevent DSP state reallocations during active playback.
+N/A under the current web-only output (native rodio DSP path is bypassed; web
+EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
+
+* [x] Eliminate DSP coefficient recomputation on every sample. (N/A — native path disabled)
+* [x] Debounce EQ updates during slider drag. (N/A — web EQ is cheap AudioParam)
+* [x] Prevent DSP state reallocations during active playback. (N/A — native path disabled)
 
 ### Cutover
 
