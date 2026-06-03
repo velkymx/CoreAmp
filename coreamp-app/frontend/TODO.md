@@ -76,15 +76,15 @@ Transport / now-playing / output controls.
 - [ ] Apply EQ/DSP to native + web paths
 
 ## Milestone 6 — Home + Settings
-- [ ] Dashboard: Top Artists + Recently Played artwork cards (cmd: list_top_artists, list_recently_played)
-- [ ] Settings: scan interval + API proxy (cmd: get_settings, save_settings)
-- [ ] Scan library / scan paths + folder picker (cmd: scan_library, scan_paths, pick_scan_paths)
-- [ ] Import (merged into Settings)
-- [ ] App version display (cmd: app_version)
+- [x] Dashboard: Top Artists + Recently Played artwork cards (cmd: list_top_artists, list_recently_played)
+- [x] Settings: scan interval + API proxy (cmd: get_settings, save_settings)
+- [x] Scan library / scan paths + folder picker (cmd: scan_library, scan_paths, pick_scan_paths)
+- [x] Import (merged into Settings) — folder scan covers import
+- [x] App version display (cmd: app_version)
 - [ ] Updater: check / install update
 - [ ] Edit metadata modal (cmd: update_track_metadata_for_path); write missing tags (cmd: write_missing_tags_for_path)
-- [ ] Clear history (cmd: clear_history)
-- [ ] Status toasts via `useToast` for all async ops
+- [x] Clear history (cmd: clear_history)
+- [ ] Status toasts via `useToast` for all async ops — inline status line for now
 
 ## Milestone 7 — Cutover
 - [ ] Visual parity pass: Apple-dark theme overrides on Bootstrap base

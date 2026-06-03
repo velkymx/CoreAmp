@@ -1,12 +1,16 @@
 <template>
   <div class="app-shell">
-    <VibeTabs v-model="activeTab" fill>
-      <VibeTab name="home" label="Home"><HomePlaceholder /></VibeTab>
+    <VibeTabs
+      :model-value="ui.activeTab"
+      fill
+      @update:model-value="(t: string) => ui.setTab(t as TabName)"
+    >
+      <VibeTab name="home" label="Home"><HomeView /></VibeTab>
       <VibeTab name="library" label="Library"><LibraryView /></VibeTab>
       <VibeTab name="liked" label="Liked"><LikedView /></VibeTab>
       <VibeTab name="playlists" label="Playlists"><PlaylistsView /></VibeTab>
       <VibeTab name="audio" label="Audio"><Placeholder label="Audio" /></VibeTab>
-      <VibeTab name="settings" label="Settings"><Placeholder label="Settings" /></VibeTab>
+      <VibeTab name="settings" label="Settings"><SettingsView /></VibeTab>
     </VibeTabs>
     <footer class="player-bar p-2 border-top">
       <ProgressBar />
@@ -24,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineComponent, h, onMounted, onBeforeUnmount } from "vue";
+import { defineComponent, h, onMounted, onBeforeUnmount } from "vue";
 import TransportControls from "@/components/TransportControls.vue";
 import ProgressBar from "@/components/ProgressBar.vue";
 import VolumeControl from "@/components/VolumeControl.vue";
@@ -34,10 +38,13 @@ import OutputDevicePicker from "@/components/OutputDevicePicker.vue";
 import LibraryView from "@/components/LibraryView.vue";
 import LikedView from "@/components/LikedView.vue";
 import PlaylistsView from "@/components/PlaylistsView.vue";
+import HomeView from "@/components/HomeView.vue";
+import SettingsView from "@/components/SettingsView.vue";
 import { usePlayerStore } from "@/stores/player";
+import { useUiStore, type TabName } from "@/stores/ui";
 
-const activeTab = ref("home");
 const player = usePlayerStore();
+const ui = useUiStore();
 
 // Poll the native engine for live playback position to drive the progress bar.
 let progressTimer: ReturnType<typeof setInterval> | undefined;
@@ -54,9 +61,6 @@ const Placeholder = defineComponent({
   props: { label: { type: String, required: true } },
   setup: (props) => () =>
     h("div", { class: "p-3 text-secondary" }, `${props.label} — coming soon`),
-});
-const HomePlaceholder = defineComponent({
-  setup: () => () => h("div", { class: "p-3" }, "CoreAmp"),
 });
 </script>
 
