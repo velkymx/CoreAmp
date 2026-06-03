@@ -89,52 +89,13 @@ Features users expect from a modern desktop music player.
 
 ## Audio
 
-* [ ] Save user EQ presets.
-* [ ] Delete user EQ presets.
+* [x] Save user EQ presets.
+* [x] Delete user EQ presets.
 * [ ] Add Hip-Hop EQ preset.
 * [ ] Add Dance EQ preset.
 * [ ] Verify boost processing parity.
 * [ ] Verify limiter processing parity.
 * [ ] Verify crossfeed processing parity.
-
-## MacOS Intergration
-
-* [ ] Add update checking UI. (is there an updater package?)
-* [ ] Add update installation UI.
-* [ ] Add system now-playing integration.
-
----
-
-# P2 - Power User Features
-
-## Track Information
-
-* [ ] Track details sidebar.
-* [ ] Album details panel.
-* [ ] Year display.
-* [ ] Tracklist display.
-
-## Metadata Management
-
-
-
-
-
-## Import Experience
-
-* [ ] Choose files picker.
-* [ ] Explicit path entry.
-* [ ] File and folder drop zone.
-
-## Player UX
-
-* [ ] Expanded showcase player.
-* [ ] Dedicated showcase transport controls.
-* [ ] Enhanced now-playing presentation.
-
----
-
-# P3 - Audiophile Features
 
 ## ReplayGain
 
@@ -153,20 +114,36 @@ Features users expect from a modern desktop music player.
 * [ ] Crossfade controls.
 * [ ] Crossfade tuning.
 
-## Monitoring
+##  Intergration
 
-* [ ] Peak meter.
-* [ ] Clipping meter.
-* [ ] Advanced signal metering.
+* [ ] Add update checking UI. (is there an updater package?)
+* [ ] Add update installation UI.
+* [ ] Add system now-playing integration.
 
-## Hardware Integration
+---
 
-* [ ] Evaluate exclusive mode support.
-* [ ] Evaluate hog mode support.
+# P2 - Power User Features
 
-## Education
+## Track Information
 
-* [ ] Audio signal-path diagram.
+* [ ] Track details sidebar.
+* [ ] Album details panel.
+* [ ] Year display.
+* [ ] Tracklist display.
+
+## Import Experience
+
+* [ ] Choose files picker.
+* [ ] Explicit path entry.
+* [ ] File and folder drop zone.
+* [ ] Show a status in the updater UI when importing (with a spinner)
+
+
+---
+
+# P3 - Audiophile Features
+
+
 
 ---
 
