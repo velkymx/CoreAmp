@@ -38,7 +38,7 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 * [x] Add MusicBrainz request rate limiting.
 * [x] Update MusicBrainz user-agent string.
 * [x] Add contact information to MusicBrainz requests.
-* [ ] Log persistent metadata-enrichment failures.
+* [x] Log persistent metadata-enrichment failures.
 
 ## Stability
 
