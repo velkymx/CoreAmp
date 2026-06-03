@@ -21,6 +21,63 @@ export interface TrackSignalDetails {
   bitrate_kbps: number | null;
 }
 
+export interface LibraryTrack {
+  path: string;
+  filename: string;
+  artist: string | null;
+  album: string | null;
+  title: string | null;
+  year: string | null;
+  genre: string | null;
+  liked: boolean;
+  duration: number | null;
+}
+
+export interface ArtistSummary {
+  name: string;
+  track_count: number;
+  representative_path: string;
+}
+
+export interface AlbumSummary {
+  title: string;
+  artist: string | null;
+  track_count: number;
+  representative_path: string;
+}
+
+export interface GenreSummary {
+  name: string;
+  track_count: number;
+  representative_path: string;
+}
+
+export interface PlaylistSummary {
+  name: string;
+  path: string;
+  track_count: number;
+}
+
+export interface ScanResult {
+  roots: string[];
+  roots_scanned: number;
+  files_discovered: number;
+  files_upserted: number;
+}
+
+export interface AppSettings {
+  scan_interval_secs: number;
+  api_proxy: string | null;
+}
+
+export interface TrackMetadataInput {
+  artist: string | null;
+  album: string | null;
+  title: string | null;
+  year: string | null;
+  genre: string | null;
+}
+
 export interface NativeOutputDevice {
   name: string;
   is_default: boolean;

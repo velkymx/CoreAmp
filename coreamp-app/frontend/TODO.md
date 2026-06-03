@@ -43,17 +43,17 @@ Transport / now-playing / output controls.
 - [ ] Web Audio graph + `<audio>` lifecycle owned in one place (resolve spec open item)
 
 ## Milestone 3 — Library + Liked
-- [ ] Library list with album-art thumbnails (cmd: list_library, library_count)
-- [ ] Segmented control: Tracks / Artists / Albums / Genres (`VibeButtonGroup`/`VibeTabs`)
-- [ ] Tracks table sortable + searchable (`VibeDataTable` + `VibePagination`)
-- [ ] Summary grids: Artists / Albums / Genres cards (cmd: list_artists, list_albums, list_genres, list_genre_summaries)
-- [ ] Search box + genre filter
+- [x] Library list with album-art thumbnails (cmd: list_library, library_count) — placeholder art icon for now; real per-row artwork deferred (perf: read_track_artwork per row)
+- [x] Segmented control: Tracks / Artists / Albums / Genres (`VibeButtonGroup`/`VibeTabs`)
+- [ ] Tracks table sortable + searchable (`VibeDataTable` + `VibePagination`) — searchable done; column sort + pagination pending
+- [x] Summary grids: Artists / Albums / Genres cards (cmd: list_artists, list_albums, list_genres, list_genre_summaries)
+- [x] Search box + genre filter
 - [ ] Unknown-title handling shows under "U"
 - [ ] Row context menu (`VibeDropdown`): Play next / Queue next / Play from here / Stop after current / Clear played / Add to playlist / Edit metadata
-- [ ] Inline Like on rows (cmd: toggle_liked)
-- [ ] Clickable metadata (album/artist/genre) → filtered view
-- [ ] Liked view reuses the track table
-- [ ] Record play on playback (cmd: record_play)
+- [x] Inline Like on rows (cmd: toggle_liked)
+- [ ] Clickable metadata (album/artist/genre) → filtered view — summary cards drill in; in-row album/artist click pending
+- [x] Liked view reuses the track table
+- [x] Record play on playback (cmd: record_play)
 
 ## Milestone 4 — Playlists + Queue
 - [ ] Playlist browser list (cmd: list_playlists)

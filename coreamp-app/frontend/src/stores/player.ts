@@ -170,6 +170,21 @@ export const usePlayerStore = defineStore("player", {
       this.signal = signal;
     },
 
+    // Replace the queue with the given tracks and start playing at startIndex.
+    // Rebuilds the shuffle order (current-first) when shuffle is on so the new
+    // queue shuffles coherently.
+    async playTracks(tracks: Track[], startIndex = 0): Promise<void> {
+      if (tracks.length === 0) return;
+      const index = Math.min(Math.max(startIndex, 0), tracks.length - 1);
+      this.queue = tracks.slice();
+      this.currentIndex = index;
+      if (this.shuffle) {
+        this.shuffleOrder = buildShuffleOrder(this.queue.length, index);
+        this.shufflePos = 0;
+      }
+      await this.playCurrent();
+    },
+
     async playCurrent(): Promise<void> {
       const track = this.queue[this.currentIndex];
       if (!track) return;
@@ -180,6 +195,7 @@ export const usePlayerStore = defineStore("player", {
       }
       this.isPlaying = true;
       void this.loadNowPlayingMeta();
+      void api.recordPlay(track.path).catch(() => {});
     },
 
     async stopPlayback(): Promise<void> {

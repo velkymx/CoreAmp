@@ -2,8 +2,8 @@
   <div class="app-shell">
     <VibeTabs v-model="activeTab" fill>
       <VibeTab name="home" label="Home"><HomePlaceholder /></VibeTab>
-      <VibeTab name="library" label="Library"><Placeholder label="Library" /></VibeTab>
-      <VibeTab name="liked" label="Liked"><Placeholder label="Liked" /></VibeTab>
+      <VibeTab name="library" label="Library"><LibraryView /></VibeTab>
+      <VibeTab name="liked" label="Liked"><LikedView /></VibeTab>
       <VibeTab name="playlists" label="Playlists"><Placeholder label="Playlists" /></VibeTab>
       <VibeTab name="audio" label="Audio"><Placeholder label="Audio" /></VibeTab>
       <VibeTab name="settings" label="Settings"><Placeholder label="Settings" /></VibeTab>
@@ -31,6 +31,8 @@ import VolumeControl from "@/components/VolumeControl.vue";
 import LikeButton from "@/components/LikeButton.vue";
 import NowPlaying from "@/components/NowPlaying.vue";
 import OutputDevicePicker from "@/components/OutputDevicePicker.vue";
+import LibraryView from "@/components/LibraryView.vue";
+import LikedView from "@/components/LikedView.vue";
 import { usePlayerStore } from "@/stores/player";
 
 const activeTab = ref("home");

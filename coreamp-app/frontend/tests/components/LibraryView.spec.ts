@@ -1,0 +1,86 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
+import LibraryView from "@/components/LibraryView.vue";
+import { useLibraryStore } from "@/stores/library";
+import { usePlayerStore } from "@/stores/player";
+
+vi.mock("@/api/tauri", () => ({
+  listLibrary: vi.fn().mockResolvedValue([]),
+  listArtists: vi.fn().mockResolvedValue([]),
+  listAlbums: vi.fn().mockResolvedValue([]),
+  listGenreSummaries: vi.fn().mockResolvedValue([]),
+  listGenres: vi.fn().mockResolvedValue([]),
+  toggleLiked: vi.fn().mockResolvedValue(false),
+  recordPlay: vi.fn().mockResolvedValue(undefined),
+  nativeAudioPlay: vi.fn().mockResolvedValue(undefined),
+  readTrackArtwork: vi.fn().mockResolvedValue(null),
+  readTrackSignalDetails: vi.fn().mockResolvedValue(null),
+}));
+
+const stubs = {
+  VibeButtonGroup: { template: "<div><slot/></div>" },
+  VibeButton: {
+    props: ["variant"],
+    template: '<button :data-variant="variant"><slot/></button>',
+  },
+  VibeFormInput: {
+    props: ["modelValue"],
+    emits: ["update:modelValue"],
+    template:
+      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+  },
+  VibeFormSelect: {
+    props: ["modelValue", "options"],
+    template: "<select></select>",
+  },
+  VibeIcon: { props: ["icon"], template: "<i></i>" },
+};
+
+const row = (over = {}) => ({
+  path: "/m/a.mp3",
+  filename: "a.mp3",
+  artist: "X",
+  album: "Y",
+  title: "A",
+  year: null,
+  genre: null,
+  liked: false,
+  duration: 100,
+  ...over,
+});
+
+describe("LibraryView", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+  });
+
+  it("switching the segmented control loads that view", async () => {
+    const w = mount(LibraryView, { global: { stubs } });
+    const lib = useLibraryStore();
+    const spy = vi.spyOn(lib, "setView");
+    await w.get('[data-test="view-artists"]').trigger("click");
+    expect(spy).toHaveBeenCalledWith("artists");
+  });
+
+  it("clicking a track row plays the queue from that index", async () => {
+    const w = mount(LibraryView, { global: { stubs } });
+    const lib = useLibraryStore();
+    const player = usePlayerStore();
+    lib.$patch({ view: "tracks", tracks: [row(), row({ path: "/m/b.mp3" })] });
+    const spy = vi.spyOn(player, "playTracks").mockResolvedValue();
+    await w.vm.$nextTick();
+    await w.findAll('[data-test="track-row"]')[1].trigger("click");
+    expect(spy).toHaveBeenCalledOnce();
+    expect(spy.mock.calls[0][1]).toBe(1);
+  });
+
+  it("typing in the search box drives setSearch", async () => {
+    const w = mount(LibraryView, { global: { stubs } });
+    const lib = useLibraryStore();
+    const spy = vi.spyOn(lib, "setSearch").mockResolvedValue();
+    await w.get('[data-test="library-search"]').setValue("daft");
+    expect(spy).toHaveBeenCalledWith("daft");
+  });
+});

@@ -14,6 +14,7 @@ vi.mock("@/api/tauri", () => ({
   listNativeOutputDevices: vi.fn().mockResolvedValue([]),
   nativeAudioSelectedOutputDevice: vi.fn().mockResolvedValue({ selected_name: null }),
   nativeAudioSetOutputDevice: vi.fn().mockResolvedValue(undefined),
+  recordPlay: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
@@ -649,5 +650,44 @@ describe("player.output devices", () => {
     p.$patch({ selectedOutputDevice: "Built-in" });
     await expect(p.setOutputDevice("DAC")).rejects.toThrow("busy");
     expect(p.selectedOutputDevice).toBe("Built-in");
+  });
+});
+
+describe("player.playTracks", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  });
+
+  it("replaces the queue and plays from the chosen index", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true });
+    await p.playTracks(mkQueue(), 2);
+    expect(p.queue).toHaveLength(3);
+    expect(p.currentIndex).toBe(2);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/2.mp3");
+    expect(p.isPlaying).toBe(true);
+  });
+
+  it("clamps an out-of-range start index", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true });
+    await p.playTracks(mkQueue(), 99);
+    expect(p.currentIndex).toBe(2);
+  });
+
+  it("ignores an empty track list", async () => {
+    const p = usePlayerStore();
+    await p.playTracks([], 0);
+    expect(p.queue).toHaveLength(0);
+    expect(nativeAudioPlay).not.toHaveBeenCalled();
+  });
+
+  it("rebuilds a current-first shuffle order when shuffle is on", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true, shuffle: true });
+    await p.playTracks(mkQueue(), 1);
+    expect(p.shuffleOrder[0]).toBe(1);
+    expect(p.shuffleOrder).toHaveLength(3);
   });
 });

@@ -1,8 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AlbumSummary,
+  AppSettings,
+  ArtistSummary,
+  GenreSummary,
+  LibraryTrack,
   NativeOutputDevice,
   NativeStatus,
+  PlaylistSummary,
+  ScanResult,
   TrackArtwork,
+  TrackMetadataInput,
   TrackSignalDetails,
 } from "@/types";
 
@@ -47,3 +55,60 @@ export const nativeAudioSelectedOutputDevice = () =>
   call<{ selected_name: string | null }>("native_audio_selected_output_device");
 export const nativeAudioSetOutputDevice = (name: string | null) =>
   call<void>("native_audio_set_output_device", { name });
+
+// --- Library ---
+export interface ListLibraryArgs {
+  limit?: number;
+  offset?: number;
+  genre?: string | null;
+  likedOnly?: boolean;
+  search?: string | null;
+}
+export const listLibrary = (args: ListLibraryArgs = {}) =>
+  call<LibraryTrack[]>("list_library", args as Record<string, unknown>);
+export const libraryCount = () => call<number>("library_count");
+export const listGenres = () => call<string[]>("list_genres");
+export const listArtists = () => call<ArtistSummary[]>("list_artists");
+export const listAlbums = () => call<AlbumSummary[]>("list_albums");
+export const listGenreSummaries = () =>
+  call<GenreSummary[]>("list_genre_summaries");
+export const recordPlay = (path: string) => call<void>("record_play", { path });
+export const listRecentlyPlayed = (limit: number) =>
+  call<LibraryTrack[]>("list_recently_played", { limit });
+export const listTopArtists = (limit: number) =>
+  call<ArtistSummary[]>("list_top_artists", { limit });
+export const clearHistory = () => call<void>("clear_history");
+export const updateTrackMetadataForPath = (
+  path: string,
+  metadataInput: TrackMetadataInput,
+) => call<LibraryTrack>("update_track_metadata_for_path", { path, metadataInput });
+export const writeMissingTagsForPath = (path: string) =>
+  call<boolean>("write_missing_tags_for_path", { path });
+
+// --- Playlists ---
+export const listPlaylists = () => call<PlaylistSummary[]>("list_playlists");
+export const savePlaylist = (name: string, paths: string[]) =>
+  call<PlaylistSummary>("save_playlist", { name, paths });
+export const appendToPlaylist = (playlistPath: string, paths: string[]) =>
+  call<PlaylistSummary>("append_to_playlist", { playlistPath, paths });
+export const loadPlaylist = (playlistPath: string) =>
+  call<LibraryTrack[]>("load_playlist", { playlistPath });
+export const importPlaylistFile = (sourcePath: string) =>
+  call<PlaylistSummary>("import_playlist_file", { sourcePath });
+export const deletePlaylist = (playlistPath: string) =>
+  call<void>("delete_playlist", { playlistPath });
+export const dedupPlaylist = (playlistPath: string) =>
+  call<PlaylistSummary>("dedup_playlist", { playlistPath });
+export const playlistContains = (playlistPath: string, trackPath: string) =>
+  call<boolean>("playlist_contains", { playlistPath, trackPath });
+
+// --- Settings / scan / app ---
+export const getSettings = () => call<AppSettings>("get_settings");
+export const saveSettings = (scanIntervalSecs: number, apiProxy: string | null) =>
+  call<void>("save_settings", { scanIntervalSecs, apiProxy });
+export const scanLibrary = () => call<ScanResult>("scan_library");
+export const scanPaths = (paths: string[]) =>
+  call<ScanResult>("scan_paths", { paths });
+export const pickScanPaths = (kind: string) =>
+  call<string[]>("pick_scan_paths", { kind });
+export const appVersion = () => call<string>("app_version");
