@@ -47,8 +47,7 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 ## Build & Release
 
 * [x] Fix `cargo tauri build` path issue.
-* [ ] Complete full application smoke test.
-* [ ] Verify installable release workflow.
+
 
 ---
 
@@ -56,19 +55,12 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 
 Features users expect from a modern desktop music player.
 
-## System Integration
 
-* [ ] Wire tray controls into playback state.
-* [ ] Wire daemon events into frontend stores.
-* [ ] Add update checking UI.
-* [ ] Add update installation UI.
-* [ ] Add media key support.
-* [ ] Add system now-playing integration.
 
 ## Themes & Accessibility
 
 * [ ] Add Light theme.
-* [ ] Add Dark theme.
+* [ ] Add Dark theme.test
 * [ ] Add in-app theme toggle (System / Light / Dark).
 * [ ] Complete Apple-dark visual polish pass.
 * [ ] Respect `prefers-reduced-motion`.
@@ -96,6 +88,15 @@ Features users expect from a modern desktop music player.
 
 * [ ] Play From Here.
 
+
+## System Integration
+
+* [ ] Wire tray controls into playback state.
+* [ ] Wire daemon events into frontend stores.
+* [ ] Add update checking UI.
+* [ ] Add update installation UI.
+* [ ] Add media key support.
+* [ ] Add system now-playing integration.
 ---
 
 # P2 - Power User Features
