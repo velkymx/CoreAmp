@@ -98,6 +98,19 @@ export const webDriver = {
     if (ctx && ctx.state === "suspended") await ctx.resume();
     await audio().play();
   },
+  // Build the audio graph now (without waiting for first playback) so visual
+  // engines like butterchurn have an AudioContext + node to attach to.
+  ensureGraph(): void {
+    ensureGraph();
+  },
+  // The AudioContext backing the graph (null until built / unavailable).
+  getAudioContext(): AudioContext | null {
+    return ctx;
+  },
+  // A node carrying the program audio, for external visualizers to tap.
+  getVizSource(): AudioNode | null {
+    return preampNode;
+  },
   // Live frequency analyser for the visualizer (null until web playback has
   // started, or when Web Audio is unavailable).
   getAnalyser(): AnalyserNode | null {

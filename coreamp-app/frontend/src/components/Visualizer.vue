@@ -1,6 +1,7 @@
 <template>
   <div class="visualizer" data-test="visualizer">
-    <canvas ref="canvasEl" class="viz-canvas"></canvas>
+    <ButterchurnViz v-if="pluginId === 'milkdrop'" />
+    <canvas v-else ref="canvasEl" class="viz-canvas"></canvas>
 
     <div class="viz-controls d-flex align-items-center gap-2">
       <VibeFormSelect
@@ -31,6 +32,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useFrequencyData } from "@/composables/useFrequencyData";
 import { visualizerPlugins, getPlugin } from "@/visualizer/registry";
 import type { VizFrame } from "@/visualizer/types";
+import ButterchurnViz from "@/components/ButterchurnViz.vue";
 
 const player = usePlayerStore();
 const canvasEl = ref<HTMLCanvasElement | null>(null);
@@ -39,9 +41,10 @@ const pluginId = ref<FormSelectOptionValue>("bars");
 // Shared analysis data (one RAF for the whole app); redraw whenever it updates.
 const { freq, wave, active } = useFrequencyData();
 
-const pluginOptions = computed<FormSelectOption[]>(() =>
-  visualizerPlugins.map((p) => ({ value: p.id, text: p.label })),
-);
+const pluginOptions = computed<FormSelectOption[]>(() => [
+  ...visualizerPlugins.map((p) => ({ value: p.id, text: p.label })),
+  { value: "milkdrop", text: "Milkdrop" },
+]);
 
 function useWeb(): void {
   void player.setSource("web");
