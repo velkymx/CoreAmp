@@ -84,7 +84,7 @@ Transport / now-playing / output controls.
 - [ ] Updater: check / install update
 - [ ] Edit metadata modal (cmd: update_track_metadata_for_path); write missing tags (cmd: write_missing_tags_for_path)
 - [x] Clear history (cmd: clear_history)
-- [ ] Status toasts via `useToast` for all async ops — inline status line for now
+- [x] Status toasts for all async ops — custom NotificationHost + notify store; playback/DSP/library/playlists/settings/output errors all surfaced
 
 ## Milestone 7 — Cutover
 - [ ] Visual parity pass: Apple-dark theme overrides on Bootstrap base

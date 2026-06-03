@@ -11,8 +11,10 @@
 import { computed, onMounted } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
 import { usePlayerStore } from "@/stores/player";
+import { useNotify } from "@/composables/useNotify";
 
 const player = usePlayerStore();
+const { run } = useNotify();
 
 // Sentinel for the "system default" choice. The backend models default as
 // `null`; an empty string keeps the value DOM/select-friendly and is mapped back
@@ -20,7 +22,9 @@ const player = usePlayerStore();
 const DEFAULT = "";
 
 onMounted(() => {
-  void player.loadOutputDevices();
+  void run(() => player.loadOutputDevices(), {
+    errorPrefix: "Couldn't list output devices",
+  });
 });
 
 const options = computed<FormSelectOption[]>(() => [
@@ -35,7 +39,10 @@ const selected = computed<FormSelectOptionValue>({
   get: () => player.selectedOutputDevice ?? DEFAULT,
   set: (value) => {
     const name = value === DEFAULT || value == null ? null : String(value);
-    void player.setOutputDevice(name);
+    void run(() => player.setOutputDevice(name), {
+      errorPrefix: "Couldn't switch output device",
+      success: name ? `Output: ${name}` : "Output: System default",
+    });
   },
 });
 </script>

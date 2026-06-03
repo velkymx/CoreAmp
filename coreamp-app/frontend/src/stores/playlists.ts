@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import type { PlaylistSummary } from "@/types";
 import * as api from "@/api/tauri";
+import { useNotifyStore, errorMessage } from "@/stores/notify";
 
 interface PlaylistsState {
   playlists: PlaylistSummary[];
@@ -17,6 +18,8 @@ export const usePlaylistsStore = defineStore("playlists", {
       this.loading = true;
       try {
         this.playlists = await api.listPlaylists();
+      } catch (err) {
+        useNotifyStore().error(`Couldn't load playlists: ${errorMessage(err)}`);
       } finally {
         this.loading = false;
       }
@@ -36,13 +39,23 @@ export const usePlaylistsStore = defineStore("playlists", {
     },
 
     async remove(playlistPath: string): Promise<void> {
-      await api.deletePlaylist(playlistPath);
-      this.playlists = this.playlists.filter((p) => p.path !== playlistPath);
+      try {
+        await api.deletePlaylist(playlistPath);
+        this.playlists = this.playlists.filter((p) => p.path !== playlistPath);
+        useNotifyStore().success("Playlist deleted.");
+      } catch (err) {
+        useNotifyStore().error(`Couldn't delete playlist: ${errorMessage(err)}`);
+      }
     },
 
     async dedup(playlistPath: string): Promise<void> {
-      const summary = await api.dedupPlaylist(playlistPath);
-      this.upsert(summary);
+      try {
+        const summary = await api.dedupPlaylist(playlistPath);
+        this.upsert(summary);
+        useNotifyStore().success(`Cleaned up — ${summary.track_count} unique tracks.`);
+      } catch (err) {
+        useNotifyStore().error(`Couldn't dedup playlist: ${errorMessage(err)}`);
+      }
     },
 
     async importFile(sourcePath: string): Promise<void> {

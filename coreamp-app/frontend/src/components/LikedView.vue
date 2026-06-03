@@ -18,12 +18,17 @@ import * as api from "@/api/tauri";
 import TrackTable from "@/components/TrackTable.vue";
 import { usePlayerStore } from "@/stores/player";
 import { toQueueTrack } from "@/util/track";
+import { useNotify } from "@/composables/useNotify";
 
 const player = usePlayerStore();
+const { run } = useNotify();
 const tracks = ref<LibraryTrack[]>([]);
 
 async function load(): Promise<void> {
-  tracks.value = await api.listLibrary({ likedOnly: true });
+  const rows = await run(() => api.listLibrary({ likedOnly: true }), {
+    errorPrefix: "Couldn't load liked tracks",
+  });
+  if (rows) tracks.value = rows;
 }
 onMounted(load);
 

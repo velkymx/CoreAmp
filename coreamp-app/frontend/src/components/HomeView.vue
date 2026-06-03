@@ -31,19 +31,23 @@ import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { useUiStore } from "@/stores/ui";
 import { toQueueTrack } from "@/util/track";
+import { useNotify } from "@/composables/useNotify";
 
 const player = usePlayerStore();
 const library = useLibraryStore();
 const ui = useUiStore();
+const { run } = useNotify();
 
 const topArtists = ref<ArtistSummary[]>([]);
 const recent = ref<LibraryTrack[]>([]);
 
 async function load(): Promise<void> {
-  [topArtists.value, recent.value] = await Promise.all([
-    api.listTopArtists(12),
-    api.listRecentlyPlayed(25),
-  ]);
+  const data = await run(
+    async () =>
+      Promise.all([api.listTopArtists(12), api.listRecentlyPlayed(25)]),
+    { errorPrefix: "Couldn't load dashboard" },
+  );
+  if (data) [topArtists.value, recent.value] = data;
 }
 onMounted(load);
 

@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import type { EqBand, NativeDspSettings } from "@/types";
 import * as api from "@/api/tauri";
+import { useNotifyStore, errorMessage } from "@/stores/notify";
 
 // Fixed 5-band layout. Only gain/Q are user-adjustable; the centre frequencies
 // are conventional for a 5-band graphic EQ.
@@ -59,7 +60,11 @@ export const useAudioStore = defineStore("audio", {
     // Push the current settings to the native engine. All mutators call this so
     // the audio path always matches the UI.
     async push(): Promise<void> {
-      await api.nativeAudioSetDspSettings(this.dspSettings);
+      try {
+        await api.nativeAudioSetDspSettings(this.dspSettings);
+      } catch (err) {
+        useNotifyStore().error(`DSP update failed: ${errorMessage(err)}`);
+      }
     },
 
     async setEqEnabled(enabled: boolean): Promise<void> {

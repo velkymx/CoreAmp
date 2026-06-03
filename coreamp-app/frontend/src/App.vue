@@ -24,6 +24,7 @@
         </div>
       </div>
     </footer>
+    <NotificationHost />
   </div>
 </template>
 
@@ -41,6 +42,7 @@ import PlaylistsView from "@/components/PlaylistsView.vue";
 import HomeView from "@/components/HomeView.vue";
 import SettingsView from "@/components/SettingsView.vue";
 import AudioView from "@/components/AudioView.vue";
+import NotificationHost from "@/components/NotificationHost.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useUiStore, type TabName } from "@/stores/ui";
 

@@ -51,18 +51,29 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import * as api from "@/api/tauri";
+import { useNotify } from "@/composables/useNotify";
+
+const { run } = useNotify();
 
 const scanInterval = ref("");
 const apiProxy = ref("");
 const version = ref("");
 const status = ref("");
 
-onMounted(async () => {
-  const [settings, ver] = await Promise.all([api.getSettings(), api.appVersion()]);
-  scanInterval.value = String(settings.scan_interval_secs);
-  apiProxy.value = settings.api_proxy ?? "";
-  version.value = ver;
-});
+onMounted(() =>
+  run(
+    async () => {
+      const [settings, ver] = await Promise.all([
+        api.getSettings(),
+        api.appVersion(),
+      ]);
+      scanInterval.value = String(settings.scan_interval_secs);
+      apiProxy.value = settings.api_proxy ?? "";
+      version.value = ver;
+    },
+    { errorPrefix: "Couldn't load settings" },
+  ),
+);
 
 async function onSave(): Promise<void> {
   const secs = Number.parseInt(scanInterval.value, 10);
@@ -70,26 +81,42 @@ async function onSave(): Promise<void> {
     status.value = "Scan interval must be a positive number of seconds.";
     return;
   }
-  await api.saveSettings(secs, apiProxy.value.trim() || null);
+  await run(() => api.saveSettings(secs, apiProxy.value.trim() || null), {
+    errorPrefix: "Save failed",
+    success: "Settings saved.",
+  });
   status.value = "Settings saved.";
 }
 
 async function onScan(): Promise<void> {
   status.value = "Scanning…";
-  const result = await api.scanLibrary();
-  status.value = `Scan complete: ${result.files_upserted} of ${result.files_discovered} files updated.`;
+  const result = await run(() => api.scanLibrary(), {
+    errorPrefix: "Scan failed",
+  });
+  if (result) {
+    status.value = `Scan complete: ${result.files_upserted} of ${result.files_discovered} files updated.`;
+  }
 }
 
 async function onAddFolders(): Promise<void> {
-  const paths = await api.pickScanPaths("folder");
-  if (paths.length === 0) return;
+  const paths = await run(() => api.pickScanPaths("folder"), {
+    errorPrefix: "Folder picker failed",
+  });
+  if (!paths || paths.length === 0) return;
   status.value = "Scanning new folders…";
-  const result = await api.scanPaths(paths);
-  status.value = `Added ${result.files_upserted} files from ${result.roots_scanned} folder(s).`;
+  const result = await run(() => api.scanPaths(paths), {
+    errorPrefix: "Scan failed",
+  });
+  if (result) {
+    status.value = `Added ${result.files_upserted} files from ${result.roots_scanned} folder(s).`;
+  }
 }
 
 async function onClearHistory(): Promise<void> {
-  await api.clearHistory();
+  await run(() => api.clearHistory(), {
+    errorPrefix: "Couldn't clear history",
+    success: "Play history cleared.",
+  });
   status.value = "Play history cleared.";
 }
 </script>

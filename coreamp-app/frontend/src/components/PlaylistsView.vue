@@ -79,9 +79,11 @@ import { usePlaylistsStore } from "@/stores/playlists";
 import { usePlayerStore } from "@/stores/player";
 import { toQueueTrack } from "@/util/track";
 import QueueList from "@/components/QueueList.vue";
+import { useNotify } from "@/composables/useNotify";
 
 const playlists = usePlaylistsStore();
 const player = usePlayerStore();
+const { run } = useNotify();
 const newName = ref("");
 
 onMounted(() => void playlists.load());
@@ -92,17 +94,20 @@ const canSave = computed(
 
 async function onSave(): Promise<void> {
   if (!canSave.value) return;
-  await playlists.save(
-    newName.value.trim(),
-    player.queue.map((t) => t.path),
+  const name = newName.value.trim();
+  const saved = await run(
+    () => playlists.save(name, player.queue.map((t) => t.path)),
+    { errorPrefix: "Couldn't save playlist", success: `Saved "${name}".` },
   );
-  newName.value = "";
+  if (saved) newName.value = "";
 }
 
 // Load a playlist into the queue and start it.
 async function onOpen(p: PlaylistSummary): Promise<void> {
-  const rows = await api.loadPlaylist(p.path);
-  await player.playTracks(rows.map(toQueueTrack), 0);
+  const rows = await run(() => api.loadPlaylist(p.path), {
+    errorPrefix: `Couldn't open "${p.name}"`,
+  });
+  if (rows) await player.playTracks(rows.map(toQueueTrack), 0);
 }
 </script>
 

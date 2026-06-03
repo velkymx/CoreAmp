@@ -6,6 +6,7 @@ import type {
   LibraryTrack,
 } from "@/types";
 import * as api from "@/api/tauri";
+import { useNotifyStore, errorMessage } from "@/stores/notify";
 
 export type LibraryView = "tracks" | "artists" | "albums" | "genres";
 
@@ -54,6 +55,10 @@ export const useLibraryStore = defineStore("library", {
         });
         if (token !== this.loadToken) return;
         this.tracks = tracks;
+      } catch (err) {
+        if (token === this.loadToken) {
+          useNotifyStore().error(`Couldn't load library: ${errorMessage(err)}`);
+        }
       } finally {
         if (token === this.loadToken) this.loading = false;
       }
@@ -106,11 +111,15 @@ export const useLibraryStore = defineStore("library", {
     // Toggle the like flag on a library row and reflect the new value in place.
     // When viewing the liked-only filter, an unliked row is dropped from view.
     async toggleLike(path: string): Promise<void> {
-      const liked = await api.toggleLiked(path);
-      const track = this.tracks.find((t) => t.path === path);
-      if (track) track.liked = liked;
-      if (this.likedOnly && !liked) {
-        this.tracks = this.tracks.filter((t) => t.path !== path);
+      try {
+        const liked = await api.toggleLiked(path);
+        const track = this.tracks.find((t) => t.path === path);
+        if (track) track.liked = liked;
+        if (this.likedOnly && !liked) {
+          this.tracks = this.tracks.filter((t) => t.path !== path);
+        }
+      } catch (err) {
+        useNotifyStore().error(`Couldn't update like: ${errorMessage(err)}`);
       }
     },
   },

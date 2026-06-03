@@ -10,6 +10,7 @@ import type {
 import * as api from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { buildShuffleOrder } from "@/util/shuffle";
+import { useNotifyStore, errorMessage } from "@/stores/notify";
 
 export type ToggleResult = "paused" | "resumed" | "played" | "busy" | "noop";
 export type NavResult = "played" | "ended" | "busy" | "noop";
@@ -278,16 +279,24 @@ export const usePlayerStore = defineStore("player", {
     async playCurrent(): Promise<void> {
       const track = this.queue[this.currentIndex];
       if (!track) return;
-      if (this.source === "native" && this.nativeAvailable) {
-        await api.nativeAudioPlay(track.path);
-      } else {
-        webDriver.load(track.path);
-        webDriver.setVolume(this.muted ? 0 : this.volume);
-        await webDriver.resume();
+      try {
+        if (this.source === "native" && this.nativeAvailable) {
+          await api.nativeAudioPlay(track.path);
+        } else {
+          webDriver.load(track.path);
+          webDriver.setVolume(this.muted ? 0 : this.volume);
+          await webDriver.resume();
+        }
+        this.isPlaying = true;
+        void this.loadNowPlayingMeta();
+        void api.recordPlay(track.path).catch(() => {});
+      } catch (err) {
+        // Playback failed (file gone, decode error, no output device …).
+        // Surface it instead of failing silently.
+        this.isPlaying = false;
+        const label = track.title ?? track.path;
+        useNotifyStore().error(`Couldn't play ${label}: ${errorMessage(err)}`);
       }
-      this.isPlaying = true;
-      void this.loadNowPlayingMeta();
-      void api.recordPlay(track.path).catch(() => {});
     },
 
     async stopPlayback(): Promise<void> {
