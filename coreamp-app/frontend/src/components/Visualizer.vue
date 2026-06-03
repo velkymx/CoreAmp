@@ -1,7 +1,7 @@
 <template>
   <div class="visualizer" data-test="visualizer">
     <ThreeOrb v-if="pluginId === 'orb'" />
-    <AstroChicken v-else-if="pluginId === 'game'" />
+    <SoundRunner v-else-if="pluginId === 'game'" />
     <canvas v-else ref="canvasEl" class="viz-canvas"></canvas>
 
     <div class="viz-controls d-flex align-items-center gap-2">
@@ -34,7 +34,7 @@ import { useFrequencyData } from "@/composables/useFrequencyData";
 import { visualizerPlugins, getPlugin } from "@/visualizer/registry";
 import type { VizFrame } from "@/visualizer/types";
 import ThreeOrb from "@/components/ThreeOrb.vue";
-import AstroChicken from "@/components/AstroChicken.vue";
+import SoundRunner from "@/components/SoundRunner.vue";
 
 const player = usePlayerStore();
 const canvasEl = ref<HTMLCanvasElement | null>(null);
