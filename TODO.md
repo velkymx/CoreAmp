@@ -55,13 +55,11 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 
 Features users expect from a modern desktop music player.
 
-
-
 ## Themes & Accessibility
 
-* [ ] Add Light theme.
-* [ ] Add Dark theme.test
-* [ ] Add in-app theme toggle (System / Light / Dark).
+* [x] Add Light theme.
+* [x] Add Dark theme.
+* [x] Add in-app theme toggle (System / Light / Dark).
 * [ ] Complete Apple-dark visual polish pass.
 * [ ] Respect `prefers-reduced-motion`.
 * [ ] Reduce animation intensity when reduced motion is enabled.
