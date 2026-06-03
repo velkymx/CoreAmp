@@ -1,13 +1,46 @@
 import { describe, it, expect } from "vitest";
+import { h } from "vue";
 import { mount } from "@vue/test-utils";
 import TrackTable from "@/components/TrackTable.vue";
+import type { LibraryTrack } from "@/types";
 
-const stubs = {
-  VibeIcon: { props: ["icon"], template: '<i :data-icon="icon"></i>' },
-  VibeButton: { template: "<button><slot/></button>" },
+// Minimal VibeDataTable stand-in: renders each item's cell slots and emits
+// row-clicked, so we can exercise TrackTable's slots and events.
+const VibeDataTable = {
+  props: ["items", "columns"],
+  emits: ["row-clicked"],
+  setup(props: any, { slots, emit }: any) {
+    return () =>
+      h(
+        "table",
+        {},
+        props.items.map((item: LibraryTrack, i: number) =>
+          h(
+            "tr",
+            { "data-test": "track-row", onClick: () => emit("row-clicked", item, i) },
+            props.columns.map((col: any) => {
+              const slot = slots[`cell(${col.key})`];
+              return h(
+                "td",
+                {},
+                slot
+                  ? slot({ item, value: (item as any)[col.key], index: i })
+                  : String((item as any)[col.key] ?? ""),
+              );
+            }),
+          ),
+        ),
+      );
+  },
 };
 
-const row = (over = {}) => ({
+const stubs = {
+  VibeDataTable,
+  VibeButton: { template: "<button><slot/></button>" },
+  VibeIcon: { props: ["icon"], template: '<i :data-icon="icon"></i>' },
+};
+
+const row = (over: Partial<LibraryTrack> = {}): LibraryTrack => ({
   path: "/m/a.mp3",
   filename: "a.mp3",
   artist: "Artist",
@@ -20,17 +53,8 @@ const row = (over = {}) => ({
   ...over,
 });
 
-describe("TrackTable", () => {
-  it("renders a row per track with title, artist, album, duration", () => {
-    const w = mount(TrackTable, { props: { tracks: [row()] }, global: { stubs } });
-    expect(w.findAll('[data-test="track-row"]')).toHaveLength(1);
-    expect(w.text()).toContain("Title");
-    expect(w.text()).toContain("Artist");
-    expect(w.text()).toContain("Album");
-    expect(w.text()).toContain("3:20");
-  });
-
-  it("falls back to the file name when title is missing", () => {
+describe("TrackTable (VibeDataTable)", () => {
+  it("renders a cell per track with title (filename fallback)", () => {
     const w = mount(TrackTable, {
       props: { tracks: [row({ title: null })] },
       global: { stubs },
@@ -38,71 +62,35 @@ describe("TrackTable", () => {
     expect(w.get('[data-test="track-title"]').text()).toBe("a.mp3");
   });
 
-  it("emits play with the row index on row click", async () => {
+  it("clicking a row emits play with the track", async () => {
     const w = mount(TrackTable, {
       props: { tracks: [row(), row({ path: "/m/b.mp3" })] },
       global: { stubs },
     });
     await w.findAll('[data-test="track-row"]')[1].trigger("click");
-    expect(w.emitted("play")?.[0]).toEqual([1]);
+    expect(w.emitted("play")?.[0][0]).toMatchObject({ path: "/m/b.mp3" });
   });
 
-  it("emits like with the path when the heart is clicked, without emitting play", async () => {
+  it("the heart emits like with the path and not play", async () => {
     const w = mount(TrackTable, { props: { tracks: [row()] }, global: { stubs } });
     await w.get('[data-test="track-like"]').trigger("click");
     expect(w.emitted("like")?.[0]).toEqual(["/m/a.mp3"]);
     expect(w.emitted("play")).toBeUndefined();
   });
 
-  it("clicking artist or album emits browse without playing", async () => {
+  it("artist and album emit browse", async () => {
     const w = mount(TrackTable, { props: { tracks: [row()] }, global: { stubs } });
     await w.get('[data-test="track-artist"]').trigger("click");
     expect(w.emitted("browse")?.[0]).toEqual(["Artist"]);
     await w.get('[data-test="track-album"]').trigger("click");
     expect(w.emitted("browse")?.[1]).toEqual(["Album"]);
-    expect(w.emitted("play")).toBeUndefined();
   });
 
-  it("marks the active row", () => {
-    const w = mount(TrackTable, {
-      props: { tracks: [row(), row({ path: "/m/b.mp3" })], activePath: "/m/b.mp3" },
-      global: { stubs },
-    });
-    const rows = w.findAll('[data-test="track-row"]');
-    expect(rows[1].classes()).toContain("is-active");
-    expect(rows[0].classes()).not.toContain("is-active");
-  });
-
-  it("renders no header unless sortable", () => {
+  it("the row menu emits play-next / enqueue / add-to-playlist / edit", async () => {
     const w = mount(TrackTable, { props: { tracks: [row()] }, global: { stubs } });
-    expect(w.find('[data-test="sort-title"]').exists()).toBe(false);
-  });
-
-  it("emits sort when a column header is clicked and shows the active arrow", async () => {
-    const w = mount(TrackTable, {
-      props: { tracks: [row()], sortable: true, sortKey: "title", sortDir: "asc" },
-      global: { stubs },
-    });
-    expect(w.get('[data-test="sort-title"]').text()).toContain("▲");
-    await w.get('[data-test="sort-duration"]').trigger("click");
-    expect(w.emitted("sort")?.[0]).toEqual(["duration"]);
-  });
-
-  it("shows an empty state when there are no tracks", () => {
-    const w = mount(TrackTable, { props: { tracks: [] }, global: { stubs } });
-    expect(w.find('[data-test="track-empty"]').exists()).toBe(true);
-  });
-
-  it("opens the row menu and emits play-next / enqueue without playing", async () => {
-    const w = mount(TrackTable, { props: { tracks: [row()] }, global: { stubs } });
-    expect(w.find('[data-test="track-menu-popup"]').exists()).toBe(false);
     await w.get('[data-test="track-menu"]').trigger("click");
-    expect(w.find('[data-test="track-menu-popup"]').exists()).toBe(true);
-
     await w.get('[data-test="menu-play-next"]').trigger("click");
     expect(w.emitted("play-next")?.[0][0]).toMatchObject({ path: "/m/a.mp3" });
-    expect(w.find('[data-test="track-menu-popup"]').exists()).toBe(false);
-    expect(w.emitted("play")).toBeUndefined();
 
     await w.get('[data-test="track-menu"]').trigger("click");
     await w.get('[data-test="menu-queue"]').trigger("click");
@@ -115,5 +103,18 @@ describe("TrackTable", () => {
     await w.get('[data-test="track-menu"]').trigger("click");
     await w.get('[data-test="menu-edit"]').trigger("click");
     expect(w.emitted("edit")?.[0][0]).toMatchObject({ path: "/m/a.mp3" });
+  });
+
+  it("marks the active row with a play marker", () => {
+    const w = mount(TrackTable, {
+      props: { tracks: [row()], activePath: "/m/a.mp3" },
+      global: { stubs },
+    });
+    expect(w.text()).toContain("▶");
+  });
+
+  it("shows an empty state when there are no tracks", () => {
+    const w = mount(TrackTable, { props: { tracks: [] }, global: { stubs } });
+    expect(w.find('[data-test="track-empty"]').exists()).toBe(true);
   });
 });

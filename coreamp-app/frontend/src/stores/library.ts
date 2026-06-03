@@ -9,15 +9,6 @@ import * as api from "@/api/tauri";
 import { useNotifyStore, errorMessage } from "@/stores/notify";
 
 export type LibraryView = "tracks" | "artists" | "albums" | "genres";
-export type SortKey = "title" | "artist" | "album" | "duration";
-export type SortDir = "asc" | "desc";
-
-// Value used for sorting a row by a given column (title falls back to filename).
-function sortValue(track: LibraryTrack, key: SortKey): string | number | null {
-  if (key === "title") return track.title || track.filename;
-  if (key === "duration") return track.duration;
-  return track[key];
-}
 
 interface LibraryState {
   view: LibraryView;
@@ -32,8 +23,6 @@ interface LibraryState {
   count: number;
   loading: boolean;
   loadToken: number;
-  sortKey: SortKey | null;
-  sortDir: SortDir;
 }
 
 export const useLibraryStore = defineStore("library", {
@@ -50,43 +39,8 @@ export const useLibraryStore = defineStore("library", {
     count: 0,
     loading: false,
     loadToken: 0,
-    sortKey: null,
-    sortDir: "asc",
   }),
-  getters: {
-    // Tracks ordered by the active sort column. Empty/null values always sort
-    // last; default (no sort key) preserves backend order.
-    sortedTracks(state): LibraryTrack[] {
-      if (!state.sortKey) return state.tracks;
-      const key = state.sortKey;
-      const dir = state.sortDir === "asc" ? 1 : -1;
-      return [...state.tracks].sort((a, b) => {
-        const av = sortValue(a, key);
-        const bv = sortValue(b, key);
-        const aEmpty = av == null || av === "";
-        const bEmpty = bv == null || bv === "";
-        if (aEmpty && bEmpty) return 0;
-        if (aEmpty) return 1;
-        if (bEmpty) return -1;
-        if (key === "duration") return ((av as number) - (bv as number)) * dir;
-        return (
-          String(av).localeCompare(String(bv), undefined, { sensitivity: "base" }) *
-          dir
-        );
-      });
-    },
-  },
   actions: {
-    // Toggle sorting on a column: same column flips direction, a new column
-    // starts ascending.
-    toggleSort(key: SortKey): void {
-      if (this.sortKey === key) {
-        this.sortDir = this.sortDir === "asc" ? "desc" : "asc";
-      } else {
-        this.sortKey = key;
-        this.sortDir = "asc";
-      }
-    },
 
     // Load tracks honoring the current search / genre / liked filters. Token-
     // guarded so a stale response from a superseded filter can't overwrite a

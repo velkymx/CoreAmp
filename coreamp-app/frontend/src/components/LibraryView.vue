@@ -31,11 +31,9 @@
     <div class="library-content flex-grow-1 overflow-auto">
       <TrackTable
         v-if="library.view === 'tracks'"
-        :tracks="library.sortedTracks"
+        :tracks="library.tracks"
         :active-path="player.currentTrack?.path ?? null"
-        sortable
-        :sort-key="library.sortKey"
-        :sort-dir="library.sortDir"
+        :searchable="false"
         @play="onPlay"
         @like="library.toggleLike"
         @play-next="(t) => player.playNext(toQueueTrack(t))"
@@ -43,7 +41,6 @@
         @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
         @edit="(t) => ui.openEdit(t)"
         @browse="(v) => library.setSearch(v)"
-        @sort="(k) => library.toggleSort(k)"
       />
       <SummaryGrid
         v-else
@@ -58,6 +55,7 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
+import type { LibraryTrack } from "@/types";
 import TrackTable from "@/components/TrackTable.vue";
 import SummaryGrid, { type SummaryItem } from "@/components/SummaryGrid.vue";
 import { useLibraryStore, type LibraryView } from "@/stores/library";
@@ -131,8 +129,9 @@ const summaryItems = computed<SummaryItem[]>(() => {
   }));
 });
 
-function onPlay(index: number): void {
-  void player.playTracks(library.sortedTracks.map(toQueueTrack), index);
+function onPlay(track: LibraryTrack): void {
+  const index = library.tracks.findIndex((t) => t.path === track.path);
+  void player.playTracks(library.tracks.map(toQueueTrack), Math.max(index, 0));
 }
 
 // Clicking a summary card drills into the matching tracks: genres use the

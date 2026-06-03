@@ -35,6 +35,12 @@ const stubs = {
     template: "<select></select>",
   },
   VibeIcon: { props: ["icon"], template: "<i></i>" },
+  TrackTable: {
+    props: ["tracks", "activePath", "searchable"],
+    emits: ["play"],
+    template:
+      '<div><button v-for="t in tracks" :key="t.path" :data-path="t.path" @click="$emit(\'play\', t)"></button></div>',
+  },
 };
 
 const row = (over = {}) => ({
@@ -65,13 +71,16 @@ describe("LibraryView", () => {
   });
 
   it("clicking a track row plays the queue from that index", async () => {
+    const { listLibrary } = await import("@/api/tauri");
+    vi.mocked(listLibrary).mockResolvedValue([row(), row({ path: "/m/b.mp3" })]);
     const w = mount(LibraryView, { global: { stubs } });
     const lib = useLibraryStore();
     const player = usePlayerStore();
-    lib.$patch({ view: "tracks", tracks: [row(), row({ path: "/m/b.mp3" })] });
+    lib.$patch({ view: "tracks" });
+    await lib.loadTracks();
     const spy = vi.spyOn(player, "playTracks").mockResolvedValue();
     await w.vm.$nextTick();
-    await w.findAll('[data-test="track-row"]')[1].trigger("click");
+    await w.find('[data-path="/m/b.mp3"]').trigger("click");
     expect(spy).toHaveBeenCalledOnce();
     expect(spy.mock.calls[0][1]).toBe(1);
   });

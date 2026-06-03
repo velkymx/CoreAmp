@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { h } from "vue";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import PlaylistsView from "@/components/PlaylistsView.vue";
@@ -32,6 +33,31 @@ const stubs = {
     template: "<button :disabled='disabled'><slot/></button>",
   },
   VibeIcon: { props: ["icon"], template: "<i></i>" },
+  VibeDataTable: {
+    props: ["items", "columns"],
+    emits: ["row-clicked"],
+    setup(props: any, { slots, emit }: any) {
+      return () =>
+        h(
+          "table",
+          {},
+          props.items.map((item: any, i: number) =>
+            h(
+              "tr",
+              { "data-test": "playlist-row", onClick: () => emit("row-clicked", item, i) },
+              props.columns.map((col: any) => {
+                const slot = slots[`cell(${col.key})`];
+                return h(
+                  "td",
+                  {},
+                  slot ? slot({ item, value: item[col.key], index: i }) : String(item[col.key] ?? ""),
+                );
+              }),
+            ),
+          ),
+        );
+    },
+  },
 };
 
 const pl = (name: string, path: string) => ({ name, path, track_count: 3 });
@@ -78,7 +104,7 @@ describe("PlaylistsView", () => {
     const spy = vi.spyOn(player, "playTracks").mockResolvedValue();
     usePlaylistsStore().$patch({ playlists: [pl("A", "/p/a.m3u")] });
     await w.vm.$nextTick();
-    await w.get('[data-test="playlist-open"]').trigger("click");
+    await w.get('[data-test="playlist-row"]').trigger("click");
     await Promise.resolve();
     expect(api.loadPlaylist).toHaveBeenCalledWith("/p/a.m3u");
     expect(spy).toHaveBeenCalledOnce();

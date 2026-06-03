@@ -34,44 +34,42 @@
       >
         No playlists yet
       </div>
-      <ul v-else class="list-group list-group-flush">
-        <li
-          v-for="p in playlists.playlists"
-          :key="p.path"
-          class="list-group-item d-flex align-items-center gap-2"
-          data-test="playlist-row"
-        >
-          <button
-            type="button"
-            class="btn btn-link text-start flex-grow-1 text-decoration-none p-0"
-            data-test="playlist-open"
-            @click="onOpen(p)"
-          >
-            <span class="fw-semibold">{{ p.name }}</span>
-            <span class="text-secondary small ms-2">{{ p.track_count }} tracks</span>
-          </button>
-          <VibeButton
-            variant="secondary"
-            outline
-            size="sm"
-            aria-label="Remove duplicates"
-            data-test="playlist-dedup"
-            @click="playlists.dedup(p.path)"
-          >
-            <VibeIcon icon="funnel" />
-          </VibeButton>
-          <VibeButton
-            variant="danger"
-            outline
-            size="sm"
-            aria-label="Delete playlist"
-            data-test="playlist-delete"
-            @click="playlists.remove(p.path)"
-          >
-            <VibeIcon icon="trash" />
-          </VibeButton>
-        </li>
-      </ul>
+      <VibeDataTable
+        v-else
+        :items="playlists.playlists"
+        :columns="columns"
+        row-key="path"
+        hover
+        :per-page="25"
+        data-test="playlists-datatable"
+        @row-clicked="(item: PlaylistSummary) => onOpen(item)"
+      >
+        <template #cell(track_count)="{ value }">{{ value }} tracks</template>
+        <template #cell(actions)="{ item }">
+          <div class="d-flex justify-content-end gap-1">
+            <VibeButton
+              variant="secondary"
+              outline
+              size="sm"
+              aria-label="Remove duplicates"
+              data-test="playlist-dedup"
+              @click.stop="playlists.dedup(item.path)"
+            >
+              <VibeIcon icon="funnel" />
+            </VibeButton>
+            <VibeButton
+              variant="danger"
+              outline
+              size="sm"
+              aria-label="Delete playlist"
+              data-test="playlist-delete"
+              @click.stop="playlists.remove(item.path)"
+            >
+              <VibeIcon icon="trash" />
+            </VibeButton>
+          </div>
+        </template>
+      </VibeDataTable>
     </div>
     </div>
   </div>
@@ -79,6 +77,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import type { DataTableColumn } from "@velkymx/vibeui";
 import type { PlaylistSummary } from "@/types";
 import * as api from "@/api/tauri";
 import { usePlaylistsStore } from "@/stores/playlists";
@@ -116,6 +115,12 @@ onMounted(async () => {
   }
 });
 onBeforeUnmount(() => unlistenDrop?.());
+
+const columns = computed<DataTableColumn[]>(() => [
+  { key: "name", label: "Name" },
+  { key: "track_count", label: "Tracks" },
+  { key: "actions", label: "", sortable: false, searchable: false },
+]);
 
 const canSave = computed(
   () => newName.value.trim().length > 0 && player.queue.length > 0,
