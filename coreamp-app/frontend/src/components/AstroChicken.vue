@@ -8,31 +8,17 @@
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { useFrequencyData } from "@/composables/useFrequencyData";
 import { createAstroChicken } from "@/visualizer/astroChicken";
+import { extractBands } from "@/visualizer/bands";
 
 const hostEl = ref<HTMLDivElement | null>(null);
 const { freq } = useFrequencyData();
 
 let game: { destroy: () => void } | null = null;
 
-// Reduce the FFT buffer to the three bands the game reacts to.
-function bands(): { bass: number; mid: number; treble: number } {
-  const f = freq.value;
-  const avg = (lo: number, hi: number): number => {
-    let sum = 0;
-    let n = 0;
-    for (let i = lo; i < hi && i < f.length; i++) {
-      sum += f[i];
-      n++;
-    }
-    return n ? sum / n / 255 : 0;
-  };
-  return { bass: avg(1, 30), mid: avg(30, 200), treble: avg(200, 500) };
-}
-
 onMounted(() => {
   if (!hostEl.value) return;
   hostEl.value.focus();
-  game = createAstroChicken(hostEl.value, bands);
+  game = createAstroChicken(hostEl.value, () => extractBands(freq.value));
 });
 
 onBeforeUnmount(() => {

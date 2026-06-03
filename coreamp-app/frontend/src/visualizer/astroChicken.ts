@@ -278,8 +278,8 @@ let containerEl: HTMLElement | null = null;
       const bassHit = s.smoothBass - s.prevBass;
       s.energyAccum += (bass + mid + treble) / 3 * dt;
 
-      // ── Palette cycling — world mood shifts with accumulated energy ──
-      s.palettePhase += dt * 0.02 + s.smoothBass * dt * 0.1;
+      // ── Palette cycling — world mood shifts mostly with the music energy ──
+      s.palettePhase += dt * 0.01 + (s.smoothBass + s.smoothMid) * dt * 0.7;
       const palLen = WORLD_PALETTES.length;
       const palFloat = (s.palettePhase * 0.5) % palLen;
       const palA = WORLD_PALETTES[Math.floor(palFloat) % palLen];
@@ -291,13 +291,13 @@ let containerEl: HTMLElement | null = null;
       const groundColor = lerpColor(palA.ground, palB.ground, palT);
 
       // Brighten everything with energy
-      const energyBright = s.smoothBass * 30 + s.smoothMid * 15;
+      const energyBright = s.smoothBass * 55 + s.smoothMid * 28;
       sky1[0] += energyBright; sky1[1] += energyBright * 0.5; sky1[2] += energyBright;
       sky2[0] += energyBright * 0.5; sky2[1] += energyBright * 0.3; sky2[2] += energyBright * 0.7;
 
       // ── Screen shake on bass hits ──
-      if (bassHit > 0.04) {
-        s.screenShake = Math.min(4, s.screenShake + bassHit * 40);
+      if (bassHit > 0.02) {
+        s.screenShake = Math.min(5, s.screenShake + bassHit * 55);
       }
       s.screenShake = Math.max(0, s.screenShake - dt * 20);
 

@@ -8,6 +8,7 @@
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { loadThree } from "@/visualizer/loadVendor";
 import { useFrequencyData } from "@/composables/useFrequencyData";
+import { extractBands } from "@/visualizer/bands";
 import { errorMessage } from "@/stores/notify";
 
 // Ported from the legacy "Reactive" three.js orb: an icosahedron whose vertices
@@ -35,19 +36,9 @@ function isWebGLAvailable(): boolean {
   }
 }
 
-// Reduce the FFT buffer to three normalized energy bands.
+// Three normalized, gain-scaled energy bands (shared with the other visuals).
 function bands(): { bass: number; mid: number; treble: number } {
-  const f = freq.value;
-  const avg = (lo: number, hi: number): number => {
-    let sum = 0;
-    let n = 0;
-    for (let i = lo; i < hi && i < f.length; i++) {
-      sum += f[i];
-      n++;
-    }
-    return n ? sum / n / 255 : 0;
-  };
-  return { bass: avg(1, 30), mid: avg(30, 200), treble: avg(200, 500) };
+  return extractBands(freq.value);
 }
 
 const vertexShader = `
