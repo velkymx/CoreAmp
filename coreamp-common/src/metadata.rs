@@ -334,3 +334,49 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
 
     Ok(changed)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::directory_artwork_candidates;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir() -> std::path::PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("coreamp-art-{stamp}"));
+        fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    #[test]
+    fn directory_artwork_candidates_finds_sibling_cover() {
+        let dir = temp_dir();
+        fs::write(dir.join("song.mp3"), b"x").expect("track");
+        fs::write(dir.join("cover.jpg"), b"jpgbytes").expect("cover");
+        let candidates = directory_artwork_candidates(&dir.join("song.mp3"));
+        assert!(
+            candidates
+                .iter()
+                .any(|p| p.file_name().unwrap() == "cover.jpg"),
+            "folder cover.jpg should be an artwork candidate"
+        );
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn directory_artwork_candidates_empty_without_images() {
+        let dir = temp_dir();
+        fs::write(dir.join("song.mp3"), b"x").expect("track");
+        fs::write(dir.join("notes.txt"), b"x").expect("txt");
+        let candidates = directory_artwork_candidates(&dir.join("song.mp3"));
+        assert!(
+            candidates
+                .iter()
+                .all(|p| p.extension().is_some_and(|e| e != "txt"))
+        );
+        fs::remove_dir_all(&dir).ok();
+    }
+}
