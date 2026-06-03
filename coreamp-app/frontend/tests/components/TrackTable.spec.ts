@@ -38,6 +38,7 @@ const stubs = {
   VibeDataTable,
   VibeButton: { template: "<button><slot/></button>" },
   VibeIcon: { props: ["icon"], template: '<i :data-icon="icon"></i>' },
+  AlbumArt: { props: ["path", "size"], template: '<i data-test="album-art"></i>' },
 };
 
 const row = (over: Partial<LibraryTrack> = {}): LibraryTrack => ({

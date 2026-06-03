@@ -14,7 +14,7 @@
       </VibeButton>
     </div>
 
-    <EqGraph :bands="audio.bands" />
+    <EqGraph :bands="audio.bands" :freq="freq" />
 
     <div class="eq-bands d-flex justify-content-between gap-2 mt-3">
       <div
@@ -74,8 +74,10 @@ import { computed } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
 import EqGraph from "@/components/EqGraph.vue";
 import { useAudioStore, type EqPresetName } from "@/stores/audio";
+import { useFrequencyData } from "@/composables/useFrequencyData";
 
 const audio = useAudioStore();
+const { freq } = useFrequencyData();
 
 const PRESETS: EqPresetName[] = ["Flat", "Warm", "Presence", "V Curve", "Bass Cut"];
 const presetOptions: FormSelectOption[] = PRESETS.map((p) => ({ value: p, text: p }));

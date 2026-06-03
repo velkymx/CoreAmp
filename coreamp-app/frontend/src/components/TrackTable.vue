@@ -15,8 +15,11 @@
       @row-clicked="(item: LibraryTrack) => $emit('play', item)"
     >
       <template #cell(title)="{ item }">
-        <span v-if="item.path === activePath" class="me-1 text-primary">▶</span>
-        <span data-test="track-title">{{ item.title || item.filename }}</span>
+        <div class="d-flex align-items-center gap-2">
+          <AlbumArt :path="item.path" :size="36" />
+          <span v-if="item.path === activePath" class="text-primary">▶</span>
+          <span class="text-truncate" data-test="track-title">{{ item.title || item.filename }}</span>
+        </div>
       </template>
 
       <template #cell(artist)="{ item }">
@@ -93,6 +96,7 @@ import { ref, computed } from "vue";
 import type { DataTableColumn } from "@velkymx/vibeui";
 import type { LibraryTrack } from "@/types";
 import { formatTime } from "@/util/time";
+import AlbumArt from "@/components/AlbumArt.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -153,6 +157,16 @@ function emitMenu(
 </script>
 
 <style scoped>
+.track-table {
+  height: 100%;
+  min-height: 18rem;
+  display: flex;
+  flex-direction: column;
+}
+.track-table :deep(.table-responsive) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .meta-link {
   border: 0;
   background: transparent;

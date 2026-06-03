@@ -149,6 +149,9 @@ async function onOpen(p: PlaylistSummary): Promise<void> {
 .playlists-pane {
   min-width: 0;
 }
+.playlists-list {
+  min-height: 18rem;
+}
 .queue-pane {
   width: 22rem;
   max-width: 40%;
