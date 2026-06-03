@@ -24,6 +24,16 @@
     <VibeButton variant="secondary" aria-label="Next track" @click="player.nextTrack()">
       <VibeIcon icon="skip-end-fill" />
     </VibeButton>
+    <VibeButton
+      :variant="player.repeatMode !== 'off' ? 'primary' : 'secondary'"
+      outline
+      data-test="repeat"
+      :aria-pressed="player.repeatMode !== 'off'"
+      aria-label="Repeat"
+      @click="player.cycleRepeat()"
+    >
+      <VibeIcon :icon="player.repeatMode === 'track' ? 'repeat-1' : 'repeat'" />
+    </VibeButton>
   </div>
 </template>
 

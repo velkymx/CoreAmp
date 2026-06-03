@@ -6,6 +6,7 @@ import { buildShuffleOrder } from "@/util/shuffle";
 
 export type ToggleResult = "paused" | "resumed" | "played" | "busy" | "noop";
 export type NavResult = "played" | "ended" | "busy" | "noop";
+export type RepeatMode = "off" | "queue" | "track";
 
 interface PlayerState {
   queue: Track[];
@@ -21,6 +22,7 @@ interface PlayerState {
   shuffle: boolean;
   shuffleOrder: number[];
   shufflePos: number;
+  repeatMode: RepeatMode;
 }
 
 export const usePlayerStore = defineStore("player", {
@@ -38,6 +40,7 @@ export const usePlayerStore = defineStore("player", {
     shuffle: false,
     shuffleOrder: [],
     shufflePos: 0,
+    repeatMode: "off",
   }),
   actions: {
     // Apply an effective output level (0..1) to the active playback source.
@@ -112,6 +115,16 @@ export const usePlayerStore = defineStore("player", {
       this.isPlaying = false;
     },
 
+    // Rotate the repeat mode: off -> queue -> track -> off.
+    cycleRepeat(): void {
+      this.repeatMode =
+        this.repeatMode === "off"
+          ? "queue"
+          : this.repeatMode === "queue"
+            ? "track"
+            : "off";
+    },
+
     // Build a fresh current-first shuffle order; toggling never interrupts the
     // current track (no playback call here).
     toggleShuffle(): void {
@@ -130,10 +143,20 @@ export const usePlayerStore = defineStore("player", {
       if (!this.queue.length || this.currentIndex < 0) return "noop";
       this.inFlight = true;
       try {
+        if (this.repeatMode === "track") {
+          await this.playCurrent();
+          return "played";
+        }
         if (this.shuffle && this.shuffleOrder.length > 0) {
           if (this.shufflePos + 1 < this.shuffleOrder.length) {
             this.shufflePos += 1;
             this.currentIndex = this.shuffleOrder[this.shufflePos];
+            await this.playCurrent();
+            return "played";
+          }
+          if (this.repeatMode === "queue") {
+            this.shufflePos = 0;
+            this.currentIndex = this.shuffleOrder[0];
             await this.playCurrent();
             return "played";
           }
@@ -142,6 +165,11 @@ export const usePlayerStore = defineStore("player", {
         }
         if (this.currentIndex + 1 < this.queue.length) {
           this.currentIndex += 1;
+          await this.playCurrent();
+          return "played";
+        }
+        if (this.repeatMode === "queue") {
+          this.currentIndex = 0;
           await this.playCurrent();
           return "played";
         }
@@ -161,14 +189,19 @@ export const usePlayerStore = defineStore("player", {
         if (this.shuffle && this.shuffleOrder.length > 0) {
           if (this.shufflePos > 0) {
             this.shufflePos -= 1;
-            this.currentIndex = this.shuffleOrder[this.shufflePos];
+          } else if (this.repeatMode === "queue") {
+            this.shufflePos = this.shuffleOrder.length - 1;
           }
+          this.currentIndex = this.shuffleOrder[this.shufflePos];
           await this.playCurrent();
           return "played";
         }
-        // Step back, or restart the current track when already at the start.
+        // Step back; wrap to the end when repeating the queue, otherwise restart
+        // the current track at the start.
         if (this.currentIndex > 0) {
           this.currentIndex -= 1;
+        } else if (this.repeatMode === "queue") {
+          this.currentIndex = this.queue.length - 1;
         }
         await this.playCurrent();
         return "played";

@@ -356,6 +356,89 @@ describe("player.toggleShuffle", () => {
   });
 });
 
+describe("player.repeat", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("cycleRepeat rotates off -> queue -> track -> off", () => {
+    const p = usePlayerStore();
+    expect(p.repeatMode).toBe("off");
+    p.cycleRepeat();
+    expect(p.repeatMode).toBe("queue");
+    p.cycleRepeat();
+    expect(p.repeatMode).toBe("track");
+    p.cycleRepeat();
+    expect(p.repeatMode).toBe("off");
+  });
+
+  it("nextTrack with repeat 'track' replays the current track", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 1,
+      repeatMode: "track",
+      isPlaying: true,
+    });
+    const result = await p.nextTrack();
+    expect(result).toBe("played");
+    expect(p.currentIndex).toBe(1);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/1.mp3");
+  });
+
+  it("nextTrack at the end with repeat 'queue' wraps to the start", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 2,
+      repeatMode: "queue",
+      isPlaying: true,
+    });
+    const result = await p.nextTrack();
+    expect(result).toBe("played");
+    expect(p.currentIndex).toBe(0);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/0.mp3");
+    expect(nativeAudioStop).not.toHaveBeenCalled();
+  });
+
+  it("nextTrack at the end of the shuffle order with repeat 'queue' wraps", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 0,
+      shuffle: true,
+      shuffleOrder: [1, 2, 0],
+      shufflePos: 2,
+      repeatMode: "queue",
+      isPlaying: true,
+    });
+    const result = await p.nextTrack();
+    expect(result).toBe("played");
+    expect(p.shufflePos).toBe(0);
+    expect(p.currentIndex).toBe(1);
+  });
+
+  it("prevTrack at the start with repeat 'queue' wraps to the last track", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 0,
+      repeatMode: "queue",
+      isPlaying: true,
+    });
+    const result = await p.prevTrack();
+    expect(result).toBe("played");
+    expect(p.currentIndex).toBe(2);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/2.mp3");
+  });
+});
+
 describe("player.setVolume / toggleMute", () => {
   beforeEach(() => vi.clearAllMocks());
 
