@@ -803,6 +803,49 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_connections_write_without_busy_errors() {
+        // Two independently-opened connections (like the app + the daemon)
+        // writing the same WAL DB at once must not fail with SQLITE_BUSY.
+        let dir = std::env::temp_dir().join(format!("coreamp-multi-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("multi.db");
+
+        {
+            let conn = Connection::open(&path).expect("open");
+            super::configure_connection(&conn).expect("configure");
+            super::apply_schema(&conn).expect("schema");
+        }
+
+        let mut handles = Vec::new();
+        for writer in 0..2 {
+            let path = path.clone();
+            handles.push(std::thread::spawn(move || {
+                let conn = Connection::open(&path).expect("open");
+                super::configure_connection(&conn).expect("configure");
+                for i in 0..50 {
+                    conn.execute(
+                        "INSERT INTO files(path, filename) VALUES (?1, ?2)",
+                        rusqlite::params![format!("/w{writer}/{i}.mp3"), "f.mp3"],
+                    )
+                    .expect("insert must not hit SQLITE_BUSY under WAL + busy_timeout");
+                }
+            }));
+        }
+        for handle in handles {
+            handle.join().expect("writer thread");
+        }
+
+        let conn = Connection::open(&path).expect("reopen");
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0))
+            .expect("count");
+        assert_eq!(count, 100);
+
+        drop(conn);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn schema_contains_files_table() {
         let conn = Connection::open_in_memory().expect("in-memory db");
         super::apply_schema(&conn).expect("apply schema");
