@@ -64,6 +64,29 @@ export const usePlaylistsStore = defineStore("playlists", {
       this.upsert(summary);
     },
 
+    // Import every .m3u/.m3u8 among dropped file paths, reporting the outcome.
+    // Non-playlist files are ignored. Returns the number imported.
+    async importDropped(paths: string[]): Promise<number> {
+      const notify = useNotifyStore();
+      const m3u = paths.filter((p) => /\.m3u8?$/i.test(p));
+      if (m3u.length === 0) return 0;
+      let imported = 0;
+      for (const path of m3u) {
+        try {
+          await this.importFile(path);
+          imported += 1;
+        } catch (err) {
+          notify.error(`Couldn't import ${path}: ${errorMessage(err)}`);
+        }
+      }
+      if (imported > 0) {
+        notify.success(
+          `Imported ${imported} playlist${imported === 1 ? "" : "s"}.`,
+        );
+      }
+      return imported;
+    },
+
     // Insert or replace a playlist by path, keeping the list sorted by name.
     upsert(summary: PlaylistSummary): void {
       const rest = this.playlists.filter((p) => p.path !== summary.path);

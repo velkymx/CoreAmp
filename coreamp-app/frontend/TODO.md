@@ -61,7 +61,7 @@ Transport / now-playing / output controls.
 - [x] Save / create playlist from queue or search (cmd: save_playlist)
 - [x] Delete playlist (cmd: delete_playlist)
 - [x] Append tracks to playlist (cmd: append_to_playlist) — row "Add to playlist…" modal (append to existing or create new)
-- [ ] Import `.m3u` by drag-and-drop (cmd: import_playlist_file) — store action exists; drag-drop wiring pending (Milestone 7)
+- [x] Import `.m3u` by drag-and-drop (cmd: import_playlist_file) — Tauri file-drop listener imports .m3u/.m3u8, with a drop-zone hint
 - [x] De-dup playlist + cleanup button (cmd: dedup_playlist)
 - [x] Queue panel: reorder via drag (`VibeSortable`) — reorder via up/down buttons + remove; true drag (VibeSortable) pending
 - [x] Queue actions: Play next / Queue next / Play from here / Stop after current / Clear played

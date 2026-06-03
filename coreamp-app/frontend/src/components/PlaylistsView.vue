@@ -1,5 +1,12 @@
 <template>
-  <div class="playlists-view h-100 d-flex">
+  <div class="playlists-view h-100 d-flex position-relative" :class="{ 'is-dragging': dragging }">
+    <div
+      v-if="dragging"
+      class="drop-hint d-flex align-items-center justify-content-center"
+      data-test="drop-hint"
+    >
+      Drop .m3u files to import
+    </div>
     <div class="playlists-pane flex-grow-1 d-flex flex-column">
     <div class="playlists-toolbar d-flex gap-2 p-2 align-items-center border-bottom">
       <VibeFormInput
@@ -72,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import type { PlaylistSummary } from "@/types";
 import * as api from "@/api/tauri";
 import { usePlaylistsStore } from "@/stores/playlists";
@@ -85,8 +92,32 @@ const playlists = usePlaylistsStore();
 const player = usePlayerStore();
 const { run } = useNotify();
 const newName = ref("");
+const dragging = ref(false);
 
-onMounted(() => void playlists.load());
+// Register a Tauri file-drop listener so dropping .m3u files anywhere on the
+// window imports them. Guarded so it's a no-op outside a Tauri webview (tests,
+// plain browser dev).
+let unlistenDrop: (() => void) | undefined;
+onMounted(async () => {
+  void playlists.load();
+  try {
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    unlistenDrop = await getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload;
+      if (payload.type === "over" || payload.type === "enter") {
+        dragging.value = true;
+      } else if (payload.type === "drop") {
+        dragging.value = false;
+        void playlists.importDropped(payload.paths);
+      } else {
+        dragging.value = false;
+      }
+    });
+  } catch {
+    // Not running inside a Tauri webview; drag-drop import unavailable.
+  }
+});
+onBeforeUnmount(() => unlistenDrop?.());
 
 const canSave = computed(
   () => newName.value.trim().length > 0 && player.queue.length > 0,
@@ -119,5 +150,17 @@ async function onOpen(p: PlaylistSummary): Promise<void> {
   width: 22rem;
   max-width: 40%;
   flex: 0 0 auto;
+}
+</style>
+
+<style scoped>
+.drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(13, 110, 253, 0.12);
+  border: 2px dashed var(--bs-primary, #0d6efd);
+  font-weight: 600;
+  pointer-events: none;
 }
 </style>

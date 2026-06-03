@@ -68,3 +68,29 @@ describe("playlists store", () => {
     expect(s.playlists[0].track_count).toBe(7);
   });
 });
+
+describe("playlists.importDropped", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("imports only .m3u/.m3u8 files and counts them", async () => {
+    const { importPlaylistFile } = await import("@/api/tauri");
+    vi.mocked(importPlaylistFile).mockResolvedValue(pl("X", "/p/x.m3u"));
+    const s = usePlaylistsStore();
+    const n = await s.importDropped([
+      "/d/a.m3u",
+      "/d/song.mp3",
+      "/d/b.M3U8",
+      "/d/cover.jpg",
+    ]);
+    expect(n).toBe(2);
+    expect(importPlaylistFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a drop with no playlist files", async () => {
+    const { importPlaylistFile } = await import("@/api/tauri");
+    const s = usePlaylistsStore();
+    const n = await s.importDropped(["/d/a.mp3", "/d/b.flac"]);
+    expect(n).toBe(0);
+    expect(importPlaylistFile).not.toHaveBeenCalled();
+  });
+});
