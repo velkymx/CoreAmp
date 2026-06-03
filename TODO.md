@@ -61,8 +61,14 @@ Features users expect from a modern desktop music player.
 * [x] Add Dark theme.
 * [x] Add in-app theme toggle (System / Light / Dark).
 * [ ] Complete Apple-dark visual polish pass.
-* [ ] Respect `prefers-reduced-motion`.
-* [ ] Reduce animation intensity when reduced motion is enabled.
+
+## Library
+
+* [ ] Folder artwork fallback support.
+* [ ] Album artwork fallback support.
+* [ ] Album-centric browse and play-in-order workflow.
+* [ ] Fix duration backfill for tracks added through explicit path import.
+* [ ] Mobile and small-window layout support.
 
 ## Audio
 
@@ -74,13 +80,7 @@ Features users expect from a modern desktop music player.
 * [ ] Verify limiter processing parity.
 * [ ] Verify crossfeed processing parity.
 
-## Library
 
-* [ ] Folder artwork fallback support.
-* [ ] Album artwork fallback support.
-* [ ] Album-centric browse and play-in-order workflow.
-* [ ] Fix duration backfill for tracks added through explicit path import.
-* [ ] Mobile and small-window layout support.
 
 ## Playback
 
@@ -89,9 +89,8 @@ Features users expect from a modern desktop music player.
 
 ## System Integration
 
-* [ ] Wire tray controls into playback state.
-* [ ] Wire daemon events into frontend stores.
-* [ ] Add update checking UI.
+
+* [ ] Add update checking UI. (is there an updater package?)
 * [ ] Add update installation UI.
 * [ ] Add media key support.
 * [ ] Add system now-playing integration.
