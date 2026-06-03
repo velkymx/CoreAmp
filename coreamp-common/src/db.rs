@@ -581,26 +581,41 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
     Ok(row)
 }
 
-pub fn get_all_metadata_hashes() -> Result<HashMap<String, String>, String> {
-    let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+// SQLite caps bound parameters per statement; stay well under it per chunk.
+const HASH_QUERY_CHUNK: usize = 500;
 
-    let mut stmt = connection
-        .prepare("SELECT path, metadata_hash FROM files WHERE metadata_hash IS NOT NULL")
-        .map_err(|err| err.to_string())?;
-
-    let rows = stmt
-        .query_map([], |row| {
+// Fetch metadata hashes for only the given paths (chunked IN query) instead of
+// loading the whole `files` table into memory on every scan.
+fn select_metadata_hashes(
+    connection: &Connection,
+    paths: &[String],
+) -> rusqlite::Result<HashMap<String, String>> {
+    let mut out = HashMap::with_capacity(paths.len());
+    for chunk in paths.chunks(HASH_QUERY_CHUNK) {
+        if chunk.is_empty() {
+            continue;
+        }
+        let placeholders = vec!["?"; chunk.len()].join(",");
+        let sql = format!(
+            "SELECT path, metadata_hash FROM files \
+             WHERE metadata_hash IS NOT NULL AND path IN ({placeholders})"
+        );
+        let mut stmt = connection.prepare(&sql)?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })
-        .map_err(|err| err.to_string())?;
-
-    let mut out = HashMap::new();
-    for row in rows {
-        let (path, hash) = row.map_err(|err| err.to_string())?;
-        out.insert(path, hash);
+        })?;
+        for row in rows {
+            let (path, hash) = row?;
+            out.insert(path, hash);
+        }
     }
     Ok(out)
+}
+
+pub fn metadata_hashes_for_paths(paths: &[String]) -> Result<HashMap<String, String>, String> {
+    let mutex = get_db()?;
+    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    select_metadata_hashes(&connection, paths).map_err(|err| err.to_string())
 }
 
 pub fn backfill_duration_for_missing() -> Result<usize, String> {
@@ -841,5 +856,57 @@ mod tests {
 
         assert_eq!(filename, "renamed.mp3");
         assert_eq!(metadata_hash.as_deref(), Some("hash-b"));
+    }
+
+    #[test]
+    fn select_metadata_hashes_returns_only_requested_paths() {
+        let mut conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("apply schema");
+
+        let mk = |path: &str, hash: &str| ScannedFile {
+            path: PathBuf::from(path),
+            filename: String::from("f.mp3"),
+            artist: None,
+            album: None,
+            title: None,
+            year: None,
+            genre: None,
+            metadata_hash: String::from(hash),
+            duration_secs: None,
+        };
+        super::upsert_scanned_files_with_connection(
+            &mut conn,
+            &[
+                mk("/m/a.mp3", "ha"),
+                mk("/m/b.mp3", "hb"),
+                mk("/m/c.mp3", "hc"),
+            ],
+        )
+        .expect("seed rows");
+
+        // Ask for a subset (one of which is unknown) — only the known scanned
+        // paths come back, never the whole table.
+        let got = super::select_metadata_hashes(
+            &conn,
+            &[
+                String::from("/m/a.mp3"),
+                String::from("/m/c.mp3"),
+                String::from("/m/missing.mp3"),
+            ],
+        )
+        .expect("select hashes");
+
+        assert_eq!(got.len(), 2);
+        assert_eq!(got.get("/m/a.mp3").map(String::as_str), Some("ha"));
+        assert_eq!(got.get("/m/c.mp3").map(String::as_str), Some("hc"));
+        assert!(!got.contains_key("/m/b.mp3"));
+    }
+
+    #[test]
+    fn select_metadata_hashes_empty_input_is_empty() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("apply schema");
+        let got = super::select_metadata_hashes(&conn, &[]).expect("select");
+        assert!(got.is_empty());
     }
 }

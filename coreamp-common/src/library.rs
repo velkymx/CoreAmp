@@ -177,7 +177,11 @@ pub fn scan_explicit_paths(paths: &[PathBuf]) -> Vec<PreScannedFile> {
 
 pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
     let files = scan_library_files(roots);
-    let cached_hashes = db::get_all_metadata_hashes()?;
+    let scanned_paths: Vec<String> = files
+        .iter()
+        .map(|file| file.path.to_string_lossy().to_string())
+        .collect();
+    let cached_hashes = db::metadata_hashes_for_paths(&scanned_paths)?;
     let mut changed_files = Vec::new();
     for file in files.iter() {
         let path_str = file.path.to_string_lossy().to_string();
@@ -207,7 +211,11 @@ pub fn index_configured_library() -> Result<ScanSummary, String> {
 
 pub fn index_explicit_paths(paths: &[PathBuf]) -> Result<ScanSummary, String> {
     let files = scan_explicit_paths(paths);
-    let cached_hashes = db::get_all_metadata_hashes()?;
+    let scanned_paths: Vec<String> = files
+        .iter()
+        .map(|file| file.path.to_string_lossy().to_string())
+        .collect();
+    let cached_hashes = db::metadata_hashes_for_paths(&scanned_paths)?;
     let mut changed_files = Vec::new();
     for file in files.iter() {
         let path_str = file.path.to_string_lossy().to_string();
