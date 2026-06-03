@@ -250,15 +250,25 @@ pub fn asset_scope_roots() -> Vec<PathBuf> {
     combine_asset_roots(configured_library_dirs(), crate::playlists_dir())
 }
 
+fn format_enrichment_failure(path: &str, err: &str) -> String {
+    format!("metadata enrichment failed for {path}: {err}")
+}
+
 pub fn enrich_missing_metadata(limit: usize, proxy: Option<&str>) -> Result<usize, String> {
     let candidates = db::list_candidates_for_enrichment(limit)?;
     let mut enriched_count = 0usize;
+    let mut failure_count = 0usize;
 
     for candidate in candidates {
         let lookup = match musicbrainz::lookup_recording(&candidate.query, proxy) {
             Ok(Some(metadata)) => metadata,
             Ok(None) => continue,
-            Err(_) => continue,
+            Err(err) => {
+                // Don't swallow lookup failures (rate-limit blocks, 503s, etc.).
+                eprintln!("{}", format_enrichment_failure(&candidate.path, &err));
+                failure_count += 1;
+                continue;
+            }
         };
 
         let updated_db = db::apply_enriched_metadata(&candidate.path, &lookup)?;
@@ -268,14 +278,27 @@ pub fn enrich_missing_metadata(limit: usize, proxy: Option<&str>) -> Result<usiz
         }
     }
 
+    if failure_count > 0 {
+        eprintln!("metadata enrichment: {failure_count} lookup(s) failed this pass");
+    }
+
     Ok(enriched_count)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        combine_asset_roots, is_supported_media_file, scan_explicit_paths, scan_library_files,
+        combine_asset_roots, format_enrichment_failure, is_supported_media_file,
+        scan_explicit_paths, scan_library_files,
     };
+
+    #[test]
+    fn format_enrichment_failure_includes_path_and_error() {
+        let msg = format_enrichment_failure("/m/a.mp3", "HTTP 503");
+        assert!(msg.contains("/m/a.mp3"));
+        assert!(msg.contains("HTTP 503"));
+        assert!(msg.to_lowercase().contains("enrichment"));
+    }
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
