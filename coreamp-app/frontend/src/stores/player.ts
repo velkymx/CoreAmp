@@ -30,6 +30,7 @@ interface PlayerState {
   shuffleOrder: number[];
   shufflePos: number;
   repeatMode: RepeatMode;
+  stopAfterCurrent: boolean;
   artwork: TrackArtwork | null;
   signal: TrackSignalDetails | null;
   metaToken: number;
@@ -56,6 +57,7 @@ export const usePlayerStore = defineStore("player", {
     shuffleOrder: [],
     shufflePos: 0,
     repeatMode: "off",
+    stopAfterCurrent: false,
     artwork: null,
     signal: null,
     metaToken: 0,
@@ -170,6 +172,81 @@ export const usePlayerStore = defineStore("player", {
       this.signal = signal;
     },
 
+    // Rebuild a current-first shuffle order after a structural queue edit, so
+    // shuffle stays coherent when the queue length or current index changes.
+    resyncShuffle(): void {
+      if (!this.shuffle) return;
+      this.shuffleOrder = buildShuffleOrder(this.queue.length, this.currentIndex);
+      this.shufflePos = 0;
+    },
+
+    // Append a track to the end of the queue.
+    enqueue(track: Track): void {
+      this.queue.push(track);
+      if (this.currentIndex < 0) this.currentIndex = 0;
+      this.resyncShuffle();
+    },
+
+    // Insert a track to play immediately after the current one.
+    playNext(track: Track): void {
+      if (this.currentIndex < 0) {
+        this.enqueue(track);
+        return;
+      }
+      this.queue.splice(this.currentIndex + 1, 0, track);
+      this.resyncShuffle();
+    },
+
+    // Remove a queue entry, keeping currentIndex pointed at the same track when
+    // possible (shifts down if an earlier entry was removed).
+    removeAt(index: number): void {
+      if (index < 0 || index >= this.queue.length) return;
+      this.queue.splice(index, 1);
+      if (index < this.currentIndex) {
+        this.currentIndex -= 1;
+      } else if (index === this.currentIndex) {
+        this.currentIndex = Math.min(this.currentIndex, this.queue.length - 1);
+      }
+      this.resyncShuffle();
+    },
+
+    // Move a queue entry from one position to another (drag reorder), keeping
+    // the currently playing track selected.
+    moveInQueue(from: number, to: number): void {
+      const len = this.queue.length;
+      if (from < 0 || from >= len || to < 0 || to >= len || from === to) return;
+      const current = this.queue[this.currentIndex];
+      const [moved] = this.queue.splice(from, 1);
+      this.queue.splice(to, 0, moved);
+      if (current) this.currentIndex = this.queue.indexOf(current);
+      this.resyncShuffle();
+    },
+
+    // Drop everything before the current track ("clear played").
+    clearPlayed(): void {
+      if (this.currentIndex <= 0) return;
+      this.queue.splice(0, this.currentIndex);
+      this.currentIndex = 0;
+      this.resyncShuffle();
+    },
+
+    // Jump to a queue index and play it ("play from here").
+    async jumpTo(index: number): Promise<void> {
+      if (index < 0 || index >= this.queue.length) return;
+      this.currentIndex = index;
+      if (this.shuffle) {
+        this.shuffleOrder = buildShuffleOrder(this.queue.length, index);
+        this.shufflePos = 0;
+      }
+      await this.playCurrent();
+    },
+
+    // Toggle "stop after current": the next end-of-track transition stops
+    // instead of advancing.
+    toggleStopAfterCurrent(): void {
+      this.stopAfterCurrent = !this.stopAfterCurrent;
+    },
+
     // Replace the queue with the given tracks and start playing at startIndex.
     // Rebuilds the shuffle order (current-first) when shuffle is on so the new
     // queue shuffles coherently.
@@ -235,6 +312,12 @@ export const usePlayerStore = defineStore("player", {
       if (!this.queue.length || this.currentIndex < 0) return "noop";
       this.inFlight = true;
       try {
+        // "Stop after current" overrides every advance rule, once.
+        if (this.stopAfterCurrent) {
+          this.stopAfterCurrent = false;
+          await this.stopPlayback();
+          return "ended";
+        }
         if (this.repeatMode === "track") {
           await this.playCurrent();
           return "played";

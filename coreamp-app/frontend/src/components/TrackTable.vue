@@ -43,6 +43,29 @@
               <VibeIcon :icon="track.liked ? 'heart-fill' : 'heart'" />
             </VibeButton>
           </td>
+          <td class="track-menu-cell text-end position-relative">
+            <VibeButton
+              variant="link"
+              data-test="track-menu"
+              aria-label="More actions"
+              @click.stop="toggleMenu(index)"
+            >
+              <VibeIcon icon="three-dots" />
+            </VibeButton>
+            <div
+              v-if="openIndex === index"
+              class="track-menu shadow rounded border bg-body"
+              data-test="track-menu-popup"
+              @click.stop
+            >
+              <button type="button" class="track-menu-item" data-test="menu-play-next" @click.stop="emitMenu('play-next', track)">
+                Play next
+              </button>
+              <button type="button" class="track-menu-item" data-test="menu-queue" @click.stop="emitMenu('enqueue', track)">
+                Add to queue
+              </button>
+            </div>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -50,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import type { LibraryTrack } from "@/types";
 import { formatTime } from "@/util/time";
 
@@ -58,10 +82,24 @@ defineProps<{
   activePath?: string | null;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: "play", index: number): void;
   (e: "like", path: string): void;
+  (e: "play-next", track: LibraryTrack): void;
+  (e: "enqueue", track: LibraryTrack): void;
 }>();
+
+const openIndex = ref(-1);
+
+function toggleMenu(index: number): void {
+  openIndex.value = openIndex.value === index ? -1 : index;
+}
+
+function emitMenu(event: "play-next" | "enqueue", track: LibraryTrack): void {
+  if (event === "play-next") emit("play-next", track);
+  else emit("enqueue", track);
+  openIndex.value = -1;
+}
 </script>
 
 <style scoped>
@@ -85,5 +123,26 @@ defineEmits<{
 }
 .track-album {
   max-width: 16rem;
+}
+.track-menu {
+  position: absolute;
+  right: 0.5rem;
+  top: 100%;
+  z-index: 10;
+  min-width: 11rem;
+  padding: 0.25rem;
+}
+.track-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.25rem;
+  color: inherit;
+}
+.track-menu-item:hover {
+  background: var(--bs-tertiary-bg, rgba(127, 127, 127, 0.15));
 }
 </style>

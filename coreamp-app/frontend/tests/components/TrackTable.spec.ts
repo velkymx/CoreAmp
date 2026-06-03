@@ -68,4 +68,20 @@ describe("TrackTable", () => {
     const w = mount(TrackTable, { props: { tracks: [] }, global: { stubs } });
     expect(w.find('[data-test="track-empty"]').exists()).toBe(true);
   });
+
+  it("opens the row menu and emits play-next / enqueue without playing", async () => {
+    const w = mount(TrackTable, { props: { tracks: [row()] }, global: { stubs } });
+    expect(w.find('[data-test="track-menu-popup"]').exists()).toBe(false);
+    await w.get('[data-test="track-menu"]').trigger("click");
+    expect(w.find('[data-test="track-menu-popup"]').exists()).toBe(true);
+
+    await w.get('[data-test="menu-play-next"]').trigger("click");
+    expect(w.emitted("play-next")?.[0][0]).toMatchObject({ path: "/m/a.mp3" });
+    expect(w.find('[data-test="track-menu-popup"]').exists()).toBe(false);
+    expect(w.emitted("play")).toBeUndefined();
+
+    await w.get('[data-test="track-menu"]').trigger("click");
+    await w.get('[data-test="menu-queue"]').trigger("click");
+    expect(w.emitted("enqueue")?.[0][0]).toMatchObject({ path: "/m/a.mp3" });
+  });
 });

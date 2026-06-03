@@ -49,7 +49,7 @@ Transport / now-playing / output controls.
 - [x] Summary grids: Artists / Albums / Genres cards (cmd: list_artists, list_albums, list_genres, list_genre_summaries)
 - [x] Search box + genre filter
 - [ ] Unknown-title handling shows under "U"
-- [ ] Row context menu (`VibeDropdown`): Play next / Queue next / Play from here / Stop after current / Clear played / Add to playlist / Edit metadata
+- [x] Row context menu (`VibeDropdown`): Play next / Queue next / Play from here / Stop after current / Clear played / Add to playlist / Edit metadata — Play next + Add to queue done; Add to playlist + Edit metadata pending
 - [x] Inline Like on rows (cmd: toggle_liked)
 - [ ] Clickable metadata (album/artist/genre) → filtered view — summary cards drill in; in-row album/artist click pending
 - [x] Liked view reuses the track table
@@ -63,8 +63,8 @@ Transport / now-playing / output controls.
 - [ ] Append tracks to playlist (cmd: append_to_playlist); membership check (cmd: playlist_contains) — store action exists; row "Add to playlist" UI pending (with context menu)
 - [ ] Import `.m3u` by drag-and-drop (cmd: import_playlist_file) — store action exists; drag-drop wiring pending (Milestone 7)
 - [x] De-dup playlist + cleanup button (cmd: dedup_playlist)
-- [ ] Queue panel: reorder via drag (`VibeSortable`)
-- [ ] Queue actions: Play next / Queue next / Play from here / Stop after current / Clear played
+- [x] Queue panel: reorder via drag (`VibeSortable`) — reorder via up/down buttons + remove; true drag (VibeSortable) pending
+- [x] Queue actions: Play next / Queue next / Play from here / Stop after current / Clear played
 
 ## Milestone 5 — Audio / EQ + EqGraph
 - [x] Parametric EQ: multi-band frequency / gain / Q sliders (`VibeSlider`)

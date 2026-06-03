@@ -691,3 +691,66 @@ describe("player.playTracks", () => {
     expect(p.shuffleOrder).toHaveLength(3);
   });
 });
+
+describe("player queue management", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  });
+
+  it("enqueue appends and sets a current track when none", () => {
+    const p = usePlayerStore();
+    p.enqueue(mkQueue()[0]);
+    expect(p.queue).toHaveLength(1);
+    expect(p.currentIndex).toBe(0);
+  });
+
+  it("playNext inserts right after the current track", () => {
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 0 });
+    p.playNext({ path: "/m/x.mp3", title: "X", artist: null, album: null, liked: false });
+    expect(p.queue[1].path).toBe("/m/x.mp3");
+  });
+
+  it("removeAt before current shifts currentIndex down", () => {
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 2 });
+    p.removeAt(0);
+    expect(p.queue).toHaveLength(2);
+    expect(p.currentIndex).toBe(1);
+  });
+
+  it("moveInQueue keeps the playing track selected", () => {
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 0 });
+    p.moveInQueue(0, 2);
+    expect(p.currentIndex).toBe(2);
+    expect(p.queue[2].path).toBe("/m/0.mp3");
+  });
+
+  it("clearPlayed drops everything before current", () => {
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 2 });
+    p.clearPlayed();
+    expect(p.queue).toHaveLength(1);
+    expect(p.currentIndex).toBe(0);
+  });
+
+  it("jumpTo plays the chosen index", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true, queue: mkQueue(), currentIndex: 0 });
+    await p.jumpTo(2);
+    expect(p.currentIndex).toBe(2);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/2.mp3");
+  });
+
+  it("stopAfterCurrent makes the next advance stop once", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "native", nativeAvailable: true, queue: mkQueue(), currentIndex: 0 });
+    p.toggleStopAfterCurrent();
+    expect(await p.nextTrack()).toBe("ended");
+    expect(nativeAudioStop).toHaveBeenCalledOnce();
+    expect(p.stopAfterCurrent).toBe(false);
+    expect(await p.nextTrack()).toBe("played");
+  });
+});

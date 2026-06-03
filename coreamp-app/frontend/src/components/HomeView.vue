@@ -14,6 +14,8 @@
         :active-path="player.currentTrack?.path ?? null"
         @play="onPlayRecent"
         @like="onLike"
+        @play-next="(t) => player.playNext(toQueueTrack(t))"
+        @enqueue="(t) => player.enqueue(toQueueTrack(t))"
       />
     </section>
   </div>

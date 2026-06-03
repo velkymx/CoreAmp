@@ -1,5 +1,6 @@
 <template>
-  <div class="playlists-view h-100 d-flex flex-column">
+  <div class="playlists-view h-100 d-flex">
+    <div class="playlists-pane flex-grow-1 d-flex flex-column">
     <div class="playlists-toolbar d-flex gap-2 p-2 align-items-center border-bottom">
       <VibeFormInput
         v-model="newName"
@@ -65,6 +66,8 @@
         </li>
       </ul>
     </div>
+    </div>
+    <aside class="queue-pane border-start"><QueueList /></aside>
   </div>
 </template>
 
@@ -75,6 +78,7 @@ import * as api from "@/api/tauri";
 import { usePlaylistsStore } from "@/stores/playlists";
 import { usePlayerStore } from "@/stores/player";
 import { toQueueTrack } from "@/util/track";
+import QueueList from "@/components/QueueList.vue";
 
 const playlists = usePlaylistsStore();
 const player = usePlayerStore();
@@ -101,3 +105,14 @@ async function onOpen(p: PlaylistSummary): Promise<void> {
   await player.playTracks(rows.map(toQueueTrack), 0);
 }
 </script>
+
+<style scoped>
+.playlists-pane {
+  min-width: 0;
+}
+.queue-pane {
+  width: 22rem;
+  max-width: 40%;
+  flex: 0 0 auto;
+}
+</style>
