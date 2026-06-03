@@ -1,6 +1,6 @@
 <template>
   <div class="visualizer" data-test="visualizer">
-    <ButterchurnViz v-if="pluginId === 'milkdrop'" />
+    <ThreeOrb v-if="pluginId === 'orb'" />
     <canvas v-else ref="canvasEl" class="viz-canvas"></canvas>
 
     <div class="viz-controls d-flex align-items-center gap-2">
@@ -32,7 +32,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useFrequencyData } from "@/composables/useFrequencyData";
 import { visualizerPlugins, getPlugin } from "@/visualizer/registry";
 import type { VizFrame } from "@/visualizer/types";
-import ButterchurnViz from "@/components/ButterchurnViz.vue";
+import ThreeOrb from "@/components/ThreeOrb.vue";
 
 const player = usePlayerStore();
 const canvasEl = ref<HTMLCanvasElement | null>(null);
@@ -43,7 +43,7 @@ const { freq, wave, active } = useFrequencyData();
 
 const pluginOptions = computed<FormSelectOption[]>(() => [
   ...visualizerPlugins.map((p) => ({ value: p.id, text: p.label })),
-  { value: "milkdrop", text: "Milkdrop" },
+  { value: "orb", text: "Orb (3D)" },
 ]);
 
 function useWeb(): void {

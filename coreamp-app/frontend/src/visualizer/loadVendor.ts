@@ -1,6 +1,5 @@
 // Inject a vendored UMD script (served from public/vendor) once and resolve
-// when its global is present. Used for butterchurn / three which ship as
-// global-script bundles rather than ES modules.
+// when it has loaded. Used for three.js which ships as a global-script bundle.
 const loaded = new Map<string, Promise<void>>();
 
 export function loadScript(src: string): Promise<void> {
@@ -18,19 +17,8 @@ export function loadScript(src: string): Promise<void> {
   return p;
 }
 
-// Load butterchurn + its preset pack, returning the globals.
-export async function loadButterchurn(): Promise<{
-  butterchurn: any;
-  presets: Record<string, unknown>;
-}> {
-  await loadScript("/vendor/butterchurn.min.js");
-  await loadScript("/vendor/butterchurnPresetsMinimal.min.js");
-  const w = window as unknown as {
-    butterchurn?: { default?: unknown } | unknown;
-    butterchurnPresetsMinimal?: { getPresets?: () => Record<string, unknown> } | unknown;
-  };
-  const bc = (w.butterchurn as any)?.default ?? w.butterchurn;
-  const presetMod = w.butterchurnPresetsMinimal as any;
-  const presets = presetMod?.getPresets ? presetMod.getPresets() : presetMod ?? {};
-  return { butterchurn: bc, presets };
+// Load three.js and return the global.
+export async function loadThree(): Promise<any> {
+  await loadScript("/vendor/three.min.js");
+  return (window as unknown as { THREE?: unknown }).THREE;
 }
