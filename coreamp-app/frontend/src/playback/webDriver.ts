@@ -5,11 +5,21 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 let el: HTMLAudioElement | null = null;
 let loadedPath: string | null = null;
 
-// Web Audio graph for visualization. Built lazily the first time playback
-// starts so the visualizer can read live frequency data from the element.
+// Web Audio graph: source → preamp → EQ biquads → analyser → destination.
+// Built lazily on first playback. The EQ biquads actually shape the sound
+// (peaking filters), and the analyser feeds the visualizer + EQ graph.
 let ctx: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
 let sourceNode: MediaElementAudioSourceNode | null = null;
+let preampNode: GainNode | null = null;
+let eqNodes: BiquadFilterNode[] = [];
+
+interface EqSettings {
+  eq_enabled: boolean;
+  eq_bands: { frequency: number; gain: number; q: number }[];
+  preamp_db: number;
+}
+let pendingEq: EqSettings | null = null;
 
 function audio(): HTMLAudioElement {
   if (!el) el = new Audio();
@@ -17,21 +27,52 @@ function audio(): HTMLAudioElement {
   return el;
 }
 
-// Build (once) the AudioContext → MediaElementSource → Analyser → destination
-// graph. Guarded so it is a harmless no-op where Web Audio is unavailable
-// (jsdom tests). Audio still reaches the speakers through the destination.
 function ensureGraph(): void {
   if (analyser || typeof AudioContext === "undefined") return;
   try {
     ctx = new AudioContext();
     sourceNode = ctx.createMediaElementSource(audio());
+    preampNode = ctx.createGain();
     analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.8;
-    sourceNode.connect(analyser);
+
+    // Chain: source → preamp → b0 … b4 → analyser → destination.
+    let node: AudioNode = sourceNode;
+    node.connect(preampNode);
+    node = preampNode;
+    eqNodes = [];
+    for (let i = 0; i < 5; i++) {
+      const biquad = ctx.createBiquadFilter();
+      biquad.type = "peaking";
+      biquad.frequency.value = 1000;
+      biquad.Q.value = 1;
+      biquad.gain.value = 0;
+      node.connect(biquad);
+      node = biquad;
+      eqNodes.push(biquad);
+    }
+    node.connect(analyser);
     analyser.connect(ctx.destination);
+
+    if (pendingEq) applyEqInternal(pendingEq);
   } catch {
     analyser = null;
+  }
+}
+
+// Apply EQ settings to the live biquad chain. When the EQ is bypassed the band
+// gains drop to 0 (flat) but the preamp still applies.
+function applyEqInternal(settings: EqSettings): void {
+  if (!preampNode) return;
+  preampNode.gain.value = Math.pow(10, settings.preamp_db / 20);
+  for (let i = 0; i < eqNodes.length; i++) {
+    const band = settings.eq_bands[i];
+    const node = eqNodes[i];
+    if (!band) continue;
+    node.frequency.value = band.frequency;
+    node.Q.value = band.q;
+    node.gain.value = settings.eq_enabled ? band.gain : 0;
   }
 }
 
@@ -61,6 +102,12 @@ export const webDriver = {
   // started, or when Web Audio is unavailable).
   getAnalyser(): AnalyserNode | null {
     return analyser;
+  },
+  // Apply EQ + preamp to the audio. Stored and re-applied once the graph is
+  // built if it isn't yet (settings can arrive before first playback).
+  applyEq(settings: EqSettings): void {
+    pendingEq = settings;
+    if (analyser) applyEqInternal(settings);
   },
   position(): number {
     return audio().currentTime;

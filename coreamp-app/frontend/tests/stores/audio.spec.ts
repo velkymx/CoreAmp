@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/api/tauri", () => ({
-  nativeAudioSetDspSettings: vi.fn().mockResolvedValue(undefined),
+vi.mock("@/playback/webDriver", () => ({
+  webDriver: { applyEq: vi.fn() },
 }));
 
-import { nativeAudioSetDspSettings } from "@/api/tauri";
+import { webDriver } from "@/playback/webDriver";
 import { useAudioStore, EQ_FREQUENCIES } from "@/stores/audio";
+const applyEq = webDriver.applyEq as ReturnType<typeof vi.fn>;
 
 describe("audio store", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -20,7 +21,7 @@ describe("audio store", () => {
     const a = useAudioStore();
     await a.setBandGain(0, 99);
     expect(a.bands[0].gain).toBe(24);
-    expect(nativeAudioSetDspSettings).toHaveBeenCalledWith(
+    expect(applyEq).toHaveBeenCalledWith(
       expect.objectContaining({ eq_bands: expect.any(Array) }),
     );
   });
@@ -38,7 +39,7 @@ describe("audio store", () => {
     await a.applyPreset("Bass Cut");
     expect(a.bands[0].gain).toBe(-8);
     expect(a.eqEnabled).toBe(true);
-    expect(nativeAudioSetDspSettings).toHaveBeenCalled();
+    expect(applyEq).toHaveBeenCalled();
   });
 
   it("cycleBoost rotates Off -> + -> ++ -> Off with labels", async () => {
@@ -68,6 +69,6 @@ describe("audio store", () => {
     const a = useAudioStore();
     await a.setPreamp(50);
     expect(a.preampDb).toBe(18);
-    expect(nativeAudioSetDspSettings).toHaveBeenCalled();
+    expect(applyEq).toHaveBeenCalled();
   });
 });
