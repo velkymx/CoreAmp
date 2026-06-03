@@ -1,9 +1,11 @@
 <template>
-  <div class="visualizer" data-test="visualizer">
+  <div class="visualizer" :class="{ 'is-fullscreen': fullscreen }" data-test="visualizer">
     <ThreeOrb v-if="pluginId === 'orb'" />
     <SoundRunner v-else-if="pluginId === 'game'" />
     <canvas v-else ref="canvasEl" class="viz-canvas"></canvas>
 
+    <!-- Controls overlay: hidden until you hover the visualizer (or in
+         fullscreen) so it never covers the visuals during normal playback. -->
     <div class="viz-controls d-flex align-items-center gap-2">
       <VibeFormSelect
         v-model="pluginId"
@@ -12,22 +14,32 @@
         data-test="viz-plugin"
         class="viz-select"
       />
-      <span v-if="!active" class="viz-hint small text-light">
-        <template v-if="player.source === 'native'">
-          Native output —
-          <button type="button" class="viz-link" data-test="viz-use-web" @click="useWeb">
-            switch to Web output
-          </button>
-          to react to audio
-        </template>
-        <template v-else>Press play to see it move</template>
-      </span>
+      <button
+        type="button"
+        class="viz-icon-btn"
+        :aria-label="fullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+        data-test="viz-fullscreen"
+        @click="toggleFullscreen"
+      >
+        {{ fullscreen ? "✕" : "⛶" }}
+      </button>
     </div>
+
+    <span v-if="!active" class="viz-hint small text-light">
+      <template v-if="player.source === 'native'">
+        Native output —
+        <button type="button" class="viz-link" data-test="viz-use-web" @click="useWeb">
+          switch to Web output
+        </button>
+        to react to audio
+      </template>
+      <template v-else>Press play to see it move</template>
+    </span>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
 import { usePlayerStore } from "@/stores/player";
 import { useFrequencyData } from "@/composables/useFrequencyData";
@@ -52,6 +64,18 @@ const pluginOptions = computed<FormSelectOption[]>(() => [
 function useWeb(): void {
   void player.setSource("web");
 }
+
+// Pseudo-fullscreen: expand the visualizer to a fixed full-window overlay
+// (matches the legacy behavior; reliable inside the webview). Esc exits.
+const fullscreen = ref(false);
+function toggleFullscreen(): void {
+  fullscreen.value = !fullscreen.value;
+}
+function onKey(e: KeyboardEvent): void {
+  if (e.key === "Escape" && fullscreen.value) fullscreen.value = false;
+}
+onMounted(() => window.addEventListener("keydown", onKey));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 
 function draw(): void {
   const canvas = canvasEl.value;
@@ -90,15 +114,52 @@ watch([freq, pluginId], draw);
 }
 .viz-controls {
   position: absolute;
-  left: 0.75rem;
-  bottom: 0.75rem;
-  right: 0.75rem;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.visualizer:hover .viz-controls,
+.visualizer.is-fullscreen .viz-controls {
+  opacity: 1;
+  pointer-events: auto;
 }
 .viz-select {
   max-width: 11rem;
 }
+.viz-icon-btn {
+  border: 0;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  border-radius: 0.25rem;
+  line-height: 1;
+  padding: 0.25rem 0.45rem;
+  cursor: pointer;
+}
+.viz-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
 .viz-hint {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.6rem;
+  z-index: 4;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.visualizer:hover .viz-hint {
+  opacity: 1;
 }
 .viz-link {
   border: 0;
