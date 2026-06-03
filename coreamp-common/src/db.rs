@@ -6,8 +6,18 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
 
 static DB_CONN: OnceLock<Result<Mutex<Connection>, String>> = OnceLock::new();
+
+// Enable WAL so readers don't block the writer (and the app/daemon don't trip
+// over each other), and a busy timeout so concurrent access retries instead of
+// failing with SQLITE_BUSY.
+fn configure_connection(connection: &Connection) -> rusqlite::Result<()> {
+    connection.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(()))?;
+    connection.busy_timeout(Duration::from_secs(5))?;
+    Ok(())
+}
 
 fn get_db() -> Result<&'static Mutex<Connection>, String> {
     DB_CONN
@@ -15,6 +25,7 @@ fn get_db() -> Result<&'static Mutex<Connection>, String> {
             Connection::open(metadata_db_path())
                 .map_err(|e| e.to_string())
                 .and_then(|conn| {
+                    configure_connection(&conn).map_err(|e| e.to_string())?;
                     apply_schema(&conn).map_err(|e| e.to_string())?;
                     Ok(Mutex::new(conn))
                 })
@@ -594,30 +605,41 @@ pub fn get_all_metadata_hashes() -> Result<HashMap<String, String>, String> {
 
 pub fn backfill_duration_for_missing() -> Result<usize, String> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
 
-    let mut stmt = connection
-        .prepare("SELECT path FROM files WHERE duration_secs IS NULL")
-        .map_err(|err| err.to_string())?;
+    // Read candidate paths under a short lock, then release it before any file
+    // I/O so the slow per-file parse never blocks other DB users.
+    let paths: Vec<String> = {
+        let connection = mutex.lock().map_err(|err| err.to_string())?;
+        let mut stmt = connection
+            .prepare("SELECT path FROM files WHERE duration_secs IS NULL")
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get(0))
+            .map_err(|err| err.to_string())?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
 
-    let paths: Vec<String> = stmt
-        .query_map([], |row| row.get(0))
-        .map_err(|err| err.to_string())?
-        .filter_map(|r| r.ok())
+    // Parse durations off-lock (the expensive part: opening + decoding files).
+    let durations: Vec<(String, i64)> = paths
+        .into_iter()
+        .filter_map(|path| {
+            metadata::read_track_metadata(Path::new(&path))
+                .duration_secs
+                .map(|duration| (path, duration))
+        })
         .collect();
 
+    // Write the results back under a short lock.
+    let connection = mutex.lock().map_err(|err| err.to_string())?;
     let mut updated = 0;
-    for path in paths {
-        let metadata = metadata::read_track_metadata(Path::new(&path));
-        if let Some(duration) = metadata.duration_secs {
-            connection
-                .execute(
-                    "UPDATE files SET duration_secs = ?1 WHERE path = ?2",
-                    params![duration, &path],
-                )
-                .ok();
-            updated += 1;
-        }
+    for (path, duration) in durations {
+        connection
+            .execute(
+                "UPDATE files SET duration_secs = ?1 WHERE path = ?2",
+                params![duration, &path],
+            )
+            .ok();
+        updated += 1;
     }
 
     Ok(updated)
@@ -749,6 +771,21 @@ mod tests {
     use crate::library::ScannedFile;
     use rusqlite::Connection;
     use std::path::PathBuf;
+
+    #[test]
+    fn configure_connection_enables_wal() {
+        let dir = std::env::temp_dir().join(format!("coreamp-wal-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("wal-test.db");
+        let conn = Connection::open(&path).expect("open file db");
+        super::configure_connection(&conn).expect("configure");
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .expect("journal_mode");
+        assert_eq!(mode.to_lowercase(), "wal");
+        drop(conn);
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn schema_contains_files_table() {
