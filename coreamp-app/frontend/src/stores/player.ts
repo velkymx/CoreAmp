@@ -1,5 +1,11 @@
 import { defineStore } from "pinia";
-import type { NativeStatus, Source, Track } from "@/types";
+import type {
+  NativeStatus,
+  Source,
+  Track,
+  TrackArtwork,
+  TrackSignalDetails,
+} from "@/types";
 import * as api from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { buildShuffleOrder } from "@/util/shuffle";
@@ -23,7 +29,13 @@ interface PlayerState {
   shuffleOrder: number[];
   shufflePos: number;
   repeatMode: RepeatMode;
+  artwork: TrackArtwork | null;
+  signal: TrackSignalDetails | null;
+  metaToken: number;
 }
+
+// Thumbnail edge (px) requested from the backend for now-playing artwork.
+const ARTWORK_THUMB_PX = 256;
 
 export const usePlayerStore = defineStore("player", {
   state: (): PlayerState => ({
@@ -41,6 +53,9 @@ export const usePlayerStore = defineStore("player", {
     shuffleOrder: [],
     shufflePos: 0,
     repeatMode: "off",
+    artwork: null,
+    signal: null,
+    metaToken: 0,
   }),
   getters: {
     currentTrack(state): Track | null {
@@ -109,6 +124,28 @@ export const usePlayerStore = defineStore("player", {
       this.syncFromNativeStatus(status);
     },
 
+    // Fetch now-playing artwork + signal details for the current track. Each
+    // call takes a token so a slow response for a track the user already skipped
+    // past is discarded instead of clobbering the newer one. Backend errors leave
+    // the metadata cleared rather than surfacing a transient read failure.
+    async loadNowPlayingMeta(): Promise<void> {
+      const token = ++this.metaToken;
+      const track = this.queue[this.currentIndex];
+      if (!track) {
+        this.artwork = null;
+        this.signal = null;
+        return;
+      }
+      const path = track.path;
+      const [artwork, signal] = await Promise.all([
+        api.readTrackArtwork(path, ARTWORK_THUMB_PX).catch(() => null),
+        api.readTrackSignalDetails(path).catch(() => null),
+      ]);
+      if (token !== this.metaToken) return; // a newer load supersedes this one
+      this.artwork = artwork;
+      this.signal = signal;
+    },
+
     async playCurrent(): Promise<void> {
       const track = this.queue[this.currentIndex];
       if (!track) return;
@@ -118,6 +155,7 @@ export const usePlayerStore = defineStore("player", {
         await webDriver.resume();
       }
       this.isPlaying = true;
+      void this.loadNowPlayingMeta();
     },
 
     async stopPlayback(): Promise<void> {

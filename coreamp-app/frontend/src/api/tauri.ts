@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { NativeStatus } from "@/types";
+import type { NativeStatus, TrackArtwork, TrackSignalDetails } from "@/types";
 
 export class TauriError extends Error {
   command: string;
@@ -32,3 +32,7 @@ export const nativeAudioSetVolume = (volume: number) =>
   call<void>("native_audio_set_volume", { volume });
 export const toggleLiked = (path: string) =>
   call<boolean>("toggle_liked", { path });
+export const readTrackArtwork = (path: string, maxSize?: number) =>
+  call<TrackArtwork | null>("read_track_artwork", { path, maxSize });
+export const readTrackSignalDetails = (path: string) =>
+  call<TrackSignalDetails>("read_track_signal_details", { path });

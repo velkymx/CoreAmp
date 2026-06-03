@@ -8,6 +8,19 @@ export interface Track {
   liked: boolean;
 }
 
+export interface TrackArtwork {
+  mime_type: string;
+  data_base64: string;
+}
+
+export interface TrackSignalDetails {
+  format: string;
+  sample_rate_hz: number | null;
+  bit_depth: number | null;
+  channels: number | null;
+  bitrate_kbps: number | null;
+}
+
 export interface NativeStatus {
   available: boolean;
   active: boolean;

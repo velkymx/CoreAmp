@@ -11,6 +11,7 @@
     <footer class="player-bar p-2 border-top">
       <ProgressBar />
       <div class="d-flex align-items-center justify-content-between gap-2">
+        <NowPlaying class="player-now-playing" />
         <TransportControls />
         <div class="d-flex align-items-center gap-2">
           <LikeButton />
@@ -27,6 +28,7 @@ import TransportControls from "@/components/TransportControls.vue";
 import ProgressBar from "@/components/ProgressBar.vue";
 import VolumeControl from "@/components/VolumeControl.vue";
 import LikeButton from "@/components/LikeButton.vue";
+import NowPlaying from "@/components/NowPlaying.vue";
 import { usePlayerStore } from "@/stores/player";
 
 const activeTab = ref("home");
@@ -63,5 +65,10 @@ const HomePlaceholder = defineComponent({
   position: sticky;
   bottom: 0;
   background: var(--bs-body-bg);
+}
+.player-now-playing {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 40%;
 }
 </style>

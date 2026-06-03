@@ -9,6 +9,8 @@ vi.mock("@/api/tauri", () => ({
   nativeAudioStatus: vi.fn().mockResolvedValue(undefined),
   nativeAudioSetVolume: vi.fn().mockResolvedValue(undefined),
   toggleLiked: vi.fn().mockResolvedValue(true),
+  readTrackArtwork: vi.fn().mockResolvedValue(null),
+  readTrackSignalDetails: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
@@ -30,9 +32,12 @@ import {
   nativeAudioStatus,
   nativeAudioSetVolume,
   toggleLiked,
+  readTrackArtwork,
+  readTrackSignalDetails,
 } from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { usePlayerStore } from "@/stores/player";
+import type { TrackArtwork, TrackSignalDetails } from "@/types";
 
 const track = { path: "/m/a.mp3", title: "A", artist: "X", album: "Y", liked: false };
 const mkQueue = () => [
@@ -519,5 +524,73 @@ describe("player.setVolume / toggleMute", () => {
     await p.setVolume(0.3);
     expect(p.muted).toBe(false);
     expect(nativeAudioSetVolume).toHaveBeenLastCalledWith(0.3);
+  });
+});
+
+describe("player.loadNowPlayingMeta", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("fetches artwork + signal for the current track and stores them", async () => {
+    const art = { mime_type: "image/jpeg", data_base64: "AAAA" };
+    const sig = {
+      format: "FLAC",
+      sample_rate_hz: 44100,
+      bit_depth: 16,
+      channels: 2,
+      bitrate_kbps: 1411,
+    };
+    vi.mocked(readTrackArtwork).mockResolvedValue(art);
+    vi.mocked(readTrackSignalDetails).mockResolvedValue(sig);
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 0 });
+    await p.loadNowPlayingMeta();
+    expect(readTrackArtwork).toHaveBeenCalledWith("/m/0.mp3", 256);
+    expect(readTrackSignalDetails).toHaveBeenCalledWith("/m/0.mp3");
+    expect(p.artwork).toEqual(art);
+    expect(p.signal).toEqual(sig);
+  });
+
+  it("clears metadata and makes no calls when nothing is current", async () => {
+    const p = usePlayerStore();
+    p.$patch({ artwork: { mime_type: "x", data_base64: "y" } });
+    await p.loadNowPlayingMeta();
+    expect(readTrackArtwork).not.toHaveBeenCalled();
+    expect(p.artwork).toBeNull();
+    expect(p.signal).toBeNull();
+  });
+
+  it("ignores a stale response when the track changed mid-flight", async () => {
+    let resolveArt: (v: TrackArtwork | null) => void = () => {};
+    vi.mocked(readTrackArtwork).mockImplementation(
+      () => new Promise<TrackArtwork | null>((r) => (resolveArt = r)),
+    );
+    vi.mocked(readTrackSignalDetails).mockResolvedValue(
+      null as unknown as TrackSignalDetails,
+    );
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 0 });
+    const first = p.loadNowPlayingMeta();
+    // Track changes before the first fetch resolves; a newer load wins.
+    p.$patch({ currentIndex: 1 });
+    vi.mocked(readTrackArtwork).mockResolvedValue({
+      mime_type: "image/png",
+      data_base64: "NEW",
+    });
+    await p.loadNowPlayingMeta();
+    resolveArt({ mime_type: "image/jpeg", data_base64: "OLD" });
+    await first;
+    expect(p.artwork?.data_base64).toBe("NEW");
+  });
+
+  it("swallows backend errors and leaves metadata cleared", async () => {
+    vi.mocked(readTrackArtwork).mockRejectedValue(new Error("boom"));
+    vi.mocked(readTrackSignalDetails).mockRejectedValue(new Error("boom"));
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 0 });
+    await expect(p.loadNowPlayingMeta()).resolves.toBeUndefined();
+    expect(p.artwork).toBeNull();
+    expect(p.signal).toBeNull();
   });
 });

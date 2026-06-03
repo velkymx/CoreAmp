@@ -35,10 +35,10 @@ Transport / now-playing / output controls.
 - [x] Like button on the player (cmd: toggle_liked) + Liked sync
 - [ ] Boost cycle control: Off / Boost+ / Boost++
 - [ ] Gapless toggle + true seamless transition
-- [ ] Signal details: format / sample rate / bit depth / channels / bitrate (cmd: read_track_signal_details)
+- [x] Signal details: format / sample rate / bit depth / channels / bitrate (cmd: read_track_signal_details)
 - [ ] Native vs web output toggle; fallback handling surfaced
 - [ ] Output device selection (cmd: list_native_output_devices, native_audio_set_output_device, native_audio_selected_output_device)
-- [ ] Now-playing artwork + title/artist (cmd: read_track_artwork)
+- [x] Now-playing artwork + title/artist (cmd: read_track_artwork)
 - [ ] `Visualizer.vue` — OPEN ITEM: port orb + audioMotion (public/vendor) vs reimplement
 - [ ] Web Audio graph + `<audio>` lifecycle owned in one place (resolve spec open item)
 
