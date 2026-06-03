@@ -13,7 +13,7 @@ Must be completed before the next stable release.
 ## Performance
 
 * [x] Remove database lock bottlenecks during scanning and metadata operations.
-* [ ] Eliminate full-library metadata hash loading during scans.
+* [x] Eliminate full-library metadata hash loading during scans.
 * [ ] Stop re-reading audio files during library browsing.
 * [ ] Move library scanning off UI and IPC threads.
 * [x] Prevent symlink recursion during scans.
