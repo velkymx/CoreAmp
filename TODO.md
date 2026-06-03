@@ -72,12 +72,22 @@ Features users expect from a modern desktop music player.
 * [ ] Unknown-title grouping under U.
 * [ ] Recently Added view.
 * [ ] Album-centric browse and play-in-order workflow.
-* [ ] Fix duration backfill for tracks added through explicit path import.
+* [x] Fix duration backfill for tracks added through explicit path import.
 * [ ] Mobile and small-window layout support.
 * [ ] Fix duration backfill for tracks added through explicit path import.
+* [ ] Album artist editing.
+* [ ] Track number editing.
+* [ ] Disc number editing.
+* [ ] Composer editing.
+* [ ] Genre editing.
+
+## Playlists
+
+* [ ] Save search as playlist.
+* [ ] Add queue to selected playlist.
+* [ ] Smart Liked playlist.
 
 ## Audio
-
 
 * [ ] Save user EQ presets.
 * [ ] Delete user EQ presets.
@@ -87,20 +97,12 @@ Features users expect from a modern desktop music player.
 * [ ] Verify limiter processing parity.
 * [ ] Verify crossfeed processing parity.
 
-
-
-## Playback
-
-
-
-
-## System Integration
-
+## MacOS Intergration
 
 * [ ] Add update checking UI. (is there an updater package?)
 * [ ] Add update installation UI.
-* [ ] Add media key support.
 * [ ] Add system now-playing integration.
+
 ---
 
 # P2 - Power User Features
@@ -114,19 +116,9 @@ Features users expect from a modern desktop music player.
 
 ## Metadata Management
 
-* [ ] Album artist editing.
-* [ ] Track number editing.
-* [ ] Disc number editing.
-* [ ] Composer editing.
-* [ ] Genre editing.
 
 
 
-## Playlists
-
-* [ ] Save search as playlist.
-* [ ] Add queue to selected playlist.
-* [ ] Smart Liked playlist.
 
 ## Import Experience
 
@@ -228,18 +220,6 @@ Features users expect from a modern desktop music player.
 ---
 
 # Continuous Engineering
-
-## Platform
-
-* [ ] Improve IPC scalability.
-* [ ] Improve event handling architecture.
-* [ ] Improve background task infrastructure.
-
-## Database
-
-* [ ] Migration cleanup.
-* [ ] Query optimization.
-* [ ] Connection management improvements.
 
 ## Code Quality
 
