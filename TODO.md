@@ -62,15 +62,22 @@ Features users expect from a modern desktop music player.
 * [x] Add in-app theme toggle (System / Light / Dark).
 * [ ] Complete Apple-dark visual polish pass.
 
-## Library
-
-* [ ] Folder artwork fallback support.
-* [ ] Album artwork fallback support.
+## Library Browsing
+* [ ] Play From Here.
+* [ ] Sort by Title.
+* [ ] Sort by Artist.
+* [ ] Sort by Album.
+* [ ] A-Z / Z-A toggle.
+* [ ] Search sort by genre.
+* [ ] Unknown-title grouping under U.
+* [ ] Recently Added view.
 * [ ] Album-centric browse and play-in-order workflow.
 * [ ] Fix duration backfill for tracks added through explicit path import.
 * [ ] Mobile and small-window layout support.
+* [ ] Fix duration backfill for tracks added through explicit path import.
 
 ## Audio
+
 
 * [ ] Save user EQ presets.
 * [ ] Delete user EQ presets.
@@ -84,7 +91,7 @@ Features users expect from a modern desktop music player.
 
 ## Playback
 
-* [ ] Play From Here.
+
 
 
 ## System Integration
@@ -113,15 +120,7 @@ Features users expect from a modern desktop music player.
 * [ ] Composer editing.
 * [ ] Genre editing.
 
-## Library Browsing
 
-* [ ] Sort by Title.
-* [ ] Sort by Artist.
-* [ ] Sort by Album.
-* [ ] A-Z / Z-A toggle.
-* [ ] Search sort by genre.
-* [ ] Unknown-title grouping under U.
-* [ ] Recently Added view.
 
 ## Playlists
 
@@ -310,7 +309,6 @@ Features users expect from a modern desktop music player.
 
 * [ ] Complete MusicBrainz integration.
 * [ ] Complete Cover Art Archive integration.
-* [ ] Evaluate Discogs fallback provider.
 * [ ] Cache metadata lookups locally.
 * [ ] Avoid repeated lookups for previously failed matches.
 
@@ -327,7 +325,7 @@ Features users expect from a modern desktop music player.
 
 ### Library
 
-* [ ] Fix duration backfill for tracks added through explicit path import.
+
 
 ### DSP Performance
 
