@@ -1,5 +1,6 @@
 <template>
-  <div class="visualizer" :class="{ 'is-fullscreen': fullscreen }" data-test="visualizer">
+  <div class="viz-wrap" :class="{ 'is-fullscreen': fullscreen }">
+    <div class="visualizer" data-test="visualizer">
     <ThreeOrb v-if="pluginId === 'orb'" />
     <SoundRunner v-else-if="pluginId === 'game'" />
     <canvas v-else ref="canvasEl" class="viz-canvas"></canvas>
@@ -35,6 +36,7 @@
       </template>
       <template v-else>Press play to see it move</template>
     </span>
+    </div>
   </div>
 </template>
 
@@ -99,13 +101,30 @@ watch([freq, pluginId], draw);
 </script>
 
 <style scoped>
+.viz-wrap {
+  width: 100%;
+}
 .visualizer {
   position: relative;
   width: 100%;
-  height: 180px;
+  aspect-ratio: 16 / 9;
   border-radius: 0.5rem;
   overflow: hidden;
   background: #0b0f14;
+}
+/* Fullscreen: black letterbox backdrop with a centered 16:9 stage. */
+.viz-wrap.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.viz-wrap.is-fullscreen .visualizer {
+  width: min(100vw, 177.78vh); /* 16/9 of the viewport height */
+  border-radius: 0;
 }
 .viz-canvas {
   display: block;
@@ -122,7 +141,7 @@ watch([freq, pluginId], draw);
   pointer-events: none;
 }
 .visualizer:hover .viz-controls,
-.visualizer.is-fullscreen .viz-controls {
+.viz-wrap.is-fullscreen .viz-controls {
   opacity: 1;
   pointer-events: auto;
 }
@@ -140,14 +159,6 @@ watch([freq, pluginId], draw);
 }
 .viz-icon-btn:hover {
   background: rgba(0, 0, 0, 0.7);
-}
-.is-fullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 1090;
-  width: 100vw;
-  height: 100vh;
-  border-radius: 0;
 }
 .viz-hint {
   position: absolute;
