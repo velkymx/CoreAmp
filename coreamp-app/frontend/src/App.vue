@@ -45,20 +45,31 @@ import EditMetadataModal from "@/components/EditMetadataModal.vue";
 import AddToPlaylistModal from "@/components/AddToPlaylistModal.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useUiStore, type TabName } from "@/stores/ui";
+import { applyShortcut, shouldIgnoreTarget } from "@/composables/useShortcuts";
 
 const player = usePlayerStore();
 const ui = useUiStore();
+
+// Global transport keyboard shortcuts: Space play/pause, ←/→ seek, ↑/↓ volume,
+// n/p next/prev, m mute, s shuffle, r repeat. Skipped while typing or when a
+// visualizer/game holds focus.
+function onGlobalKey(e: KeyboardEvent): void {
+  if (shouldIgnoreTarget(e.target)) return;
+  if (applyShortcut(player, e.key)) e.preventDefault();
+}
 
 // Activate the native audio path (or fall back to web), then poll the native
 // engine for live playback position to drive the progress bar.
 let progressTimer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
   player.init();
+  window.addEventListener("keydown", onGlobalKey);
   progressTimer = setInterval(() => {
     void player.refreshStatus();
   }, 250);
 });
 onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onGlobalKey);
   if (progressTimer !== undefined) clearInterval(progressTimer);
 });
 </script>
