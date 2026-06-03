@@ -36,8 +36,8 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 ## Networking
 
 * [x] Add MusicBrainz request rate limiting.
-* [ ] Update MusicBrainz user-agent string.
-* [ ] Add contact information to MusicBrainz requests.
+* [x] Update MusicBrainz user-agent string.
+* [x] Add contact information to MusicBrainz requests.
 * [ ] Log persistent metadata-enrichment failures.
 
 ## Stability
@@ -163,12 +163,6 @@ Features users expect from a modern desktop music player.
 * [ ] Crossfade engine.
 * [ ] Crossfade controls.
 * [ ] Crossfade tuning.
-
-## DSP
-
-* [ ] Import DSP presets.
-* [ ] Export DSP presets.
-* [ ] Save DSP profiles.
 
 ## Monitoring
 
