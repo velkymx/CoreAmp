@@ -56,13 +56,13 @@ Transport / now-playing / output controls.
 - [x] Record play on playback (cmd: record_play)
 
 ## Milestone 4 — Playlists + Queue
-- [ ] Playlist browser list (cmd: list_playlists)
-- [ ] Load playlist into queue (cmd: load_playlist)
-- [ ] Save / create playlist from queue or search (cmd: save_playlist)
-- [ ] Delete playlist (cmd: delete_playlist)
-- [ ] Append tracks to playlist (cmd: append_to_playlist); membership check (cmd: playlist_contains)
-- [ ] Import `.m3u` by drag-and-drop (cmd: import_playlist_file)
-- [ ] De-dup playlist + cleanup button (cmd: dedup_playlist)
+- [x] Playlist browser list (cmd: list_playlists)
+- [x] Load playlist into queue (cmd: load_playlist)
+- [x] Save / create playlist from queue or search (cmd: save_playlist)
+- [x] Delete playlist (cmd: delete_playlist)
+- [ ] Append tracks to playlist (cmd: append_to_playlist); membership check (cmd: playlist_contains) — store action exists; row "Add to playlist" UI pending (with context menu)
+- [ ] Import `.m3u` by drag-and-drop (cmd: import_playlist_file) — store action exists; drag-drop wiring pending (Milestone 7)
+- [x] De-dup playlist + cleanup button (cmd: dedup_playlist)
 - [ ] Queue panel: reorder via drag (`VibeSortable`)
 - [ ] Queue actions: Play next / Queue next / Play from here / Stop after current / Clear played
 

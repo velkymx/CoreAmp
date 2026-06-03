@@ -4,7 +4,7 @@
       <VibeTab name="home" label="Home"><HomePlaceholder /></VibeTab>
       <VibeTab name="library" label="Library"><LibraryView /></VibeTab>
       <VibeTab name="liked" label="Liked"><LikedView /></VibeTab>
-      <VibeTab name="playlists" label="Playlists"><Placeholder label="Playlists" /></VibeTab>
+      <VibeTab name="playlists" label="Playlists"><PlaylistsView /></VibeTab>
       <VibeTab name="audio" label="Audio"><Placeholder label="Audio" /></VibeTab>
       <VibeTab name="settings" label="Settings"><Placeholder label="Settings" /></VibeTab>
     </VibeTabs>
@@ -33,6 +33,7 @@ import NowPlaying from "@/components/NowPlaying.vue";
 import OutputDevicePicker from "@/components/OutputDevicePicker.vue";
 import LibraryView from "@/components/LibraryView.vue";
 import LikedView from "@/components/LikedView.vue";
+import PlaylistsView from "@/components/PlaylistsView.vue";
 import { usePlayerStore } from "@/stores/player";
 
 const activeTab = ref("home");
