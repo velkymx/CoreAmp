@@ -46,7 +46,7 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 
 ## Build & Release
 
-* [ ] Fix `cargo tauri build` path issue.
+* [x] Fix `cargo tauri build` path issue.
 * [ ] Complete full application smoke test.
 * [ ] Verify installable release workflow.
 
