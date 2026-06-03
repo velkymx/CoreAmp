@@ -33,7 +33,7 @@ Transport / now-playing / output controls.
 - [x] Shuffle toggle (queue shuffle without interrupting current track)
 - [x] Repeat cycle: off / queue / track
 - [x] Like button on the player (cmd: toggle_liked) + Liked sync
-- [ ] Boost cycle control: Off / Boost+ / Boost++ (needs DSP-settings store; couples to Milestone 5)
+- [x] Boost cycle control: Off / Boost+ / Boost++ (in Audio tab via audio store cycleBoost)
 - [ ] Gapless toggle + true seamless transition (BACKEND GAP: no gapless command exists in coreamp-app; needs native preload/queue support before a UI toggle is meaningful)
 - [x] Signal details: format / sample rate / bit depth / channels / bitrate (cmd: read_track_signal_details)
 - [ ] Native vs web output toggle; fallback handling surfaced
@@ -67,13 +67,13 @@ Transport / now-playing / output controls.
 - [ ] Queue actions: Play next / Queue next / Play from here / Stop after current / Clear played
 
 ## Milestone 5 — Audio / EQ + EqGraph
-- [ ] Parametric EQ: multi-band frequency / gain / Q sliders (`VibeSlider`)
-- [ ] EQ presets (Flat / Warm / Presence / V Curve / Bass Cut) + reset (`VibeFormSelect`)
-- [ ] Persist named user EQ presets
-- [ ] EQ bypass toggle
-- [ ] `EqGraph.vue` — OPEN ITEM: custom curve canvas vs `VibeChartLine`
-- [ ] DSP chain controls: preamp / limiter / crossfeed / bass boost (cmd: native_audio_set_dsp_settings)
-- [ ] Apply EQ/DSP to native + web paths
+- [x] Parametric EQ: multi-band frequency / gain / Q sliders (`VibeSlider`)
+- [x] EQ presets (Flat / Warm / Presence / V Curve / Bass Cut) + reset (`VibeFormSelect`)
+- [ ] Persist named user EQ presets — no backend command for custom presets; deferred
+- [x] EQ bypass toggle
+- [x] `EqGraph.vue` — RESOLVED: custom SVG curve from RBJ peaking-biquad magnitude response (util/eq.ts)
+- [x] DSP chain controls: preamp / limiter / crossfeed / bass boost (cmd: native_audio_set_dsp_settings)
+- [ ] Apply EQ/DSP to native + web paths — native done; web-path EQ graph not wired yet
 
 ## Milestone 6 — Home + Settings
 - [x] Dashboard: Top Artists + Recently Played artwork cards (cmd: list_top_artists, list_recently_played)

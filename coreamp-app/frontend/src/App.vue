@@ -9,7 +9,7 @@
       <VibeTab name="library" label="Library"><LibraryView /></VibeTab>
       <VibeTab name="liked" label="Liked"><LikedView /></VibeTab>
       <VibeTab name="playlists" label="Playlists"><PlaylistsView /></VibeTab>
-      <VibeTab name="audio" label="Audio"><Placeholder label="Audio" /></VibeTab>
+      <VibeTab name="audio" label="Audio"><AudioView /></VibeTab>
       <VibeTab name="settings" label="Settings"><SettingsView /></VibeTab>
     </VibeTabs>
     <footer class="player-bar p-2 border-top">
@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineComponent, h, onMounted, onBeforeUnmount } from "vue";
+import { onMounted, onBeforeUnmount } from "vue";
 import TransportControls from "@/components/TransportControls.vue";
 import ProgressBar from "@/components/ProgressBar.vue";
 import VolumeControl from "@/components/VolumeControl.vue";
@@ -40,6 +40,7 @@ import LikedView from "@/components/LikedView.vue";
 import PlaylistsView from "@/components/PlaylistsView.vue";
 import HomeView from "@/components/HomeView.vue";
 import SettingsView from "@/components/SettingsView.vue";
+import AudioView from "@/components/AudioView.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useUiStore, type TabName } from "@/stores/ui";
 
@@ -57,11 +58,6 @@ onBeforeUnmount(() => {
   if (progressTimer !== undefined) clearInterval(progressTimer);
 });
 
-const Placeholder = defineComponent({
-  props: { label: { type: String, required: true } },
-  setup: (props) => () =>
-    h("div", { class: "p-3 text-secondary" }, `${props.label} — coming soon`),
-});
 </script>
 
 <style scoped>

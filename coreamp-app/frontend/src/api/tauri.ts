@@ -5,6 +5,7 @@ import type {
   ArtistSummary,
   GenreSummary,
   LibraryTrack,
+  NativeDspSettings,
   NativeOutputDevice,
   NativeStatus,
   PlaylistSummary,
@@ -112,3 +113,7 @@ export const scanPaths = (paths: string[]) =>
 export const pickScanPaths = (kind: string) =>
   call<string[]>("pick_scan_paths", { kind });
 export const appVersion = () => call<string>("app_version");
+
+// --- DSP / EQ ---
+export const nativeAudioSetDspSettings = (settings: NativeDspSettings) =>
+  call<void>("native_audio_set_dsp_settings", { settings });

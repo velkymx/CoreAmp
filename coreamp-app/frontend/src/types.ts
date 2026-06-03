@@ -78,6 +78,21 @@ export interface TrackMetadataInput {
   genre: string | null;
 }
 
+export interface EqBand {
+  frequency: number;
+  gain: number;
+  q: number;
+}
+
+export interface NativeDspSettings {
+  eq_enabled: boolean;
+  eq_bands: EqBand[];
+  boost_level: number;
+  preamp_db: number;
+  limiter_enabled: boolean;
+  crossfeed_enabled: boolean;
+}
+
 export interface NativeOutputDevice {
   name: string;
   is_default: boolean;
