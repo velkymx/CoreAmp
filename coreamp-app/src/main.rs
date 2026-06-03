@@ -769,20 +769,6 @@ fn library_count() -> Result<u64, String> {
     db::library_count()
 }
 
-fn merge_missing(existing: &mut Option<String>, incoming: Option<String>) {
-    if existing
-        .as_ref()
-        .is_some_and(|value| !value.trim().is_empty())
-    {
-        return;
-    }
-    if let Some(value) = incoming
-        && !value.trim().is_empty()
-    {
-        *existing = Some(value);
-    }
-}
-
 fn is_placeholder_title(title: &Option<String>, filename: &str) -> bool {
     let Some(title) = title.as_ref() else {
         return true;
@@ -802,18 +788,6 @@ fn is_placeholder_title(title: &Option<String>, filename: &str) -> bool {
     normalized_title == filename_stem
 }
 
-fn hydrate_track_from_file(track: &mut LibraryTrack) {
-    let file_metadata = metadata::read_track_metadata(Path::new(&track.path));
-    merge_missing(&mut track.artist, file_metadata.artist);
-    merge_missing(&mut track.album, file_metadata.album);
-    if is_placeholder_title(&track.title, &track.filename) {
-        track.title = None;
-    }
-    merge_missing(&mut track.title, file_metadata.title);
-    merge_missing(&mut track.year, file_metadata.year);
-    merge_missing(&mut track.genre, file_metadata.genre);
-}
-
 fn library_track_from_row(row: db::LibraryRow) -> LibraryTrack {
     let mut track = LibraryTrack {
         path: row.path,
@@ -826,7 +800,11 @@ fn library_track_from_row(row: db::LibraryRow) -> LibraryTrack {
         liked: row.liked,
         duration: row.duration_secs,
     };
-    hydrate_track_from_file(&mut track);
+    // Serve scan-time DB values directly. Browsing must not re-open every file
+    // (300 rows = 300 file opens per render); tags are stored at scan time.
+    if is_placeholder_title(&track.title, &track.filename) {
+        track.title = None;
+    }
     track
 }
 
@@ -1427,10 +1405,8 @@ fn run_native_audio_thread(
                 }
                 NativeAudioCommand::Seek { secs, response } => {
                     let result = if let Some(active_player) = player.as_ref() {
-                        let target = clamp_seek_target(
-                            secs,
-                            current_duration.map(|d| d.as_secs_f64()),
-                        );
+                        let target =
+                            clamp_seek_target(secs, current_duration.map(|d| d.as_secs_f64()));
                         active_player
                             .try_seek(Duration::from_secs_f64(target))
                             .map_err(|err| err.to_string())
@@ -1920,6 +1896,43 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::clamp_seek_target;
+    use super::library_track_from_row;
+    use coreamp_common::db::LibraryRow;
+
+    fn sample_row() -> LibraryRow {
+        LibraryRow {
+            path: "/nonexistent/does-not-exist.mp3".to_string(),
+            filename: "does-not-exist.mp3".to_string(),
+            artist: Some("Artist".to_string()),
+            album: Some("Album".to_string()),
+            title: Some("Real Title".to_string()),
+            year: Some("2020".to_string()),
+            genre: Some("Rock".to_string()),
+            liked: true,
+            duration_secs: Some(200),
+        }
+    }
+
+    #[test]
+    fn library_track_from_row_maps_db_values_without_disk_access() {
+        // Path does not exist; browsing must rely only on the stored DB row.
+        let track = library_track_from_row(sample_row());
+        assert_eq!(track.title.as_deref(), Some("Real Title"));
+        assert_eq!(track.artist.as_deref(), Some("Artist"));
+        assert_eq!(track.album.as_deref(), Some("Album"));
+        assert_eq!(track.genre.as_deref(), Some("Rock"));
+        assert_eq!(track.year.as_deref(), Some("2020"));
+        assert_eq!(track.duration, Some(200));
+        assert!(track.liked);
+    }
+
+    #[test]
+    fn library_track_from_row_clears_placeholder_title() {
+        let mut row = sample_row();
+        row.title = Some("does-not-exist.mp3".to_string()); // title == filename
+        let track = library_track_from_row(row);
+        assert!(track.title.is_none());
+    }
 
     #[test]
     fn clamp_seek_target_floors_negative_to_zero() {
