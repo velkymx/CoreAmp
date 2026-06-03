@@ -25,6 +25,8 @@
       </div>
     </footer>
     <NotificationHost />
+    <EditMetadataModal />
+    <AddToPlaylistModal />
   </div>
 </template>
 
@@ -43,6 +45,8 @@ import HomeView from "@/components/HomeView.vue";
 import SettingsView from "@/components/SettingsView.vue";
 import AudioView from "@/components/AudioView.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
+import EditMetadataModal from "@/components/EditMetadataModal.vue";
+import AddToPlaylistModal from "@/components/AddToPlaylistModal.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useUiStore, type TabName } from "@/stores/ui";
 

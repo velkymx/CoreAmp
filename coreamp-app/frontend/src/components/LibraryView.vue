@@ -37,6 +37,8 @@
         @like="library.toggleLike"
         @play-next="(t) => player.playNext(toQueueTrack(t))"
         @enqueue="(t) => player.enqueue(toQueueTrack(t))"
+        @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
+        @edit="(t) => ui.openEdit(t)"
       />
       <SummaryGrid
         v-else
@@ -49,16 +51,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, watch } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
 import TrackTable from "@/components/TrackTable.vue";
 import SummaryGrid, { type SummaryItem } from "@/components/SummaryGrid.vue";
 import { useLibraryStore, type LibraryView } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
+import { useUiStore } from "@/stores/ui";
 import { toQueueTrack } from "@/util/track";
 
 const library = useLibraryStore();
 const player = usePlayerStore();
+const ui = useUiStore();
+
+// Reload the track list after a metadata edit elsewhere.
+watch(
+  () => ui.dataVersion,
+  () => {
+    if (library.view === "tracks") void library.loadTracks();
+    else void library.refresh();
+  },
+);
 
 const VIEWS: { id: LibraryView; label: string }[] = [
   { id: "tracks", label: "Tracks" },

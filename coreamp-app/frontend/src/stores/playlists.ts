@@ -33,9 +33,10 @@ export const usePlaylistsStore = defineStore("playlists", {
       return summary;
     },
 
-    async append(playlistPath: string, paths: string[]): Promise<void> {
+    async append(playlistPath: string, paths: string[]): Promise<PlaylistSummary> {
       const summary = await api.appendToPlaylist(playlistPath, paths);
       this.upsert(summary);
+      return summary;
     },
 
     async remove(playlistPath: string): Promise<void> {

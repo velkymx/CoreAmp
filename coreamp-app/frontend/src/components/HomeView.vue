@@ -16,13 +16,15 @@
         @like="onLike"
         @play-next="(t) => player.playNext(toQueueTrack(t))"
         @enqueue="(t) => player.enqueue(toQueueTrack(t))"
+        @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
+        @edit="(t) => ui.openEdit(t)"
       />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import type { ArtistSummary, LibraryTrack } from "@/types";
 import * as api from "@/api/tauri";
 import SummaryGrid, { type SummaryItem } from "@/components/SummaryGrid.vue";
@@ -50,6 +52,7 @@ async function load(): Promise<void> {
   if (data) [topArtists.value, recent.value] = data;
 }
 onMounted(load);
+watch(() => ui.dataVersion, load);
 
 const topArtistItems = computed<SummaryItem[]>(() =>
   topArtists.value.map((a) => ({

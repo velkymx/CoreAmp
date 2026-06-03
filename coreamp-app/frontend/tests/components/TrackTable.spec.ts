@@ -83,5 +83,13 @@ describe("TrackTable", () => {
     await w.get('[data-test="track-menu"]').trigger("click");
     await w.get('[data-test="menu-queue"]').trigger("click");
     expect(w.emitted("enqueue")?.[0][0]).toMatchObject({ path: "/m/a.mp3" });
+
+    await w.get('[data-test="track-menu"]').trigger("click");
+    await w.get('[data-test="menu-add-playlist"]').trigger("click");
+    expect(w.emitted("add-to-playlist")?.[0][0]).toMatchObject({ path: "/m/a.mp3" });
+
+    await w.get('[data-test="track-menu"]').trigger("click");
+    await w.get('[data-test="menu-edit"]').trigger("click");
+    expect(w.emitted("edit")?.[0][0]).toMatchObject({ path: "/m/a.mp3" });
   });
 });

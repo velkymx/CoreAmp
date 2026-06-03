@@ -64,6 +64,12 @@
               <button type="button" class="track-menu-item" data-test="menu-queue" @click.stop="emitMenu('enqueue', track)">
                 Add to queue
               </button>
+              <button type="button" class="track-menu-item" data-test="menu-add-playlist" @click.stop="emitMenu('add-to-playlist', track)">
+                Add to playlist…
+              </button>
+              <button type="button" class="track-menu-item" data-test="menu-edit" @click.stop="emitMenu('edit', track)">
+                Edit metadata…
+              </button>
             </div>
           </td>
         </tr>
@@ -87,6 +93,8 @@ const emit = defineEmits<{
   (e: "like", path: string): void;
   (e: "play-next", track: LibraryTrack): void;
   (e: "enqueue", track: LibraryTrack): void;
+  (e: "add-to-playlist", track: LibraryTrack): void;
+  (e: "edit", track: LibraryTrack): void;
 }>();
 
 const openIndex = ref(-1);
@@ -95,9 +103,14 @@ function toggleMenu(index: number): void {
   openIndex.value = openIndex.value === index ? -1 : index;
 }
 
-function emitMenu(event: "play-next" | "enqueue", track: LibraryTrack): void {
+function emitMenu(
+  event: "play-next" | "enqueue" | "add-to-playlist" | "edit",
+  track: LibraryTrack,
+): void {
   if (event === "play-next") emit("play-next", track);
-  else emit("enqueue", track);
+  else if (event === "enqueue") emit("enqueue", track);
+  else if (event === "add-to-playlist") emit("add-to-playlist", track);
+  else emit("edit", track);
   openIndex.value = -1;
 }
 </script>
