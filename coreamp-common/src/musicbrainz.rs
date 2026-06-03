@@ -7,6 +7,14 @@ use std::time::{Duration, Instant};
 // MusicBrainz asks for no more than one request per second. Hold a small margin.
 const MIN_REQUEST_INTERVAL: Duration = Duration::from_millis(1100);
 
+// MusicBrainz requires a descriptive User-Agent that identifies the app version
+// and a contact (the project URL serves as contact per their guidelines).
+const USER_AGENT: &str = concat!(
+    "CoreAmp/",
+    env!("CARGO_PKG_VERSION"),
+    " ( https://github.com/velkymx/CoreAmp )"
+);
+
 // Remaining time to wait before the next request may be sent, given the last
 // request time. Pure so the policy is unit-tested without real sleeping.
 fn throttle_remaining(last: Instant, now: Instant, min: Duration) -> Duration {
@@ -115,7 +123,7 @@ pub fn lookup_recording(query: &str, proxy: Option<&str>) -> Result<Option<Track
 
     let mut builder = Client::builder()
         .timeout(Duration::from_secs(10))
-        .user_agent("CoreAmp/0.2.0 (https://github.com/yourusername/coreamp)");
+        .user_agent(USER_AGENT);
     if let Some(proxy_url) = proxy.map(str::trim).filter(|value| !value.is_empty()) {
         let reqwest_proxy = reqwest::Proxy::all(proxy_url).map_err(|err| err.to_string())?;
         builder = builder.proxy(reqwest_proxy);
@@ -142,9 +150,19 @@ pub fn lookup_recording(query: &str, proxy: Option<&str>) -> Result<Option<Track
 
 #[cfg(test)]
 mod tests {
-    use super::{MIN_REQUEST_INTERVAL, from_response, throttle_remaining};
+    use super::{MIN_REQUEST_INTERVAL, USER_AGENT, from_response, throttle_remaining};
     use serde_json::json;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn user_agent_is_current_and_identifies_contact() {
+        // MusicBrainz requires an identifying UA with contact info.
+        assert!(USER_AGENT.starts_with("CoreAmp/"));
+        assert!(USER_AGENT.contains("github.com/velkymx/CoreAmp"));
+        // The old placeholder must be gone.
+        assert!(!USER_AGENT.contains("yourusername"));
+        assert!(!USER_AGENT.contains("0.2.0"));
+    }
 
     #[test]
     fn throttle_waits_until_min_interval_elapses() {
