@@ -20,6 +20,16 @@ describe("TransportControls", () => {
     expect(spy).toHaveBeenCalledOnce();
   });
 
+  it("clicking shuffle toggles shuffle in the store", async () => {
+    const wrapper = mount(TransportControls, {
+      global: { stubs: { VibeButton: { template: "<button><slot/></button>" }, VibeIcon: true } },
+    });
+    const player = usePlayerStore();
+    const spy = vi.spyOn(player, "toggleShuffle").mockReturnValue();
+    await wrapper.get('[data-test="shuffle"]').trigger("click");
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
   it("the play/pause icon reflects isPlaying (no manual sync)", async () => {
     const wrapper = mount(TransportControls, { global: { stubs } });
     const player = usePlayerStore();

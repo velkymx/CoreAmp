@@ -30,7 +30,7 @@ Transport / now-playing / output controls.
 - [x] Prev / Next wired to queue navigation in the player store (cmd: native_audio_play/stop)
 - [x] Progress bar: scrub + time display, two-way with playback position (`VibeSlider`)
 - [x] Volume control: speaker icon + slider, mute (cmd: native_audio_set_volume)
-- [ ] Shuffle toggle (queue shuffle without interrupting current track)
+- [x] Shuffle toggle (queue shuffle without interrupting current track)
 - [ ] Repeat cycle: off / queue / track
 - [ ] Like button on the player (cmd: toggle_liked) + Liked sync
 - [ ] Boost cycle control: Off / Boost+ / Boost++

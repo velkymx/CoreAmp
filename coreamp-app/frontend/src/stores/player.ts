@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import type { NativeStatus, Source, Track } from "@/types";
 import * as api from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
+import { buildShuffleOrder } from "@/util/shuffle";
 
 export type ToggleResult = "paused" | "resumed" | "played" | "busy" | "noop";
 export type NavResult = "played" | "ended" | "busy" | "noop";
@@ -17,6 +18,9 @@ interface PlayerState {
   durationSecs: number | null;
   volume: number;
   muted: boolean;
+  shuffle: boolean;
+  shuffleOrder: number[];
+  shufflePos: number;
 }
 
 export const usePlayerStore = defineStore("player", {
@@ -31,6 +35,9 @@ export const usePlayerStore = defineStore("player", {
     durationSecs: null,
     volume: 0.8,
     muted: false,
+    shuffle: false,
+    shuffleOrder: [],
+    shufflePos: 0,
   }),
   actions: {
     // Apply an effective output level (0..1) to the active playback source.
@@ -105,11 +112,34 @@ export const usePlayerStore = defineStore("player", {
       this.isPlaying = false;
     },
 
+    // Build a fresh current-first shuffle order; toggling never interrupts the
+    // current track (no playback call here).
+    toggleShuffle(): void {
+      this.shuffle = !this.shuffle;
+      if (this.shuffle) {
+        this.shuffleOrder = buildShuffleOrder(this.queue.length, this.currentIndex);
+        this.shufflePos = 0;
+      } else {
+        this.shuffleOrder = [];
+        this.shufflePos = 0;
+      }
+    },
+
     async nextTrack(): Promise<NavResult> {
       if (this.inFlight) return "busy"; // H-B: no concurrent transitions
       if (!this.queue.length || this.currentIndex < 0) return "noop";
       this.inFlight = true;
       try {
+        if (this.shuffle && this.shuffleOrder.length > 0) {
+          if (this.shufflePos + 1 < this.shuffleOrder.length) {
+            this.shufflePos += 1;
+            this.currentIndex = this.shuffleOrder[this.shufflePos];
+            await this.playCurrent();
+            return "played";
+          }
+          await this.stopPlayback();
+          return "ended";
+        }
         if (this.currentIndex + 1 < this.queue.length) {
           this.currentIndex += 1;
           await this.playCurrent();
@@ -128,6 +158,14 @@ export const usePlayerStore = defineStore("player", {
       if (!this.queue.length || this.currentIndex < 0) return "noop";
       this.inFlight = true;
       try {
+        if (this.shuffle && this.shuffleOrder.length > 0) {
+          if (this.shufflePos > 0) {
+            this.shufflePos -= 1;
+            this.currentIndex = this.shuffleOrder[this.shufflePos];
+          }
+          await this.playCurrent();
+          return "played";
+        }
         // Step back, or restart the current track when already at the start.
         if (this.currentIndex > 0) {
           this.currentIndex -= 1;

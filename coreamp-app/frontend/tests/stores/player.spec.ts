@@ -270,6 +270,92 @@ describe("player.seek / syncFromNativeStatus", () => {
   });
 });
 
+describe("player.toggleShuffle", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("enabling shuffle builds a current-first order without interrupting playback", () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 1,
+      isPlaying: true,
+    });
+    p.toggleShuffle();
+    expect(p.shuffle).toBe(true);
+    expect(p.shuffleOrder).toHaveLength(3);
+    expect(p.shuffleOrder[0]).toBe(1);
+    expect(p.shufflePos).toBe(0);
+    // Current track keeps playing: no play/stop call, index unchanged.
+    expect(nativeAudioPlay).not.toHaveBeenCalled();
+    expect(nativeAudioStop).not.toHaveBeenCalled();
+    expect(p.currentIndex).toBe(1);
+    expect(p.isPlaying).toBe(true);
+  });
+
+  it("disabling shuffle clears the order", () => {
+    const p = usePlayerStore();
+    p.$patch({ shuffle: true, shuffleOrder: [1, 0, 2], shufflePos: 0 });
+    p.toggleShuffle();
+    expect(p.shuffle).toBe(false);
+    expect(p.shuffleOrder).toEqual([]);
+  });
+
+  it("nextTrack follows the shuffle order", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 1,
+      shuffle: true,
+      shuffleOrder: [1, 2, 0],
+      shufflePos: 0,
+      isPlaying: true,
+    });
+    const result = await p.nextTrack();
+    expect(result).toBe("played");
+    expect(p.shufflePos).toBe(1);
+    expect(p.currentIndex).toBe(2);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/2.mp3");
+  });
+
+  it("nextTrack stops at the end of the shuffle order", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 0,
+      shuffle: true,
+      shuffleOrder: [1, 2, 0],
+      shufflePos: 2,
+      isPlaying: true,
+    });
+    expect(await p.nextTrack()).toBe("ended");
+    expect(nativeAudioStop).toHaveBeenCalledOnce();
+  });
+
+  it("prevTrack steps back through the shuffle order", async () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "native",
+      nativeAvailable: true,
+      queue: mkQueue(),
+      currentIndex: 2,
+      shuffle: true,
+      shuffleOrder: [1, 2, 0],
+      shufflePos: 1,
+      isPlaying: true,
+    });
+    expect(await p.prevTrack()).toBe("played");
+    expect(p.shufflePos).toBe(0);
+    expect(p.currentIndex).toBe(1);
+    expect(nativeAudioPlay).toHaveBeenCalledWith("/m/1.mp3");
+  });
+});
+
 describe("player.setVolume / toggleMute", () => {
   beforeEach(() => vi.clearAllMocks());
 

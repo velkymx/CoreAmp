@@ -1,5 +1,15 @@
 <template>
   <div class="transport-controls d-inline-flex align-items-center gap-2">
+    <VibeButton
+      :variant="player.shuffle ? 'primary' : 'secondary'"
+      outline
+      data-test="shuffle"
+      :aria-pressed="player.shuffle"
+      aria-label="Shuffle"
+      @click="player.toggleShuffle()"
+    >
+      <VibeIcon icon="shuffle" />
+    </VibeButton>
     <VibeButton variant="secondary" aria-label="Previous track" @click="player.prevTrack()">
       <VibeIcon icon="skip-start-fill" />
     </VibeButton>
