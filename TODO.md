@@ -6,19 +6,13 @@ Completed work belongs in `CHANGELOG.md`.
 
 ---
 
-# P0 - Ship Blockers
+# P0 - Core Ship Blockers
 
 Must be completed before the next stable release.
 
-## Cutover
-
-* [ ] Merge `epic/vibeui-migration` into the release branch.
-* [ ] Verify all migrated functionality against CHANGELOG.
-* [ ] Confirm `dist` contains build output only.
-
 ## Performance
 
-* [ ] Remove database lock bottlenecks during scanning and metadata operations.
+* [x] Remove database lock bottlenecks during scanning and metadata operations.
 * [ ] Eliminate full-library metadata hash loading during scans.
 * [ ] Stop re-reading audio files during library browsing.
 * [ ] Move library scanning off UI and IPC threads.
@@ -38,7 +32,7 @@ Must be completed before the next stable release.
 
 ## Networking
 
-* [ ] Add MusicBrainz request rate limiting.
+* [x] Add MusicBrainz request rate limiting.
 * [ ] Update MusicBrainz user-agent string.
 * [ ] Add contact information to MusicBrainz requests.
 * [ ] Log persistent metadata-enrichment failures.
@@ -328,11 +322,11 @@ Features users expect from a modern desktop music player.
 
 ---
 
-## P0 - Ship Blockers
+## P4 - Ship Blockers
 
 ### Networking
 
-* [ ] Add MusicBrainz request rate limiting.
+* [x] Add MusicBrainz request rate limiting.
 * [ ] Update MusicBrainz user-agent string.
 * [ ] Add contact information to MusicBrainz requests.
 * [ ] Log persistent metadata-enrichment failures.
