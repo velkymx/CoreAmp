@@ -1,6 +1,12 @@
 import { defineStore } from "pinia";
 import type { EqBand, NativeDspSettings } from "@/types";
 import { webDriver } from "@/playback/webDriver";
+import {
+  loadUserEqPresets,
+  saveUserEqPreset,
+  deleteUserEqPreset,
+  type UserEqPreset,
+} from "@/audio/userEqPresets";
 
 // Fixed 5-band layout. Only gain/Q are user-adjustable; the centre frequencies
 // are conventional for a 5-band graphic EQ.
@@ -31,6 +37,7 @@ interface AudioState {
   preampDb: number;
   limiterEnabled: boolean;
   crossfeedEnabled: boolean;
+  userPresets: UserEqPreset[];
 }
 
 export const useAudioStore = defineStore("audio", {
@@ -42,6 +49,7 @@ export const useAudioStore = defineStore("audio", {
     preampDb: 0,
     limiterEnabled: true,
     crossfeedEnabled: false,
+    userPresets: loadUserEqPresets(),
   }),
   getters: {
     boostLabel: (state) => BOOST_LABELS[state.boostLevel] ?? BOOST_LABELS[0],
@@ -90,6 +98,30 @@ export const useAudioStore = defineStore("audio", {
         q: 1.0,
       }));
       this.preset = name;
+      this.eqEnabled = true;
+      await this.push();
+    },
+
+    // Save the current bands as a named user preset (replacing one of the same
+    // name), persisted to localStorage.
+    saveUserPreset(name: string): void {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      this.userPresets = saveUserEqPreset({
+        name: trimmed,
+        bands: this.bands.map((b) => ({ ...b })),
+      });
+    },
+
+    deleteUserPreset(name: string): void {
+      this.userPresets = deleteUserEqPreset(name);
+    },
+
+    async applyUserPreset(name: string): Promise<void> {
+      const preset = this.userPresets.find((p) => p.name === name);
+      if (!preset) return;
+      this.bands = preset.bands.map((b) => ({ ...b }));
+      this.preset = "Flat"; // not one of the built-in named presets
       this.eqEnabled = true;
       await this.push();
     },

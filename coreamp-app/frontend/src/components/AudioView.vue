@@ -14,6 +14,34 @@
       </VibeButton>
     </div>
 
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+      <VibeFormInput
+        v-model="newPresetName"
+        placeholder="New preset name"
+        aria-label="EQ preset name"
+        data-test="eq-preset-name"
+        style="max-width: 12rem"
+      />
+      <VibeButton
+        variant="secondary"
+        outline
+        :disabled="!newPresetName.trim()"
+        data-test="eq-save-preset"
+        @click="onSavePreset"
+      >
+        Save preset
+      </VibeButton>
+      <VibeButton
+        v-if="selectedUserPreset"
+        variant="danger"
+        outline
+        data-test="eq-delete-preset"
+        @click="onDeletePreset"
+      >
+        Delete “{{ selectedUserPreset }}”
+      </VibeButton>
+    </div>
+
     <EqGraph :bands="audio.bands" :freq="freq" />
 
     <div class="eq-bands d-flex justify-content-between gap-2 mt-3">
@@ -70,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
 import EqGraph from "@/components/EqGraph.vue";
 import { useAudioStore, type EqPresetName } from "@/stores/audio";
@@ -80,17 +108,49 @@ const audio = useAudioStore();
 const { freq } = useFrequencyData();
 
 const PRESETS: EqPresetName[] = ["Flat", "Warm", "Presence", "V Curve", "Bass Cut"];
-const presetOptions: FormSelectOption[] = PRESETS.map((p) => ({ value: p, text: p }));
+const newPresetName = ref("");
+// User presets are namespaced "user:<name>" in the select so they don't collide
+// with the built-ins.
+const presetOptions = computed<FormSelectOption[]>(() => [
+  ...PRESETS.map((p) => ({ value: p, text: p })),
+  ...audio.userPresets.map((p) => ({ value: `user:${p.name}`, text: `★ ${p.name}` })),
+]);
 
 const eqEnabled = computed<boolean>({
   get: () => audio.eqEnabled,
   set: (v) => void audio.setEqEnabled(v),
 });
 
+const selection = ref<FormSelectOptionValue>(audio.preset);
 const presetModel = computed<FormSelectOptionValue>({
-  get: () => audio.preset,
-  set: (v) => void audio.applyPreset(String(v) as EqPresetName),
+  get: () => selection.value,
+  set: (v) => {
+    selection.value = v;
+    const id = String(v);
+    if (id.startsWith("user:")) void audio.applyUserPreset(id.slice(5));
+    else void audio.applyPreset(id as EqPresetName);
+  },
 });
+
+const selectedUserPreset = computed(() => {
+  const id = String(selection.value);
+  return id.startsWith("user:") ? id.slice(5) : null;
+});
+
+function onSavePreset(): void {
+  const name = newPresetName.value.trim();
+  if (!name) return;
+  audio.saveUserPreset(name);
+  selection.value = `user:${name}`;
+  newPresetName.value = "";
+}
+
+function onDeletePreset(): void {
+  const name = selectedUserPreset.value;
+  if (!name) return;
+  audio.deleteUserPreset(name);
+  selection.value = "Flat";
+}
 
 const limiter = computed<boolean>({
   get: () => audio.limiterEnabled,
