@@ -1,5 +1,5 @@
 <template>
-  <div class="playlists-view h-100 d-flex position-relative" :class="{ 'is-dragging': dragging }">
+  <div class="playlists-view h-100 d-flex flex-column position-relative" :class="{ 'is-dragging': dragging }">
     <div
       v-if="dragging"
       class="drop-hint d-flex align-items-center justify-content-center"
@@ -74,7 +74,6 @@
       </ul>
     </div>
     </div>
-    <aside class="queue-pane border-start"><QueueList /></aside>
   </div>
 </template>
 
@@ -85,7 +84,6 @@ import * as api from "@/api/tauri";
 import { usePlaylistsStore } from "@/stores/playlists";
 import { usePlayerStore } from "@/stores/player";
 import { toQueueTrack } from "@/util/track";
-import QueueList from "@/components/QueueList.vue";
 import { useNotify } from "@/composables/useNotify";
 
 const playlists = usePlaylistsStore();

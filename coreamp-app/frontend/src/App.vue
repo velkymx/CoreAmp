@@ -1,29 +1,29 @@
 <template>
-  <div class="app-shell">
-    <VibeTabs
-      :model-value="ui.activeTab"
-      fill
-      @update:model-value="(t: string) => ui.setTab(t as TabName)"
-    >
-      <VibeTab name="home" label="Home"><HomeView /></VibeTab>
-      <VibeTab name="library" label="Library"><LibraryView /></VibeTab>
-      <VibeTab name="liked" label="Liked"><LikedView /></VibeTab>
-      <VibeTab name="playlists" label="Playlists"><PlaylistsView /></VibeTab>
-      <VibeTab name="audio" label="Audio"><AudioView /></VibeTab>
-      <VibeTab name="settings" label="Settings"><SettingsView /></VibeTab>
-    </VibeTabs>
-    <footer class="player-bar p-2 border-top">
-      <ProgressBar />
-      <div class="d-flex align-items-center justify-content-between gap-2">
-        <NowPlaying class="player-now-playing" />
-        <TransportControls />
-        <div class="d-flex align-items-center gap-2">
-          <LikeButton />
-          <OutputDevicePicker class="player-output" />
-          <VolumeControl />
-        </div>
-      </div>
-    </footer>
+  <div class="app-shell p-3">
+    <!-- Player-first top region: player card on the left, queue on the right. -->
+    <section class="top-region">
+      <PlayerCard class="player-pane" />
+      <aside class="queue-pane rounded">
+        <QueueList />
+      </aside>
+    </section>
+
+    <!-- Library / tabbed content below the player. -->
+    <section class="library-region rounded mt-3">
+      <VibeTabs
+        :model-value="ui.activeTab"
+        fill
+        @update:model-value="(t: string) => ui.setTab(t as TabName)"
+      >
+        <VibeTab name="home" label="Home"><HomeView /></VibeTab>
+        <VibeTab name="library" label="Library"><LibraryView /></VibeTab>
+        <VibeTab name="liked" label="Liked"><LikedView /></VibeTab>
+        <VibeTab name="playlists" label="Playlists"><PlaylistsView /></VibeTab>
+        <VibeTab name="audio" label="Audio"><AudioView /></VibeTab>
+        <VibeTab name="settings" label="Settings"><SettingsView /></VibeTab>
+      </VibeTabs>
+    </section>
+
     <NotificationHost />
     <EditMetadataModal />
     <AddToPlaylistModal />
@@ -32,12 +32,8 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from "vue";
-import TransportControls from "@/components/TransportControls.vue";
-import ProgressBar from "@/components/ProgressBar.vue";
-import VolumeControl from "@/components/VolumeControl.vue";
-import LikeButton from "@/components/LikeButton.vue";
-import NowPlaying from "@/components/NowPlaying.vue";
-import OutputDevicePicker from "@/components/OutputDevicePicker.vue";
+import PlayerCard from "@/components/PlayerCard.vue";
+import QueueList from "@/components/QueueList.vue";
 import LibraryView from "@/components/LibraryView.vue";
 import LikedView from "@/components/LikedView.vue";
 import PlaylistsView from "@/components/PlaylistsView.vue";
@@ -65,26 +61,34 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (progressTimer !== undefined) clearInterval(progressTimer);
 });
-
 </script>
 
 <style scoped>
 .app-shell {
-  display: flex;
-  flex-direction: column;
   min-height: 100vh;
 }
-.player-bar {
-  position: sticky;
-  bottom: 0;
+.top-region {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 1rem;
+  align-items: start;
+}
+.queue-pane {
   background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color, rgba(127, 127, 127, 0.25));
+  height: 100%;
+  min-height: 22rem;
+  max-height: 32rem;
+  overflow: hidden;
 }
-.player-now-playing {
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 40%;
+.library-region {
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color, rgba(127, 127, 127, 0.25));
+  padding: 0.75rem;
 }
-.player-output {
-  max-width: 12rem;
+@media (max-width: 820px) {
+  .top-region {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
