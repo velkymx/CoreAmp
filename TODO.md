@@ -42,7 +42,7 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 
 ## Stability
 
-* [ ] Verify multi-process database access behavior.
+* [x] Verify multi-process database access behavior.
 
 ## Build & Release
 
