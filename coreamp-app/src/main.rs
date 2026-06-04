@@ -787,6 +787,13 @@ fn library_count() -> Result<u64, String> {
     db::library_count()
 }
 
+/// Remove library entries whose files no longer exist on disk. Returns the
+/// number of pruned tracks.
+#[tauri::command]
+fn prune_missing_files() -> Result<usize, String> {
+    db::prune_missing_files().map(|removed| removed.len())
+}
+
 fn is_placeholder_title(title: &Option<String>, filename: &str) -> bool {
     let Some(title) = title.as_ref() else {
         return true;
@@ -1861,6 +1868,7 @@ fn main() {
             pick_scan_paths,
             list_library,
             library_count,
+prune_missing_files,
             list_genres,
             list_artists,
             list_albums,

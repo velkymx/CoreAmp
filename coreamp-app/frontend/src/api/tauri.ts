@@ -68,6 +68,7 @@ export interface ListLibraryArgs {
 export const listLibrary = (args: ListLibraryArgs = {}) =>
   call<LibraryTrack[]>("list_library", args as Record<string, unknown>);
 export const libraryCount = () => call<number>("library_count");
+export const pruneMissingFiles = () => call<number>("prune_missing_files");
 export const listGenres = () => call<string[]>("list_genres");
 export const listArtists = () => call<ArtistSummary[]>("list_artists");
 export const listAlbums = () => call<AlbumSummary[]>("list_albums");

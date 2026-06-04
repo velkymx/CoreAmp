@@ -573,6 +573,44 @@ pub fn clear_history() -> Result<(), String> {
     tx.commit().map_err(|err| err.to_string())
 }
 
+/// Delete library rows whose files no longer satisfy `exists` (e.g. removed
+/// from disk). Also clears their play history. Returns the removed paths.
+pub(crate) fn delete_missing_files<F: Fn(&str) -> bool>(
+    conn: &Connection,
+    exists: F,
+) -> Result<Vec<String>, String> {
+    let all_paths: Vec<String> = {
+        let mut stmt = conn
+            .prepare("SELECT path FROM files")
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|err| err.to_string())?;
+        rows.collect::<Result<_, _>>()
+            .map_err(|err: rusqlite::Error| err.to_string())?
+    };
+    let missing: Vec<String> = all_paths.into_iter().filter(|p| !exists(p)).collect();
+
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|err| err.to_string())?;
+    for path in &missing {
+        tx.execute("DELETE FROM files WHERE path = ?1", params![path])
+            .map_err(|err| err.to_string())?;
+        tx.execute("DELETE FROM history WHERE path = ?1", params![path])
+            .map_err(|err| err.to_string())?;
+    }
+    tx.commit().map_err(|err| err.to_string())?;
+    Ok(missing)
+}
+
+/// Prune library entries whose backing files have been deleted from disk.
+pub fn prune_missing_files() -> Result<Vec<String>, String> {
+    let mutex = get_db()?;
+    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    delete_missing_files(&connection, |path| Path::new(path).exists())
+}
+
 pub fn library_count() -> Result<u64, String> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|err| err.to_string())?;
@@ -911,6 +949,50 @@ mod tests {
             super::rows_recently_added(&conn, 2).expect("query").len(),
             2
         );
+    }
+
+    #[test]
+    fn delete_missing_files_removes_only_orphans() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("schema");
+        for path in ["/m/keep.mp3", "/m/gone.mp3", "/m/also-gone.mp3"] {
+            conn.execute(
+                "INSERT INTO files(path, filename) VALUES (?1, ?2)",
+                rusqlite::params![path, "f.mp3"],
+            )
+            .expect("insert");
+        }
+        // History rows for an orphan must be cleaned up too.
+        conn.execute(
+            "INSERT INTO history(path) VALUES (?1)",
+            rusqlite::params!["/m/gone.mp3"],
+        )
+        .expect("insert history");
+
+        let mut removed =
+            super::delete_missing_files(&conn, |p| p == "/m/keep.mp3").expect("prune");
+        removed.sort();
+        assert_eq!(
+            removed,
+            vec![
+                String::from("/m/also-gone.mp3"),
+                String::from("/m/gone.mp3")
+            ]
+        );
+
+        let remaining: Vec<String> = {
+            let mut stmt = conn.prepare("SELECT path FROM files").unwrap();
+            stmt.query_map([], |row| row.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        assert_eq!(remaining, vec![String::from("/m/keep.mp3")]);
+
+        let history_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM history", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(history_count, 0);
     }
 
     #[test]

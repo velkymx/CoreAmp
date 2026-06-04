@@ -37,6 +37,9 @@
         <VibeButton variant="secondary" outline data-test="add-folders" @click="onAddFolders">
           Add folders…
         </VibeButton>
+        <VibeButton variant="secondary" outline data-test="prune-missing" @click="onPruneMissing">
+          Remove missing tracks
+        </VibeButton>
         <VibeButton variant="danger" outline data-test="clear-history" @click="onClearHistory">
           Clear play history
         </VibeButton>
@@ -109,6 +112,19 @@ async function onAddFolders(): Promise<void> {
   });
   if (result) {
     status.value = `Added ${result.files_upserted} files from ${result.roots_scanned} folder(s).`;
+  }
+}
+
+async function onPruneMissing(): Promise<void> {
+  status.value = "Checking library…";
+  const removed = await run(() => api.pruneMissingFiles(), {
+    errorPrefix: "Couldn't clean up library",
+  });
+  if (removed !== undefined) {
+    status.value =
+      removed > 0
+        ? `Removed ${removed} missing track(s) from the library.`
+        : "No missing tracks found.";
   }
 }
 
