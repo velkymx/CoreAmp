@@ -6,7 +6,7 @@
       <NowPlaying class="mb-3" />
       <ProgressBar class="mb-2" />
       <VolumeControl class="mb-3 player-volume" />
-      <div class="d-flex align-items-center justify-content-between gap-2">
+      <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
         <TransportControls />
         <div class="d-flex align-items-center gap-2">
           <LikeButton />

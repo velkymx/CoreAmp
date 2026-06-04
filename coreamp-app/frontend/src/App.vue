@@ -106,5 +106,20 @@ onBeforeUnmount(() => {
   .top-region {
     grid-template-columns: 1fr;
   }
+  .queue-pane {
+    max-height: 18rem;
+  }
+}
+@media (max-width: 560px) {
+  .app-shell {
+    padding: 0.5rem !important;
+  }
+  .top-region {
+    gap: 0.5rem;
+  }
+  .library-region {
+    padding: 0.5rem;
+    margin-top: 0.75rem !important;
+  }
 }
 </style>
