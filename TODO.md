@@ -99,7 +99,7 @@ Features users expect from a modern desktop music player.
 ## Library Browsing
 
 * [x] Play From Here.
-* [ ] Play Track Next (add to queue as next track)
+* [x] Play Track Next (add to queue as next track) (row menu: Play next)
 * [x] Sort by Title. (VibeDataTable column sort)
 * [x] Sort by Artist. (VibeDataTable column sort)
 * [x] Sort by Album. (VibeDataTable column sort)
@@ -113,7 +113,7 @@ Features users expect from a modern desktop music player.
 * [ ] Track number editing.
 * [ ] Genre editing.
 * [ ] Year editing.
-* [ ] Dedup Playlist
+* [x] Dedup Playlist (Playlists tab funnel button)
 * [ ] Dedup LibraryPlay
 
 ## Playlists
