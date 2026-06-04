@@ -76,6 +76,34 @@ describe("PlaylistsView", () => {
     expect(w.findAll('[data-test="playlist-row"]')).toHaveLength(1);
   });
 
+  it("adds the current queue to the selected playlist", async () => {
+    vi.mocked(api.appendToPlaylist).mockResolvedValue({
+      name: "A",
+      path: "/p/a.m3u",
+      track_count: 5,
+    });
+    const w = mount(PlaylistsView, { global: { stubs } });
+    usePlaylistsStore().$patch({ playlists: [pl("A", "/p/a.m3u")] });
+    usePlayerStore().$patch({
+      queue: [
+        { path: "/m/a.mp3", title: "A", artist: null, album: null, liked: false },
+        { path: "/m/b.mp3", title: "B", artist: null, album: null, liked: false },
+      ] as never,
+    });
+    await w.vm.$nextTick();
+    await w.get('[data-test="playlist-add-queue"]').trigger("click");
+    expect(api.appendToPlaylist).toHaveBeenCalledWith("/p/a.m3u", ["/m/a.mp3", "/m/b.mp3"]);
+  });
+
+  it("disables add-queue when the queue is empty", async () => {
+    const w = mount(PlaylistsView, { global: { stubs } });
+    usePlaylistsStore().$patch({ playlists: [pl("A", "/p/a.m3u")] });
+    await w.vm.$nextTick();
+    expect(
+      (w.get('[data-test="playlist-add-queue"]').element as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
   it("saving the queue is disabled until a name and a queue both exist", async () => {
     const w = mount(PlaylistsView, { global: { stubs } });
     const btn = w.get('[data-test="playlist-save"]');

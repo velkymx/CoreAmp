@@ -52,6 +52,17 @@
               variant="secondary"
               outline
               size="sm"
+              aria-label="Add current queue"
+              data-test="playlist-add-queue"
+              :disabled="player.queue.length === 0"
+              @click.stop="onAddQueue(item)"
+            >
+              <VibeIcon icon="plus-lg" />
+            </VibeButton>
+            <VibeButton
+              variant="secondary"
+              outline
+              size="sm"
               aria-label="Remove duplicates"
               data-test="playlist-dedup"
               @click.stop="playlists.dedup(item.path)"
@@ -135,6 +146,16 @@ async function onSave(): Promise<void> {
     { errorPrefix: "Couldn't save playlist", success: `Saved "${name}".` },
   );
   if (saved) newName.value = "";
+}
+
+// Append the current play queue to an existing playlist.
+async function onAddQueue(p: PlaylistSummary): Promise<void> {
+  if (player.queue.length === 0) return;
+  const paths = player.queue.map((t) => t.path);
+  await run(() => playlists.append(p.path, paths), {
+    errorPrefix: `Couldn't add to "${p.name}"`,
+    success: `Added ${paths.length} track(s) to "${p.name}".`,
+  });
 }
 
 // Load a playlist into the queue and start it.
