@@ -854,6 +854,31 @@ describe("player clearQueue", () => {
   });
 });
 
+describe("player smart shuffle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it("setSmartShuffle persists and rebuilds the order (seed first) when shuffling", () => {
+    const p = usePlayerStore();
+    p.$patch({
+      queue: [
+        { path: "/m/0.mp3", title: "0", artist: "A", album: "X", liked: false },
+        { path: "/m/1.mp3", title: "1", artist: "A", album: "X", liked: false },
+        { path: "/m/2.mp3", title: "2", artist: "B", album: "Y", liked: false },
+      ] as never,
+      currentIndex: 0,
+      shuffle: true,
+    });
+    p.setSmartShuffle(true);
+    expect(p.smartShuffle).toBe(true);
+    expect(localStorage.getItem("coreamp.smartShuffle")).toBe("1");
+    expect(p.shuffleOrder[0]).toBe(0); // seed stays first
+    expect([...p.shuffleOrder].sort()).toEqual([0, 1, 2]);
+  });
+});
+
 describe("player crossfade", () => {
   beforeEach(() => {
     vi.clearAllMocks();

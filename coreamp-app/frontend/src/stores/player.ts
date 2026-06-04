@@ -10,6 +10,7 @@ import type {
 import * as api from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { buildShuffleOrder } from "@/util/shuffle";
+import { smartShuffleOrder } from "@/util/smartShuffle";
 import { restoreQueue, persistQueueIfChanged } from "@/util/queueStorage";
 import { shouldStartCrossfade } from "@/util/crossfade";
 import { useNotifyStore, errorMessage } from "@/stores/notify";
@@ -53,6 +54,22 @@ function persistGapless(on: boolean): void {
   }
 }
 
+const SMART_SHUFFLE_KEY = "coreamp.smartShuffle";
+function loadSmartShuffle(): boolean {
+  try {
+    return localStorage.getItem(SMART_SHUFFLE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function persistSmartShuffle(on: boolean): void {
+  try {
+    localStorage.setItem(SMART_SHUFFLE_KEY, on ? "1" : "0");
+  } catch {
+    /* best-effort */
+  }
+}
+
 const CROSSFADE_KEY = "coreamp.crossfade.secs";
 function loadCrossfade(): number {
   try {
@@ -82,6 +99,8 @@ interface PlayerState {
   volume: number;
   muted: boolean;
   shuffle: boolean;
+  // Bias shuffle toward tracks similar to the seed (artist/album) vs uniform.
+  smartShuffle: boolean;
   shuffleOrder: number[];
   shufflePos: number;
   repeatMode: RepeatMode;
@@ -122,6 +141,7 @@ export const usePlayerStore = defineStore("player", {
     volume: 0.8,
     muted: false,
     shuffle: false,
+    smartShuffle: false,
     shuffleOrder: [],
     shufflePos: 0,
     repeatMode: "off",
@@ -155,6 +175,7 @@ export const usePlayerStore = defineStore("player", {
       this.replayGainMode = loadReplayGainMode();
       this.gapless = loadGapless();
       this.crossfadeSecs = loadCrossfade();
+      this.smartShuffle = loadSmartShuffle();
 
       // Restore the queue from the previous session (paused — we remember what
       // was queued and where, but don't auto-start audio on launch).
@@ -301,11 +322,29 @@ export const usePlayerStore = defineStore("player", {
       this.signal = signal;
     },
 
+    // The shuffle order for a given seed index: similarity-biased when smart
+    // shuffle is on, otherwise uniform random (current-first either way).
+    shuffleOrderFor(index: number): number[] {
+      return this.smartShuffle
+        ? smartShuffleOrder(this.queue, Math.max(index, 0))
+        : buildShuffleOrder(this.queue.length, index);
+    },
+
+    // Toggle smart shuffle (persisted); rebuild the order if shuffle is active.
+    setSmartShuffle(on: boolean): void {
+      this.smartShuffle = on;
+      persistSmartShuffle(on);
+      if (this.shuffle) {
+        this.shuffleOrder = this.shuffleOrderFor(this.currentIndex);
+        this.shufflePos = 0;
+      }
+    },
+
     // Rebuild a current-first shuffle order after a structural queue edit, so
     // shuffle stays coherent when the queue length or current index changes.
     resyncShuffle(): void {
       if (!this.shuffle) return;
-      this.shuffleOrder = buildShuffleOrder(this.queue.length, this.currentIndex);
+      this.shuffleOrder = this.shuffleOrderFor(this.currentIndex);
       this.shufflePos = 0;
     },
 
@@ -373,7 +412,7 @@ export const usePlayerStore = defineStore("player", {
       if (index < 0 || index >= this.queue.length) return;
       this.currentIndex = index;
       if (this.shuffle) {
-        this.shuffleOrder = buildShuffleOrder(this.queue.length, index);
+        this.shuffleOrder = this.shuffleOrderFor(index);
         this.shufflePos = 0;
       }
       await this.playCurrent();
@@ -417,7 +456,7 @@ export const usePlayerStore = defineStore("player", {
       this.queue = tracks.slice();
       this.currentIndex = index;
       if (this.shuffle) {
-        this.shuffleOrder = buildShuffleOrder(this.queue.length, index);
+        this.shuffleOrder = this.shuffleOrderFor(index);
         this.shufflePos = 0;
       }
       await this.playCurrent();
@@ -559,7 +598,7 @@ export const usePlayerStore = defineStore("player", {
     toggleShuffle(): void {
       this.shuffle = !this.shuffle;
       if (this.shuffle) {
-        this.shuffleOrder = buildShuffleOrder(this.queue.length, this.currentIndex);
+        this.shuffleOrder = this.shuffleOrderFor(this.currentIndex);
         this.shufflePos = 0;
       } else {
         this.shuffleOrder = [];

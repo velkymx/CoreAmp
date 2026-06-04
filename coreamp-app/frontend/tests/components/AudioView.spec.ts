@@ -66,6 +66,13 @@ describe("AudioView", () => {
     expect(player.crossfadeSecs).toBe(6);
   });
 
+  it("toggling Smart shuffle updates the player store", async () => {
+    const w = mount(AudioView, { global: { stubs } });
+    const player = usePlayerStore();
+    await w.get('[data-test="smart-shuffle-toggle"] input').setValue(true);
+    expect(player.smartShuffle).toBe(true);
+  });
+
   it("the boost button cycles the boost level", async () => {
     const w = mount(AudioView, { global: { stubs } });
     const audio = useAudioStore();

@@ -23,6 +23,11 @@
         />
       </label>
       <VibeFormSwitch v-model="gaplessModel" label="Gapless" data-test="gapless-toggle" />
+      <VibeFormSwitch
+        v-model="smartShuffleModel"
+        label="Smart shuffle"
+        data-test="smart-shuffle-toggle"
+      />
       <label class="d-flex align-items-center gap-2 mb-0">
         <span class="text-secondary small">Crossfade</span>
         <VibeFormSelect
@@ -141,6 +146,10 @@ const replayGainModel = computed<FormSelectOptionValue>({
 const gaplessModel = computed<boolean>({
   get: () => player.gapless,
   set: (value) => player.setGapless(value),
+});
+const smartShuffleModel = computed<boolean>({
+  get: () => player.smartShuffle,
+  set: (value) => player.setSmartShuffle(value),
 });
 
 const crossfadeOptions: FormSelectOption[] = [
