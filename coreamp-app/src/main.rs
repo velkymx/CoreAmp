@@ -673,6 +673,12 @@ fn app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Relaunch the app (used after an update is downloaded + installed).
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
 /// Update the tray's now-playing label + tooltip. `None` resets to "Not playing".
 #[tauri::command]
 fn set_tray_now_playing(app: tauri::AppHandle, label: Option<String>) -> Result<(), String> {
@@ -1934,6 +1940,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             app_version,
+            restart_app,
             set_tray_now_playing,
             scan_library,
             scan_paths,

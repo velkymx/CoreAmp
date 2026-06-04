@@ -16,7 +16,11 @@ vi.mock("@/api/tauri", () => ({
     .mockResolvedValue({ roots: [], roots_scanned: 2, files_discovered: 5, files_upserted: 5 }),
   pickScanPaths: vi.fn().mockResolvedValue([]),
   clearHistory: vi.fn().mockResolvedValue(undefined),
+  restartApp: vi.fn().mockResolvedValue(undefined),
 }));
+
+const updaterCheck = vi.fn().mockResolvedValue(null);
+vi.mock("@tauri-apps/plugin-updater", () => ({ check: () => updaterCheck() }));
 
 const stubs = {
   VibeFormInput: {
@@ -133,6 +137,27 @@ describe("SettingsView", () => {
     resolveScan({ roots: [], roots_scanned: 1, files_discovered: 1, files_upserted: 1 });
     await flushPromises();
     expect(w.find('[data-test="import-spinner"]').exists()).toBe(false);
+  });
+
+  it("checking for updates reports up-to-date when none is available", async () => {
+    updaterCheck.mockResolvedValue(null);
+    const w = mount(SettingsView, { global: { stubs } });
+    await flushPromises();
+    await w.get('[data-test="check-update"]').trigger("click");
+    await flushPromises();
+    expect(updaterCheck).toHaveBeenCalled();
+    expect(w.get('[data-test="update-status"]').text()).toContain("up to date");
+  });
+
+  it("shows an available update with an install button", async () => {
+    updaterCheck.mockResolvedValue({ version: "9.9.9", body: "notes", downloadAndInstall: vi.fn() });
+    const w = mount(SettingsView, { global: { stubs } });
+    await flushPromises();
+    await w.get('[data-test="check-update"]').trigger("click");
+    await flushPromises();
+    expect(w.find('[data-test="update-available"]').exists()).toBe(true);
+    expect(w.get('[data-test="update-available"]').text()).toContain("9.9.9");
+    expect(w.find('[data-test="install-update"]').exists()).toBe(true);
   });
 
   it("clearing history calls the backend", async () => {

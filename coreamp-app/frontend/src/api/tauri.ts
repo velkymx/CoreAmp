@@ -126,6 +126,7 @@ export const pickScanPaths = (kind: string) =>
 export const appVersion = () => call<string>("app_version");
 export const setTrayNowPlaying = (label: string | null) =>
   call<void>("set_tray_now_playing", { label });
+export const restartApp = () => call<void>("restart_app");
 
 // --- DSP / EQ ---
 export const nativeAudioSetDspSettings = (settings: NativeDspSettings) =>

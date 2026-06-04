@@ -76,6 +76,40 @@
       </div>
     </section>
 
+    <hr />
+
+    <section class="mb-4" style="max-width: 32rem">
+      <h2 class="h6 text-secondary text-uppercase">Updates</h2>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <VibeButton
+          variant="secondary"
+          outline
+          :disabled="updateStatus === 'checking' || updateStatus === 'downloading'"
+          data-test="check-update"
+          @click="checkForUpdate"
+        >
+          Check for updates
+        </VibeButton>
+        <span class="small text-secondary" data-test="update-status">{{ updateStatusText }}</span>
+      </div>
+
+      <div v-if="updateStatus === 'available'" class="mt-2" data-test="update-available">
+        <p class="small mb-1">Version {{ updateVersion }} is available.</p>
+        <pre v-if="updateNotes" class="small update-notes">{{ updateNotes }}</pre>
+        <VibeButton variant="primary" data-test="install-update" @click="installUpdate">
+          Download &amp; install
+        </VibeButton>
+      </div>
+
+      <div
+        v-else-if="updateStatus === 'downloading'"
+        class="mt-2 small text-secondary"
+        data-test="update-progress"
+      >
+        Downloading… {{ Math.round(updateProgress * 100) }}%
+      </div>
+    </section>
+
     <div v-if="status || busy" class="d-flex align-items-center gap-2">
       <span
         v-if="busy"
@@ -91,11 +125,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import * as api from "@/api/tauri";
 import { useNotify } from "@/composables/useNotify";
+import { useUpdater } from "@/composables/useUpdater";
 
 const { run } = useNotify();
+
+const {
+  status: updateStatus,
+  version: updateVersion,
+  notes: updateNotes,
+  progress: updateProgress,
+  checkForUpdate,
+  installUpdate,
+} = useUpdater();
+
+const updateStatusText = computed(() => {
+  switch (updateStatus.value) {
+    case "checking":
+      return "Checking…";
+    case "none":
+      return "You're up to date.";
+    case "available":
+      return "";
+    case "downloading":
+      return "";
+    case "error":
+      return "Couldn't check for updates.";
+    default:
+      return "";
+  }
+});
 
 const scanInterval = ref("");
 const apiProxy = ref("");
@@ -267,5 +328,13 @@ async function onClearHistory(): Promise<void> {
   background: rgba(13, 110, 253, 0.12);
   border-color: var(--bs-primary, #0d6efd) !important;
   color: var(--bs-primary, #0d6efd);
+}
+.update-notes {
+  white-space: pre-wrap;
+  max-height: 8rem;
+  overflow: auto;
+  background: var(--bs-tertiary-bg, rgba(127, 127, 127, 0.1));
+  padding: 0.5rem;
+  border-radius: 0.25rem;
 }
 </style>
