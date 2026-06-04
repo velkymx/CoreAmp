@@ -553,44 +553,24 @@ pub fn list_recently_added(limit: usize) -> Result<Vec<LibraryRow>, String> {
     rows_recently_added(&connection, limit).map_err(|err| err.to_string())
 }
 
+fn rows_recently_played(connection: &Connection, limit: usize) -> rusqlite::Result<Vec<LibraryRow>> {
+    let mut stmt = connection.prepare(
+        r#"
+        SELECT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked, f.duration_secs, f.album_artist
+        FROM files f
+        JOIN (SELECT path, MAX(played_at) AS last_played FROM history GROUP BY path) h ON h.path = f.path
+        ORDER BY h.last_played DESC
+        LIMIT ?1
+        "#,
+    )?;
+    let rows = stmt.query_map(params![limit as i64], library_row_from_row)?;
+    rows.collect()
+}
+
 pub fn list_recently_played(limit: usize) -> Result<Vec<LibraryRow>, String> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|err| err.to_string())?;
-
-    let mut stmt = connection
-        .prepare(
-            r#"
-            SELECT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked, f.duration_secs
-            FROM files f
-            JOIN (SELECT path, MAX(played_at) AS last_played FROM history GROUP BY path) h ON h.path = f.path
-            ORDER BY h.last_played DESC
-            LIMIT ?1
-            "#,
-        )
-        .map_err(|err| err.to_string())?;
-
-    let rows = stmt
-        .query_map(params![limit as i64], |row| {
-            Ok(LibraryRow {
-                path: row.get(0)?,
-                filename: row.get(1)?,
-                artist: row.get(2)?,
-                album: row.get(3)?,
-                title: row.get(4)?,
-                year: row.get(5)?,
-                genre: row.get(6)?,
-                liked: row.get::<_, i32>(7)? != 0,
-                duration_secs: row.get(8)?,
-                album_artist: row.get(9)?,
-            })
-        })
-        .map_err(|err| err.to_string())?;
-
-    let mut out = Vec::new();
-    for row in rows {
-        out.push(row.map_err(|err| err.to_string())?);
-    }
-    Ok(out)
+    rows_recently_played(&connection, limit).map_err(|err| err.to_string())
 }
 
 pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
@@ -1022,6 +1002,29 @@ mod tests {
             super::rows_recently_added(&conn, 2).expect("query").len(),
             2
         );
+    }
+
+    #[test]
+    fn rows_recently_played_maps_all_columns_including_album_artist() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("schema");
+        conn.execute(
+            "INSERT INTO files(path, filename, album_artist) VALUES ('/m/a.mp3', 'a.mp3', 'VA')",
+            [],
+        )
+        .expect("insert file");
+        conn.execute(
+            "INSERT INTO history(path, played_at) VALUES ('/m/a.mp3', 500)",
+            [],
+        )
+        .expect("insert history");
+
+        // Must not panic on "Invalid column index" — the SELECT and the row
+        // mapper have to agree on the column count.
+        let rows = super::rows_recently_played(&conn, 10).expect("query");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].path, "/m/a.mp3");
+        assert_eq!(rows[0].album_artist.as_deref(), Some("VA"));
     }
 
     #[test]
