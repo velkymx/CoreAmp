@@ -7,6 +7,8 @@ import * as api from "@/api/tauri";
 
 vi.mock("@/api/tauri", () => ({
   updateTrackMetadataForPath: vi.fn(),
+  pickScanPaths: vi.fn().mockResolvedValue(["/img/cover.jpg"]),
+  setTrackArtwork: vi.fn().mockResolvedValue(true),
 }));
 
 const stubs = {
@@ -99,6 +101,18 @@ describe("EditMetadataModal", () => {
       "/m/a.mp3",
       expect.objectContaining({ track_number: 5 }),
     );
+  });
+
+  it("replace artwork picks an image and writes it to the track", async () => {
+    const w = mount(EditMetadataModal, { global: { stubs } });
+    const ui = useUiStore();
+    ui.openEdit(track);
+    await flushPromises();
+    await w.get('[data-test="edit-artwork"]').trigger("click");
+    await flushPromises();
+    expect(api.pickScanPaths).toHaveBeenCalledWith("image");
+    expect(api.setTrackArtwork).toHaveBeenCalledWith("/m/a.mp3", "/img/cover.jpg");
+    expect(ui.dataVersion).toBe(1);
   });
 
   it("cancel closes without saving", async () => {

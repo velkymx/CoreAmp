@@ -48,6 +48,8 @@ export const toggleLiked = (path: string) =>
   call<boolean>("toggle_liked", { path });
 export const setRating = (path: string, rating: number) =>
   call<number>("set_rating", { path, rating });
+export const setTrackArtwork = (trackPath: string, imagePath: string) =>
+  call<boolean>("set_track_artwork", { trackPath, imagePath });
 export const readTrackArtwork = (path: string, maxSize?: number) =>
   call<TrackArtwork | null>("read_track_artwork", { path, maxSize });
 export const readTrackSignalDetails = (path: string) =>

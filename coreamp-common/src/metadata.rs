@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use lofty::config::WriteOptions;
-use lofty::picture::PictureType;
+use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::prelude::{Accessor, AudioFile, TaggedFileExt};
 use lofty::tag::ItemKey;
 use lofty::tag::Tag;
@@ -36,6 +36,40 @@ fn image_mime_type(path: &Path) -> Option<&'static str> {
         "gif" => Some("image/gif"),
         _ => None,
     }
+}
+
+/// Public view of the supported-image-type check, for the artwork-replace
+/// command (None = unsupported extension).
+pub fn supported_image_mime(path: &Path) -> Option<&'static str> {
+    image_mime_type(path)
+}
+
+/// Replace a track's embedded cover art with the given image bytes. Removes any
+/// existing front cover, writes the new one to the primary tag, and saves.
+pub fn write_artwork(path: &Path, image: &[u8], mime: &str) -> Result<(), String> {
+    if image.is_empty() {
+        return Err(String::from("empty image data"));
+    }
+    let mime_type = MimeType::from_str(mime);
+
+    let mut tagged_file = lofty::read_from_path(path).map_err(|err| err.to_string())?;
+    if tagged_file.primary_tag_mut().is_none() {
+        tagged_file.insert_tag(Tag::new(tagged_file.primary_tag_type()));
+    }
+    let tag = tagged_file
+        .primary_tag_mut()
+        .ok_or_else(|| String::from("no writable tag"))?;
+
+    tag.remove_picture_type(PictureType::CoverFront);
+    let picture = Picture::unchecked(image.to_vec())
+        .pic_type(PictureType::CoverFront)
+        .mime_type(mime_type)
+        .build();
+    tag.push_picture(picture);
+
+    tagged_file
+        .save_to_path(path, WriteOptions::default())
+        .map_err(|err| err.to_string())
 }
 
 fn read_artwork_file(path: &Path) -> Option<EmbeddedArtwork> {
@@ -136,8 +170,7 @@ fn fill_missing_metadata(metadata: &mut TrackMetadata, tag: &Tag) {
         metadata.album = normalize(tag.album());
     }
     if !is_present(&metadata.album_artist) {
-        metadata.album_artist =
-            normalize(tag.get_string(ItemKey::AlbumArtist).map(str::to_string));
+        metadata.album_artist = normalize(tag.get_string(ItemKey::AlbumArtist).map(str::to_string));
     }
     if !is_present(&metadata.title) {
         metadata.title = normalize(tag.title());

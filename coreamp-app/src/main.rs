@@ -680,6 +680,17 @@ fn set_rating(path: String, rating: i64) -> Result<i64, String> {
     db::set_rating(&path, rating).map_err(String::from)
 }
 
+/// Replace a track's embedded cover art with the image at `image_path`.
+#[tauri::command]
+fn set_track_artwork(track_path: String, image_path: String) -> Result<bool, String> {
+    let image = Path::new(&image_path);
+    let mime = metadata::supported_image_mime(image)
+        .ok_or_else(|| String::from("Unsupported image type"))?;
+    let bytes = std::fs::read(image).map_err(|err| err.to_string())?;
+    metadata::write_artwork(Path::new(&track_path), &bytes, mime)?;
+    Ok(true)
+}
+
 /// Relaunch the app (used after an update is downloaded + installed).
 #[tauri::command]
 fn restart_app(app: tauri::AppHandle) {
@@ -972,6 +983,10 @@ repeat with pickedItem in pickedItems
   set output to output & POSIX path of pickedItem & linefeed
 end repeat
 return output"#
+            }
+            "image" => {
+                r#"set pickedItem to choose file with prompt "Select cover image" of type {"public.image"}
+return POSIX path of pickedItem"#
             }
             other => return Err(format!("Unsupported picker kind: {other}")),
         };
@@ -1966,6 +1981,7 @@ fn main() {
             list_genre_summaries,
             toggle_liked,
             set_rating,
+            set_track_artwork,
             record_play,
             list_recently_played,
             list_recently_added,

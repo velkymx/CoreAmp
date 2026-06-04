@@ -37,13 +37,24 @@
           <VibeFormInput v-model="form.genre" data-test="edit-genre" />
         </div>
       </div>
-      <div class="d-flex justify-content-end gap-2">
-        <VibeButton variant="secondary" outline data-test="edit-cancel" @click="ui.closeEdit">
-          Cancel
+      <div class="d-flex justify-content-between gap-2">
+        <VibeButton
+          variant="secondary"
+          outline
+          :disabled="saving"
+          data-test="edit-artwork"
+          @click="onReplaceArtwork"
+        >
+          Replace artwork…
         </VibeButton>
-        <VibeButton variant="primary" :disabled="saving" data-test="edit-save" @click="onSave">
-          Save
-        </VibeButton>
+        <div class="d-flex gap-2">
+          <VibeButton variant="secondary" outline data-test="edit-cancel" @click="ui.closeEdit">
+            Cancel
+          </VibeButton>
+          <VibeButton variant="primary" :disabled="saving" data-test="edit-save" @click="onSave">
+            Save
+          </VibeButton>
+        </div>
       </div>
     </div>
   </div>
@@ -89,6 +100,23 @@ watch(
 function parseTrackNumber(value: string): number | null {
   const n = Number.parseInt(value.trim(), 10);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// Pick an image and write it into the track's embedded cover art.
+async function onReplaceArtwork(): Promise<void> {
+  const track = ui.editTarget;
+  if (!track) return;
+  const paths = await run(() => api.pickScanPaths("image"), {
+    errorPrefix: "Image picker failed",
+  });
+  if (!paths || paths.length === 0) return;
+  saving.value = true;
+  const ok = await run(() => api.setTrackArtwork(track.path, paths[0]), {
+    errorPrefix: "Couldn't set artwork",
+    success: "Artwork updated.",
+  });
+  saving.value = false;
+  if (ok) ui.bumpData();
 }
 
 async function onSave(): Promise<void> {
