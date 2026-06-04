@@ -87,6 +87,16 @@ describe("SettingsView", () => {
     expect(api.scanPaths).not.toHaveBeenCalled();
   });
 
+  it("importing an explicit path scans it and clears the field", async () => {
+    const w = mount(SettingsView, { global: { stubs } });
+    await flushPromises();
+    await w.get('[data-test="import-path"]').setValue("/music/album");
+    await w.get('[data-test="import-path-go"]').trigger("click");
+    await flushPromises();
+    expect(api.scanPaths).toHaveBeenCalledWith(["/music/album"]);
+    expect((w.get('[data-test="import-path"]').element as HTMLInputElement).value).toBe("");
+  });
+
   it("clearing history calls the backend", async () => {
     const w = mount(SettingsView, { global: { stubs } });
     await flushPromises();

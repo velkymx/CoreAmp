@@ -47,6 +47,26 @@
           Clear play history
         </VibeButton>
       </div>
+
+      <div class="d-flex gap-2 mt-2" style="max-width: 32rem">
+        <VibeFormInput
+          v-model="importPath"
+          placeholder="/path/to/file-or-folder"
+          aria-label="Import a file or folder path"
+          data-test="import-path"
+          class="flex-grow-1"
+          @keyup.enter="onImportPath"
+        />
+        <VibeButton
+          variant="secondary"
+          outline
+          :disabled="!importPath.trim()"
+          data-test="import-path-go"
+          @click="onImportPath"
+        >
+          Import path
+        </VibeButton>
+      </div>
     </section>
 
     <p v-if="status" class="text-secondary small" data-test="settings-status">{{ status }}</p>
@@ -63,6 +83,7 @@ const { run } = useNotify();
 
 const scanInterval = ref("");
 const apiProxy = ref("");
+const importPath = ref("");
 const version = ref("");
 const status = ref("");
 
@@ -115,6 +136,19 @@ async function onAddFolders(): Promise<void> {
   });
   if (result) {
     status.value = `Added ${result.files_upserted} files from ${result.roots_scanned} folder(s).`;
+  }
+}
+
+async function onImportPath(): Promise<void> {
+  const path = importPath.value.trim();
+  if (!path) return;
+  status.value = "Importing path…";
+  const result = await run(() => api.scanPaths([path]), {
+    errorPrefix: "Import failed",
+  });
+  if (result) {
+    status.value = `Imported ${result.files_upserted} file(s) from "${path}".`;
+    importPath.value = "";
   }
 }
 
