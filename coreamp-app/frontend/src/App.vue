@@ -139,8 +139,13 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 22rem;
   gap: 1rem;
-  /* Stretch the queue column to the player card's full height. */
+  /* Lock the player + queue region so it never pushes the library off-screen;
+     each pane scrolls its own overflow. */
   align-items: stretch;
+  height: 600px;
+}
+.player-pane {
+  overflow: auto;
 }
 .queue-pane {
   background: var(--bs-body-bg);
@@ -157,6 +162,8 @@ onBeforeUnmount(() => {
 @media (max-width: 820px) {
   .top-region {
     grid-template-columns: 1fr;
+    /* Stacked: let it grow rather than cramming both panes into 600px. */
+    height: auto;
   }
   .queue-pane {
     max-height: 18rem;
