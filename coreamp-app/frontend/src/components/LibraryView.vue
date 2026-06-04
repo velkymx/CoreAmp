@@ -50,6 +50,7 @@
         @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
         @edit="(t) => ui.openEdit(t)"
         @details="(t) => ui.openDetails(t)"
+        @rate="(p) => library.setRating(p.path, p.rating)"
         @browse="(v) => library.setSearch(v)"
         @play-from-here="onPlayFromHere"
       />

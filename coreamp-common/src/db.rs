@@ -1,8 +1,8 @@
+use crate::error::CoreampError;
 use crate::library::ScannedFile;
 use crate::metadata::{self, TrackMetadata};
 use crate::metadata_db_path;
 use rusqlite::{Connection, OptionalExtension, params};
-use crate::error::CoreampError;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
@@ -49,6 +49,7 @@ pub struct LibraryRow {
     pub track_number: Option<i64>,
     pub liked: bool,
     pub duration_secs: Option<i64>,
+    pub rating: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +93,7 @@ CREATE TABLE IF NOT EXISTS files (
     year TEXT,
     genre TEXT,
     liked INTEGER NOT NULL DEFAULT 0,
+    rating INTEGER NOT NULL DEFAULT 0,
     play_count INTEGER NOT NULL DEFAULT 0,
     last_played_at INTEGER,
     cover_url TEXT,
@@ -149,6 +151,12 @@ fn apply_schema(connection: &Connection) -> rusqlite::Result<()> {
     }
     if !columns.contains("track_number") {
         connection.execute("ALTER TABLE files ADD COLUMN track_number INTEGER", [])?;
+    }
+    if !columns.contains("rating") {
+        connection.execute(
+            "ALTER TABLE files ADD COLUMN rating INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
     }
 
     Ok(())
@@ -242,7 +250,7 @@ pub fn list_library_files(
 
     let mut query = String::from(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number, rating
         FROM files
         WHERE 1=1
         "#,
@@ -274,31 +282,30 @@ pub fn list_library_files(
 
     let search_pattern = search_term.map(|s| format!("%{s}%")).unwrap_or_default();
 
-    let rows = stmt
-        .query_map(
-            params![
-                limit as i64,
-                genre_filter.unwrap_or_default(),
-                search_pattern,
-                offset as i64,
-            ],
-            |row| {
-                Ok(LibraryRow {
-                    path: row.get(0)?,
-                    filename: row.get(1)?,
-                    artist: row.get(2)?,
-                    album: row.get(3)?,
-                    title: row.get(4)?,
-                    year: row.get(5)?,
-                    genre: row.get(6)?,
-                    liked: row.get::<_, i32>(7)? != 0,
-                    duration_secs: row.get(8)?,
-                    album_artist: row.get(9)?,
-                    track_number: row.get(10)?,
-                })
-            },
-        )
-        ?;
+    let rows = stmt.query_map(
+        params![
+            limit as i64,
+            genre_filter.unwrap_or_default(),
+            search_pattern,
+            offset as i64,
+        ],
+        |row| {
+            Ok(LibraryRow {
+                path: row.get(0)?,
+                filename: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                title: row.get(4)?,
+                year: row.get(5)?,
+                genre: row.get(6)?,
+                liked: row.get::<_, i32>(7)? != 0,
+                duration_secs: row.get(8)?,
+                album_artist: row.get(9)?,
+                track_number: row.get(10)?,
+                rating: row.get(11)?,
+            })
+        },
+    )?;
 
     let mut out = Vec::new();
     for row in rows {
@@ -320,6 +327,7 @@ fn library_row_from_row(row: &rusqlite::Row) -> rusqlite::Result<LibraryRow> {
         duration_secs: row.get(8)?,
         album_artist: row.get(9)?,
         track_number: row.get(10)?,
+        rating: row.get(11)?,
     })
 }
 
@@ -333,7 +341,7 @@ pub(crate) fn rows_for_album(
 ) -> Result<Vec<LibraryRow>, CoreampError> {
     let mut query = String::from(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number, rating
         FROM files
         WHERE album = ?1
         "#,
@@ -348,8 +356,7 @@ pub(crate) fn rows_for_album(
         stmt.query_map(params![album, artist], library_row_from_row)
     } else {
         stmt.query_map(params![album], library_row_from_row)
-    }
-    ?;
+    }?;
 
     let mut out = Vec::new();
     for row in mapped {
@@ -359,7 +366,10 @@ pub(crate) fn rows_for_album(
 }
 
 /// Public wrapper over [`rows_for_album`] using the shared DB connection.
-pub fn list_album_tracks(album: &str, artist: Option<&str>) -> Result<Vec<LibraryRow>, CoreampError> {
+pub fn list_album_tracks(
+    album: &str,
+    artist: Option<&str>,
+) -> Result<Vec<LibraryRow>, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     rows_for_album(&connection, album, artist)
@@ -375,40 +385,45 @@ pub fn toggle_liked(path: &str) -> Result<bool, CoreampError> {
             params![path],
             |row| row.get(0),
         )
-        .optional()
-        ?
+        .optional()?
         .unwrap_or(0);
 
     let new_liked = if current_liked == 0 { 1 } else { 0 };
 
-    connection
-        .execute(
-            "UPDATE files SET liked = ?2, updated_at = unixepoch() WHERE path = ?1",
-            params![path, new_liked],
-        )
-        ?;
+    connection.execute(
+        "UPDATE files SET liked = ?2, updated_at = unixepoch() WHERE path = ?1",
+        params![path, new_liked],
+    )?;
 
     Ok(new_liked != 0)
+}
+
+/// Set a track's 0–5 star rating (clamped). Returns the stored value.
+pub fn set_rating(path: &str, rating: i64) -> Result<i64, CoreampError> {
+    let clamped = rating.clamp(0, 5);
+    let mutex = get_db()?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
+    connection.execute(
+        "UPDATE files SET rating = ?2, updated_at = unixepoch() WHERE path = ?1",
+        params![path, clamped],
+    )?;
+    Ok(clamped)
 }
 
 pub fn list_all_genres() -> Result<Vec<String>, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
-    let mut stmt = connection
-        .prepare(
-            r#"
+    let mut stmt = connection.prepare(
+        r#"
             SELECT DISTINCT genre
             FROM files
             WHERE genre IS NOT NULL AND genre <> ''
             ORDER BY genre
             "#,
-        )
-        ?;
+    )?;
 
-    let rows = stmt
-        .query_map([], |row| row.get::<_, String>(0))
-        ?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
 
     let mut out = Vec::new();
     for row in rows {
@@ -421,27 +436,23 @@ pub fn list_all_genre_summaries() -> Result<Vec<GenreSummary>, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
-    let mut stmt = connection
-        .prepare(
-            r#"
+    let mut stmt = connection.prepare(
+        r#"
             SELECT genre, COUNT(*), MIN(path)
             FROM files
             WHERE genre IS NOT NULL AND genre <> ''
             GROUP BY genre
             ORDER BY genre
             "#,
-        )
-        ?;
+    )?;
 
-    let rows = stmt
-        .query_map([], |row| {
-            Ok(GenreSummary {
-                name: row.get(0)?,
-                track_count: row.get::<_, i64>(1)? as usize,
-                representative_path: row.get(2)?,
-            })
+    let rows = stmt.query_map([], |row| {
+        Ok(GenreSummary {
+            name: row.get(0)?,
+            track_count: row.get::<_, i64>(1)? as usize,
+            representative_path: row.get(2)?,
         })
-        ?;
+    })?;
 
     let mut out = Vec::new();
     for row in rows {
@@ -454,27 +465,23 @@ pub fn list_all_artists() -> Result<Vec<ArtistSummary>, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
-    let mut stmt = connection
-        .prepare(
-            r#"
+    let mut stmt = connection.prepare(
+        r#"
             SELECT artist, COUNT(*), MIN(path)
             FROM files
             WHERE artist IS NOT NULL AND artist <> ''
             GROUP BY artist
             ORDER BY artist
             "#,
-        )
-        ?;
+    )?;
 
-    let rows = stmt
-        .query_map([], |row| {
-            Ok(ArtistSummary {
-                name: row.get(0)?,
-                track_count: row.get::<_, i64>(1)? as usize,
-                representative_path: row.get(2)?,
-            })
+    let rows = stmt.query_map([], |row| {
+        Ok(ArtistSummary {
+            name: row.get(0)?,
+            track_count: row.get::<_, i64>(1)? as usize,
+            representative_path: row.get(2)?,
         })
-        ?;
+    })?;
 
     let mut out = Vec::new();
     for row in rows {
@@ -487,28 +494,24 @@ pub fn list_all_albums() -> Result<Vec<AlbumSummary>, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
-    let mut stmt = connection
-        .prepare(
-            r#"
+    let mut stmt = connection.prepare(
+        r#"
             SELECT album, artist, COUNT(*), MIN(path)
             FROM files
             WHERE album IS NOT NULL AND album <> ''
             GROUP BY album, artist
             ORDER BY album
             "#,
-        )
-        ?;
+    )?;
 
-    let rows = stmt
-        .query_map([], |row| {
-            Ok(AlbumSummary {
-                title: row.get(0)?,
-                artist: row.get(1)?,
-                track_count: row.get::<_, i64>(2)? as usize,
-                representative_path: row.get(3)?,
-            })
+    let rows = stmt.query_map([], |row| {
+        Ok(AlbumSummary {
+            title: row.get(0)?,
+            artist: row.get(1)?,
+            track_count: row.get::<_, i64>(2)? as usize,
+            representative_path: row.get(3)?,
         })
-        ?;
+    })?;
 
     let mut out = Vec::new();
     for row in rows {
@@ -529,15 +532,14 @@ pub fn record_play(path: &str) -> Result<(), CoreampError> {
     tx.execute(
         "INSERT INTO history (path, played_at) VALUES (?1, unixepoch())",
         params![path],
-    )
-    ?;
+    )?;
     tx.commit().map_err(CoreampError::from)
 }
 
 fn rows_recently_added(connection: &Connection, limit: usize) -> rusqlite::Result<Vec<LibraryRow>> {
     let mut stmt = connection.prepare(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number, rating
         FROM files
         ORDER BY updated_at DESC, id DESC
         LIMIT ?1
@@ -556,6 +558,7 @@ fn rows_recently_added(connection: &Connection, limit: usize) -> rusqlite::Resul
             duration_secs: row.get(8)?,
             album_artist: row.get(9)?,
             track_number: row.get(10)?,
+            rating: row.get(11)?,
         })
     })?;
     rows.collect()
@@ -574,7 +577,7 @@ fn rows_recently_played(
 ) -> rusqlite::Result<Vec<LibraryRow>> {
     let mut stmt = connection.prepare(
         r#"
-        SELECT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked, f.duration_secs, f.album_artist, f.track_number
+        SELECT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked, f.duration_secs, f.album_artist, f.track_number, f.rating
         FROM files f
         JOIN (SELECT path, MAX(played_at) AS last_played FROM history GROUP BY path) h ON h.path = f.path
         ORDER BY h.last_played DESC
@@ -595,9 +598,8 @@ pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, CoreampError
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
-    let mut stmt = connection
-        .prepare(
-            r#"
+    let mut stmt = connection.prepare(
+        r#"
             SELECT artist, SUM(play_count), MIN(path)
             FROM files
             WHERE artist IS NOT NULL AND artist <> '' AND play_count > 0
@@ -605,18 +607,15 @@ pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, CoreampError
             ORDER BY SUM(play_count) DESC
             LIMIT ?1
             "#,
-        )
-        ?;
+    )?;
 
-    let rows = stmt
-        .query_map(params![limit as i64], |row| {
-            Ok(ArtistSummary {
-                name: row.get(0)?,
-                track_count: row.get::<_, i64>(1)? as usize,
-                representative_path: row.get(2)?,
-            })
+    let rows = stmt.query_map(params![limit as i64], |row| {
+        Ok(ArtistSummary {
+            name: row.get(0)?,
+            track_count: row.get::<_, i64>(1)? as usize,
+            representative_path: row.get(2)?,
         })
-        ?;
+    })?;
 
     let mut out = Vec::new();
     for row in rows {
@@ -628,15 +627,11 @@ pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, CoreampError
 pub fn clear_history() -> Result<(), CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
-    let tx = connection
-        .unchecked_transaction()
-        ?;
+    let tx = connection.unchecked_transaction()?;
 
-    tx.execute("DELETE FROM history", [])
-        ?;
+    tx.execute("DELETE FROM history", [])?;
 
-    tx.execute("UPDATE files SET play_count = 0, last_played_at = NULL", [])
-        ?;
+    tx.execute("UPDATE files SET play_count = 0, last_played_at = NULL", [])?;
 
     tx.commit().map_err(CoreampError::from)
 }
@@ -648,25 +643,16 @@ pub(crate) fn delete_missing_files<F: Fn(&str) -> bool>(
     exists: F,
 ) -> Result<Vec<String>, CoreampError> {
     let all_paths: Vec<String> = {
-        let mut stmt = conn
-            .prepare("SELECT path FROM files")
-            ?;
-        let rows = stmt
-            .query_map([], |row| row.get::<_, String>(0))
-            ?;
-        rows.collect::<Result<_, _>>()
-            ?
+        let mut stmt = conn.prepare("SELECT path FROM files")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        rows.collect::<Result<_, _>>()?
     };
     let missing: Vec<String> = all_paths.into_iter().filter(|p| !exists(p)).collect();
 
-    let tx = conn
-        .unchecked_transaction()
-        ?;
+    let tx = conn.unchecked_transaction()?;
     for path in &missing {
-        tx.execute("DELETE FROM files WHERE path = ?1", params![path])
-            ?;
-        tx.execute("DELETE FROM history WHERE path = ?1", params![path])
-            ?;
+        tx.execute("DELETE FROM files WHERE path = ?1", params![path])?;
+        tx.execute("DELETE FROM history WHERE path = ?1", params![path])?;
     }
     tx.commit()?;
     Ok(missing)
@@ -682,9 +668,7 @@ pub fn prune_missing_files() -> Result<Vec<String>, CoreampError> {
 pub fn library_count() -> Result<u64, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
-    let count: i64 = connection
-        .query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0))
-        ?;
+    let count: i64 = connection.query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0))?;
     Ok(count.max(0) as u64)
 }
 
@@ -694,7 +678,7 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, CoreampError> 
     let row = connection
         .query_row(
             r#"
-            SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number
+            SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number, rating
             FROM files
             WHERE path = ?1
             LIMIT 1
@@ -713,6 +697,7 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, CoreampError> 
                     duration_secs: row.get(8)?,
                     album_artist: row.get(9)?,
                     track_number: row.get(10)?,
+                    rating: row.get(11)?,
                 })
             },
         )
@@ -752,7 +737,9 @@ fn select_metadata_hashes(
     Ok(out)
 }
 
-pub fn metadata_hashes_for_paths(paths: &[String]) -> Result<HashMap<String, String>, CoreampError> {
+pub fn metadata_hashes_for_paths(
+    paths: &[String],
+) -> Result<HashMap<String, String>, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     select_metadata_hashes(&connection, paths).map_err(CoreampError::from)
@@ -765,12 +752,8 @@ pub fn backfill_duration_for_missing() -> Result<usize, CoreampError> {
     // I/O so the slow per-file parse never blocks other DB users.
     let paths: Vec<String> = {
         let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
-        let mut stmt = connection
-            .prepare("SELECT path FROM files WHERE duration_secs IS NULL")
-            ?;
-        let rows = stmt
-            .query_map([], |row| row.get(0))
-            ?;
+        let mut stmt = connection.prepare("SELECT path FROM files WHERE duration_secs IS NULL")?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
         rows.filter_map(|r| r.ok()).collect()
     };
 
@@ -809,17 +792,17 @@ pub fn metadata_hash_for_path(path: &Path) -> Result<Option<String>, CoreampErro
             params![path.to_string_lossy().to_string()],
             |row| row.get(0),
         )
-        .optional()
-        ?;
+        .optional()?;
     Ok(hash)
 }
 
-pub fn list_candidates_for_enrichment(limit: usize) -> Result<Vec<EnrichmentCandidate>, CoreampError> {
+pub fn list_candidates_for_enrichment(
+    limit: usize,
+) -> Result<Vec<EnrichmentCandidate>, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
-    let mut stmt = connection
-        .prepare(
-            r#"
+    let mut stmt = connection.prepare(
+        r#"
             SELECT
                 path,
                 COALESCE(NULLIF(title, ''), NULLIF(filename, ''), '')
@@ -831,17 +814,14 @@ pub fn list_candidates_for_enrichment(limit: usize) -> Result<Vec<EnrichmentCand
             ORDER BY updated_at ASC
             LIMIT ?1
             "#,
-        )
-        ?;
+    )?;
 
-    let rows = stmt
-        .query_map(params![limit as i64], |row| {
-            Ok(EnrichmentCandidate {
-                path: row.get(0)?,
-                query: row.get(1)?,
-            })
+    let rows = stmt.query_map(params![limit as i64], |row| {
+        Ok(EnrichmentCandidate {
+            path: row.get(0)?,
+            query: row.get(1)?,
         })
-        ?;
+    })?;
 
     let mut out = Vec::new();
     for row in rows {
@@ -856,9 +836,8 @@ pub fn list_candidates_for_enrichment(limit: usize) -> Result<Vec<EnrichmentCand
 pub fn apply_enriched_metadata(path: &str, metadata: &TrackMetadata) -> Result<bool, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
-    let changed = connection
-        .execute(
-            r#"
+    let changed = connection.execute(
+        r#"
             UPDATE files
             SET
                 artist = CASE
@@ -880,24 +859,22 @@ pub fn apply_enriched_metadata(path: &str, metadata: &TrackMetadata) -> Result<b
                 updated_at = unixepoch()
             WHERE path = ?1
             "#,
-            params![
-                path,
-                &metadata.artist,
-                &metadata.album,
-                &metadata.title,
-                &metadata.year
-            ],
-        )
-        ?;
+        params![
+            path,
+            &metadata.artist,
+            &metadata.album,
+            &metadata.title,
+            &metadata.year
+        ],
+    )?;
     Ok(changed > 0)
 }
 
 pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<bool, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
-    let changed = connection
-        .execute(
-            r#"
+    let changed = connection.execute(
+        r#"
             UPDATE files
             SET
                 artist = ?2,
@@ -910,18 +887,17 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
                 updated_at = unixepoch()
             WHERE path = ?1
             "#,
-            params![
-                path,
-                &metadata.artist,
-                &metadata.album,
-                &metadata.title,
-                &metadata.year,
-                &metadata.genre,
-                &metadata.album_artist,
-                &metadata.track_number
-            ],
-        )
-        ?;
+        params![
+            path,
+            &metadata.artist,
+            &metadata.album,
+            &metadata.title,
+            &metadata.year,
+            &metadata.genre,
+            &metadata.album_artist,
+            &metadata.track_number
+        ],
+    )?;
     Ok(changed > 0)
 }
 
@@ -1046,6 +1022,22 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].path, "/m/a.mp3");
         assert_eq!(rows[0].album_artist.as_deref(), Some("VA"));
+    }
+
+    #[test]
+    fn rating_column_round_trips_through_the_row_mapper() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("schema");
+        conn.execute(
+            "INSERT INTO files(path, filename, rating, updated_at) VALUES ('/m/r.mp3', 'r.mp3', 4, 1)",
+            [],
+        )
+        .expect("insert");
+        // Reads the appended `rating` column (last index) — must agree with the
+        // row mapper or it panics on an invalid column index.
+        let rows = super::rows_recently_added(&conn, 10).expect("query");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].rating, 4);
     }
 
     #[test]

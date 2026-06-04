@@ -51,6 +51,7 @@ struct LibraryTrack {
     pub genre: Option<String>,
     pub track_number: Option<i64>,
     pub liked: bool,
+    pub rating: i64,
     pub duration: Option<i64>,
 }
 
@@ -673,6 +674,12 @@ fn app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Set a track's 0–5 star rating; returns the clamped stored value.
+#[tauri::command]
+fn set_rating(path: String, rating: i64) -> Result<i64, String> {
+    db::set_rating(&path, rating).map_err(String::from)
+}
+
 /// Relaunch the app (used after an update is downloaded + installed).
 #[tauri::command]
 fn restart_app(app: tauri::AppHandle) {
@@ -683,9 +690,7 @@ fn restart_app(app: tauri::AppHandle) {
 #[tauri::command]
 fn set_tray_now_playing(app: tauri::AppHandle, label: Option<String>) -> Result<(), String> {
     if let Some(handles) = app.try_state::<TrayHandles>() {
-        let text = label
-            .clone()
-            .unwrap_or_else(|| String::from("Not playing"));
+        let text = label.clone().unwrap_or_else(|| String::from("Not playing"));
         handles
             .now_playing
             .set_text(text)
@@ -788,6 +793,7 @@ fn list_recently_played(limit: usize) -> Result<Vec<LibraryTrack>, String> {
             genre: r.genre,
             track_number: r.track_number,
             liked: r.liked,
+            rating: r.rating,
             duration: r.duration_secs,
         })
         .collect())
@@ -848,7 +854,9 @@ fn library_count() -> Result<u64, String> {
 /// number of pruned tracks.
 #[tauri::command]
 fn prune_missing_files() -> Result<usize, String> {
-    db::prune_missing_files().map(|removed| removed.len()).map_err(String::from)
+    db::prune_missing_files()
+        .map(|removed| removed.len())
+        .map_err(String::from)
 }
 
 fn is_placeholder_title(title: &Option<String>, filename: &str) -> bool {
@@ -882,6 +890,7 @@ fn library_track_from_row(row: db::LibraryRow) -> LibraryTrack {
         genre: row.genre,
         track_number: row.track_number,
         liked: row.liked,
+        rating: row.rating,
         duration: row.duration_secs,
     };
     // Serve scan-time DB values directly. Browsing must not re-open every file
@@ -914,6 +923,7 @@ fn track_from_path(path: &Path) -> LibraryTrack {
         genre: metadata.genre,
         track_number: metadata.track_number.map(i64::from),
         liked: false,
+        rating: 0,
         duration: metadata.duration_secs,
     }
 }
@@ -1949,12 +1959,13 @@ fn main() {
             library_count,
             prune_missing_files,
             list_album_tracks,
-read_replay_gain,
+            read_replay_gain,
             list_genres,
             list_artists,
             list_albums,
             list_genre_summaries,
             toggle_liked,
+            set_rating,
             record_play,
             list_recently_played,
             list_recently_added,
@@ -2030,6 +2041,7 @@ mod tests {
             track_number: Some(7),
             liked: true,
             duration_secs: Some(200),
+            rating: 4,
         }
     }
 

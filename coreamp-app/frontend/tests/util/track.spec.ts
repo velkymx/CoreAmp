@@ -14,6 +14,7 @@ function libraryRow(over: Partial<LibraryTrack> = {}): LibraryTrack {
     genre: "Synthwave",
     track_number: 1,
     liked: true,
+    rating: 0,
     duration: 200,
     ...over,
   };

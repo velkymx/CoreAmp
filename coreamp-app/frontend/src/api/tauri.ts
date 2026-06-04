@@ -46,6 +46,8 @@ export const nativeAudioSetVolume = (volume: number) =>
   call<void>("native_audio_set_volume", { volume });
 export const toggleLiked = (path: string) =>
   call<boolean>("toggle_liked", { path });
+export const setRating = (path: string, rating: number) =>
+  call<number>("set_rating", { path, rating });
 export const readTrackArtwork = (path: string, maxSize?: number) =>
   call<TrackArtwork | null>("read_track_artwork", { path, maxSize });
 export const readTrackSignalDetails = (path: string) =>

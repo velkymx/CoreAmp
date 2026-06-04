@@ -33,6 +33,7 @@ const track = {
   year: "1999",
   genre: "Rock",
   liked: false,
+  rating: 0,
   duration: 100,
 };
 

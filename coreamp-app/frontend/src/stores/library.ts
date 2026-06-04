@@ -160,5 +160,16 @@ export const useLibraryStore = defineStore("library", {
         useNotifyStore().error(`Couldn't update like: ${errorMessage(err)}`);
       }
     },
+
+    // Set a track's 0–5 star rating, reflecting the clamped stored value.
+    async setRating(path: string, rating: number): Promise<void> {
+      try {
+        const stored = await api.setRating(path, rating);
+        const track = this.tracks.find((t) => t.path === path);
+        if (track) track.rating = stored;
+      } catch (err) {
+        useNotifyStore().error(`Couldn't update rating: ${errorMessage(err)}`);
+      }
+    },
   },
 });

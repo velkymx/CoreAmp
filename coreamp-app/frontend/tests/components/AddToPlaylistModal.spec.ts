@@ -39,6 +39,7 @@ const track = {
   year: null,
   genre: null,
   liked: false,
+  rating: 0,
   duration: 100,
 };
 

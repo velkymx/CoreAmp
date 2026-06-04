@@ -57,6 +57,7 @@ const row = (over = {}) => ({
   year: null,
   genre: null,
   liked: false,
+  rating: 0,
   duration: 100,
   ...over,
 });

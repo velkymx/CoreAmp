@@ -8,6 +8,7 @@ vi.mock("@/api/tauri", () => ({
   listAlbums: vi.fn().mockResolvedValue([]),
   listGenreSummaries: vi.fn().mockResolvedValue([]),
   toggleLiked: vi.fn().mockResolvedValue(false),
+  setRating: vi.fn().mockResolvedValue(0),
 }));
 
 import {
@@ -16,6 +17,7 @@ import {
   listAlbums,
   listGenreSummaries,
   toggleLiked,
+  setRating,
 } from "@/api/tauri";
 import { useLibraryStore } from "@/stores/library";
 import type { LibraryTrack } from "@/types";
@@ -31,6 +33,7 @@ const row = (over = {}) => ({
   year: "2020",
   genre: "Rock",
   liked: false,
+  rating: 0,
   duration: 200,
   ...over,
 });
@@ -150,5 +153,14 @@ describe("library.toggleLike", () => {
     vi.mocked(toggleLiked).mockResolvedValue(false);
     await lib.toggleLike("/m/a.mp3");
     expect(lib.tracks.map((t) => t.path)).toEqual(["/m/b.mp3"]);
+  });
+
+  it("setRating stores the clamped value on the matching row", async () => {
+    const lib = useLibraryStore();
+    lib.$patch({ tracks: [row({ path: "/m/a.mp3", rating: 0 })] });
+    vi.mocked(setRating).mockResolvedValue(3);
+    await lib.setRating("/m/a.mp3", 3);
+    expect(setRating).toHaveBeenCalledWith("/m/a.mp3", 3);
+    expect(lib.tracks[0].rating).toBe(3);
   });
 });

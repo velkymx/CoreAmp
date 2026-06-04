@@ -32,6 +32,7 @@ export interface LibraryTrack {
   genre: string | null;
   track_number: number | null;
   liked: boolean;
+  rating: number;
   duration: number | null;
 }
 

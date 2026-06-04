@@ -47,6 +47,22 @@
         </button>
       </template>
 
+      <template #cell(rating)="{ item }">
+        <span class="rating-stars" data-test="track-rating">
+          <button
+            v-for="n in 5"
+            :key="n"
+            type="button"
+            class="star-btn"
+            :class="{ filled: n <= item.rating }"
+            :aria-label="`Rate ${n} star${n === 1 ? '' : 's'}`"
+            @click.stop="$emit('rate', { path: item.path, rating: n === item.rating ? 0 : n })"
+          >
+            {{ n <= item.rating ? "★" : "☆" }}
+          </button>
+        </span>
+      </template>
+
       <template #cell(actions)="{ item }">
         <div class="d-flex align-items-center justify-content-end gap-1 position-relative">
           <VibeButton
@@ -122,6 +138,7 @@ const emit = defineEmits<{
   (e: "add-to-playlist", track: LibraryTrack): void;
   (e: "edit", track: LibraryTrack): void;
   (e: "details", track: LibraryTrack): void;
+  (e: "rate", payload: { path: string; rating: number }): void;
   (e: "play-from-here", track: LibraryTrack): void;
   (e: "browse", value: string): void;
 }>();
@@ -153,6 +170,12 @@ const columns = computed<DataTableColumn[]>(() => [
   {
     key: "year",
     label: "Year",
+    class: "d-none d-lg-table-cell",
+    headerClass: "d-none d-lg-table-cell",
+  },
+  {
+    key: "rating",
+    label: "Rating",
     class: "d-none d-lg-table-cell",
     headerClass: "d-none d-lg-table-cell",
   },
@@ -204,6 +227,20 @@ function emitMenu(
   color: inherit;
   max-width: 100%;
   text-align: left;
+}
+.star-btn {
+  border: 0;
+  background: transparent;
+  padding: 0 0.05rem;
+  cursor: pointer;
+  color: var(--bs-secondary-color, #999);
+  line-height: 1;
+}
+.star-btn.filled {
+  color: var(--bs-warning, #ffc107);
+}
+.star-btn:hover {
+  color: var(--bs-warning, #ffc107);
 }
 .meta-link:hover {
   text-decoration: underline;

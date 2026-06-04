@@ -52,6 +52,7 @@ const row = (over: Partial<LibraryTrack> = {}): LibraryTrack => ({
   year: "2020",
   genre: "Rock",
   liked: false,
+  rating: 0,
   duration: 200,
   ...over,
 });
@@ -123,5 +124,20 @@ describe("TrackTable (VibeDataTable)", () => {
   it("shows an empty state when there are no tracks", () => {
     const w = mount(TrackTable, { props: { tracks: [] }, global: { stubs } });
     expect(w.find('[data-test="track-empty"]').exists()).toBe(true);
+  });
+
+  it("clicking a star emits rate with the path and value", async () => {
+    const w = mount(TrackTable, { props: { tracks: [row({ rating: 0 })] }, global: { stubs } });
+    const stars = w.findAll('[data-test="track-rating"] .star-btn');
+    expect(stars).toHaveLength(5);
+    await stars[2].trigger("click");
+    expect(w.emitted("rate")?.[0]).toEqual([{ path: "/m/a.mp3", rating: 3 }]);
+  });
+
+  it("clicking the current rating clears it to zero", async () => {
+    const w = mount(TrackTable, { props: { tracks: [row({ rating: 3 })] }, global: { stubs } });
+    const stars = w.findAll('[data-test="track-rating"] .star-btn');
+    await stars[2].trigger("click");
+    expect(w.emitted("rate")?.[0]).toEqual([{ path: "/m/a.mp3", rating: 0 }]);
   });
 });

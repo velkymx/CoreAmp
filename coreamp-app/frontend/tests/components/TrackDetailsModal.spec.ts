@@ -27,6 +27,7 @@ const track = {
   year: "2021",
   genre: "Synthwave",
   liked: false,
+  rating: 0,
   duration: 200,
 };
 
@@ -43,6 +44,7 @@ const albumRows = [
     year: "2021",
     genre: "Synthwave",
     liked: false,
+    rating: 0,
     duration: 180,
   },
 ];
