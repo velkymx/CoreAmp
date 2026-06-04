@@ -33,6 +33,8 @@ interface PlayerState {
   shufflePos: number;
   repeatMode: RepeatMode;
   stopAfterCurrent: boolean;
+  // Wall-clock ms when the sleep timer fires (null = no timer armed).
+  sleepEndsAt: number | null;
   artwork: TrackArtwork | null;
   signal: TrackSignalDetails | null;
   metaToken: number;
@@ -42,6 +44,10 @@ interface PlayerState {
 
 // Thumbnail edge (px) requested from the backend for now-playing artwork.
 const ARTWORK_THUMB_PX = 256;
+
+// The sleep-timer handle lives outside reactive state: it's an opaque token we
+// only ever clear, never render.
+let sleepHandle: ReturnType<typeof setTimeout> | null = null;
 
 export const usePlayerStore = defineStore("player", {
   state: (): PlayerState => ({
@@ -60,6 +66,7 @@ export const usePlayerStore = defineStore("player", {
     shufflePos: 0,
     repeatMode: "off",
     stopAfterCurrent: false,
+    sleepEndsAt: null,
     artwork: null,
     signal: null,
     metaToken: 0,
@@ -69,6 +76,9 @@ export const usePlayerStore = defineStore("player", {
   getters: {
     currentTrack(state): Track | null {
       return state.queue[state.currentIndex] ?? null;
+    },
+    sleepActive(state): boolean {
+      return state.sleepEndsAt != null;
     },
   },
   actions: {
@@ -294,6 +304,29 @@ export const usePlayerStore = defineStore("player", {
     // instead of advancing.
     toggleStopAfterCurrent(): void {
       this.stopAfterCurrent = !this.stopAfterCurrent;
+    },
+
+    // Arm a sleep timer that pauses playback after `minutes`. A non-positive
+    // value (or calling cancelSleepTimer) disarms it. Re-arming replaces any
+    // existing timer.
+    setSleepTimer(minutes: number): void {
+      this.cancelSleepTimer();
+      if (!Number.isFinite(minutes) || minutes <= 0) return;
+      const ms = minutes * 60_000;
+      this.sleepEndsAt = Date.now() + ms;
+      sleepHandle = setTimeout(() => {
+        sleepHandle = null;
+        this.sleepEndsAt = null;
+        void this.stopPlayback();
+      }, ms);
+    },
+
+    cancelSleepTimer(): void {
+      if (sleepHandle != null) {
+        clearTimeout(sleepHandle);
+        sleepHandle = null;
+      }
+      this.sleepEndsAt = null;
     },
 
     // Replace the queue with the given tracks and start playing at startIndex.

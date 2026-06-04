@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 
 vi.mock("@/api/tauri", () => ({
@@ -826,6 +826,49 @@ describe("player.setSource", () => {
     p.$patch({ source: "web" });
     await p.setSource("web");
     expect(nativeAudioStop).not.toHaveBeenCalled();
+  });
+});
+
+describe("player sleep timer", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("pauses playback when the timer elapses, then disarms", () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "web", isPlaying: true });
+    p.setSleepTimer(30);
+    expect(p.sleepActive).toBe(true);
+
+    vi.advanceTimersByTime(30 * 60 * 1000);
+    expect(webDriver.pause).toHaveBeenCalled();
+    expect(p.isPlaying).toBe(false);
+    expect(p.sleepActive).toBe(false);
+  });
+
+  it("cancelling disarms the timer so playback is left alone", () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "web", isPlaying: true });
+    p.setSleepTimer(30);
+    p.cancelSleepTimer();
+    expect(p.sleepActive).toBe(false);
+
+    vi.advanceTimersByTime(30 * 60 * 1000);
+    expect(webDriver.pause).not.toHaveBeenCalled();
+  });
+
+  it("re-arming replaces the previous timer", () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "web", isPlaying: true });
+    p.setSleepTimer(10);
+    p.setSleepTimer(30);
+    // The first (10 min) timer must not fire after being replaced.
+    vi.advanceTimersByTime(10 * 60 * 1000);
+    expect(webDriver.pause).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(20 * 60 * 1000);
+    expect(webDriver.pause).toHaveBeenCalledOnce();
   });
 });
 

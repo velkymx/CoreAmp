@@ -9,6 +9,7 @@
       <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
         <TransportControls />
         <div class="d-flex align-items-center gap-2">
+          <SleepTimer />
           <LikeButton />
           <ThemeToggle />
         </div>
@@ -25,6 +26,7 @@ import VolumeControl from "@/components/VolumeControl.vue";
 import TransportControls from "@/components/TransportControls.vue";
 import LikeButton from "@/components/LikeButton.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
+import SleepTimer from "@/components/SleepTimer.vue";
 </script>
 
 <style scoped>
