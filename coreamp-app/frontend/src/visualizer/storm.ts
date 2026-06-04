@@ -1,29 +1,33 @@
 // @ts-nocheck
 // Ported from the legacy CoreAmp three.js "Storm" reactive visualizer.
+import { cloudDensity } from "./cloudTexture";
+
 let state: any = null;
 let containerEl: HTMLElement | null = null;
 let bassVelocity = 0;
 
+    // Procedural fBm cloud: per-pixel noise density (radial-masked so the sprite
+    // edges feather out) painted as a soft blue-white puff. Far wispier and more
+    // natural than the old stacked radial gradients.
     function generateCloudTexture(THREE) {
-      const size = 256;
+      const size = 128;
       const c = document.createElement("canvas");
       c.width = size; c.height = size;
       const cx = c.getContext("2d");
-      cx.fillStyle = "rgba(0,0,0,0)";
-      cx.fillRect(0, 0, size, size);
-      const layers = 10 + Math.floor(Math.random() * 6);
-      for (let i = 0; i < layers; i++) {
-        const x = size * 0.3 + Math.random() * size * 0.4;
-        const y = size * 0.3 + Math.random() * size * 0.4;
-        const r = size * (0.15 + Math.random() * 0.25);
-        const g = cx.createRadialGradient(x, y, 0, x, y, r);
-        const a = 0.12 + Math.random() * 0.18;
-        g.addColorStop(0, `rgba(255,255,255,${a})`);
-        g.addColorStop(0.5, `rgba(220,225,240,${a * 0.5})`);
-        g.addColorStop(1, "rgba(200,210,230,0)");
-        cx.fillStyle = g;
-        cx.fillRect(0, 0, size, size);
+      const img = cx.createImageData(size, size);
+      const seed = Math.floor(Math.random() * 100000);
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const a = cloudDensity(x / size, y / size, seed);
+          const i = (y * size + x) * 4;
+          img.data[i] = 225;
+          img.data[i + 1] = 230;
+          img.data[i + 2] = 245;
+          // Gamma the alpha so thin density reads as wisps, not a flat disc.
+          img.data[i + 3] = Math.round(Math.pow(a, 1.3) * 255);
+        }
       }
+      cx.putImageData(img, 0, 0);
       const tex = new THREE.CanvasTexture(c);
       tex.needsUpdate = true;
       return tex;
