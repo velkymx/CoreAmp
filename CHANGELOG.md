@@ -2,6 +2,8 @@
 
 ## [Unreleased] - Backend hardening & P1 parity
 
+- 2026-06-03 Volume slider does not work - master GainNode added (element.volume is bypassed once routed through Web Audio).
+
 - 2026-06-03 Remove database lock bottlenecks during scanning/metadata - WAL + busy_timeout; duration backfill parses files off-lock.
 - 2026-06-03 Eliminate full-library metadata hash loading during scans - chunked IN query for the scanned paths only.
 - 2026-06-03 Stop re-reading audio files during library browsing - serve scan-time DB values (no per-row file open).

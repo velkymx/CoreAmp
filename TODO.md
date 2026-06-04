@@ -48,13 +48,16 @@ Features users expect from a modern desktop music player.
 
 * [ ] Complete Apple-dark visual polish pass.
 * [ ] Visualizer Full Frame with Mini-Player Controls
+* [ ] Visualizer locked at 6x9 aspect
+* [ ] Add button to toggle theme mode (night, day, system) setting should be remember between sessions
+* [ ] Track queue should be remember between sessions
 
 ## Library Browsing
 
 * [ ] Mobile and small-window layout support.
 * [ ] Album artist editing.
 * [ ] Track number editing.
-* [ ] Dedup LibraryPlay
+* [ ] Dedup Library Functionality in Settings Tab area
 
 ## Playlists
 
@@ -64,7 +67,6 @@ Features users expect from a modern desktop music player.
 
 ## Audio
 
-* [ ] Volume slider does not work
 * [ ] Verify boost processing parity.
 * [ ] Verify limiter processing parity.
 * [ ] Verify crossfeed processing parity.
@@ -149,7 +151,7 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 
 #### ThreeJS Visualizers
 
-* [ ] Visualizer locked at 6x9 aspect
+
 
 Review the current implementations that already exist. They will all need to be converted into their own component to easy management. In addition to porting over the Storm, Orb, Vortex we need to review other projects for ideas on how best to do it.
 
