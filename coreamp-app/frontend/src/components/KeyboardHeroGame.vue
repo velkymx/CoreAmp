@@ -57,13 +57,15 @@ import {
   LANE_KEYS,
   LANE_COUNT,
   isOnset,
-  laneForSpawn,
+  buildSongChart,
+  hashString,
   judge,
   scoreFor,
   nextCombo,
   comboMultiplier,
   comboMessage,
   accuracy,
+  type Note,
   type Judgement,
 } from "@/game/keyboardHero/engine";
 
@@ -106,6 +108,11 @@ let runningAvg = 0;
 let spawnCounter = 0;
 let lastSpawn = 0;
 let messageTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Per-song chart: a deterministic, repeatable note stream for the whole track.
+let chart: Note[] = [];
+let chartIndex = 0;
+let chartKey = "";
 
 interface ActiveNote {
   lane: number;
@@ -564,19 +571,31 @@ function tick(): void {
 
   if (player.isPlaying) everPlayed = true;
 
-  // Onset → spawn note (+ a chord on strong beats).
+  // Build the deterministic per-song chart once the track + duration are known
+  // (or when the track changes) so the same song always plays the same level.
+  const track = player.currentTrack;
+  const dur = player.durationSecs;
+  const key = track ? track.path : "";
+  if (track && dur && dur > 0 && chartKey !== key) {
+    chart = buildSongChart(hashString(key), dur);
+    chartKey = key;
+    chartIndex = 0;
+    while (chartIndex < chart.length && chart[chartIndex].time < player.positionSecs) chartIndex++;
+  }
+
+  // Steady stream: spawn chart notes as the song position reaches their lead
+  // time. Position-driven (not RAF-driven), so it stays in sync and a miss
+  // never interrupts the flow.
+  const songT = player.positionSecs;
+  while (chartIndex < chart.length && songT >= chart[chartIndex].time - TRAVEL) {
+    if (chart[chartIndex].time - songT > -0.3) spawnNote(chart[chartIndex].lane);
+    chartIndex++;
+  }
+
+  // Live onsets only drive eye-candy now (sky confetti pops + lightning).
   runningAvg = runningAvg * 0.92 + energy * 0.08;
-  if (player.isPlaying && isOnset(energy, runningAvg) && t - lastSpawn > 0.16) {
+  if (player.isPlaying && isOnset(energy, runningAvg) && t - lastSpawn > 0.12) {
     spawnCounter++;
-    const bandIndex = bands.treble > bands.bass ? 2 : bands.mid > bands.bass ? 1 : 0;
-    const lane = laneForSpawn(bandIndex, spawnCounter);
-    spawnNote(lane);
-    // Chord: a second lane on a hard hit or every 5th note.
-    if (energy > runningAvg * 2.1 || spawnCounter % 5 === 0) {
-      const second = laneForSpawn(bandIndex + 2, spawnCounter + 3);
-      if (second !== lane) spawnNote(second);
-    }
-    // Confetti "pop" up in the sky behind the stage on the beat.
     const popColor = LANE_COLORS[spawnCounter % LANE_COLORS.length];
     spawnBurst((Math.random() - 0.5) * 36, 20 + Math.random() * 8, -34, popColor, 24, 9);
     lastSpawn = t;
@@ -716,6 +735,10 @@ function tick(): void {
 
 function restart(): void {
   resetState();
+  chartIndex = 0;
+  // Replay the same level from the top of the song.
+  void player.seek(0);
+  if (!player.isPlaying) void player.togglePlayback();
 }
 
 onMounted(async () => {

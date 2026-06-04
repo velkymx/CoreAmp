@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   generateChart,
+  buildSongChart,
+  hashString,
   isOnset,
   laneForSpawn,
   judge,
@@ -34,6 +36,47 @@ describe("generateChart", () => {
     const atChord = notes.filter((n) => n.time === 0.4);
     expect(atChord).toHaveLength(2);
     expect(atChord[0].lane).not.toBe(atChord[1].lane);
+  });
+});
+
+describe("hashString", () => {
+  it("is deterministic and varies by input", () => {
+    expect(hashString("/m/a.mp3")).toBe(hashString("/m/a.mp3"));
+    expect(hashString("/m/a.mp3")).not.toBe(hashString("/m/b.mp3"));
+  });
+});
+
+describe("buildSongChart", () => {
+  it("is identical for the same seed + duration (repeatable level)", () => {
+    const seed = hashString("/m/song.mp3");
+    expect(buildSongChart(seed, 120)).toEqual(buildSongChart(seed, 120));
+  });
+
+  it("differs by seed", () => {
+    expect(buildSongChart(1, 120).map((n) => n.lane)).not.toEqual(
+      buildSongChart(2, 120).map((n) => n.lane),
+    );
+  });
+
+  it("lays a steady stream across the whole song, in time order", () => {
+    const notes = buildSongChart(42, 90);
+    expect(notes.length).toBeGreaterThan(100);
+    for (let i = 1; i < notes.length; i++) {
+      expect(notes[i].time).toBeGreaterThanOrEqual(notes[i - 1].time);
+    }
+    expect(notes[0].time).toBeGreaterThanOrEqual(3);
+    expect(notes[notes.length - 1].time).toBeLessThan(90);
+  });
+
+  it("places every note on a valid lane", () => {
+    for (const n of buildSongChart(7, 60)) {
+      expect(n.lane).toBeGreaterThanOrEqual(0);
+      expect(n.lane).toBeLessThan(LANE_COUNT);
+    }
+  });
+
+  it("returns nothing for a too-short song", () => {
+    expect(buildSongChart(1, 4)).toEqual([]);
   });
 });
 

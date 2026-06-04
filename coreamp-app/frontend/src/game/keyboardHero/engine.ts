@@ -33,6 +33,60 @@ export function generateChart(onsets: number[], laneCount = LANE_COUNT): Note[] 
   return notes;
 }
 
+// Stable 32-bit hash of a string (e.g. a track path) → a per-song seed.
+export function hashString(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Build a full, deterministic note chart for a song so every playthrough is the
+// same "level". Seeded by the track (via `hashString(path)`), it lays down a
+// steady stream of notes for the whole duration with a gentle density swell
+// through the middle and occasional chords. Same seed + duration → same chart.
+export function buildSongChart(seed: number, durationSecs: number, laneCount = LANE_COUNT): Note[] {
+  const notes: Note[] = [];
+  const start = 3; // lead-in before the first note
+  const end = durationSecs - 2;
+  if (end <= start) return notes;
+
+  const rng = mulberry32(seed);
+  let lastLane = -1;
+  let time = start;
+  while (time < end) {
+    const frac = (time - start) / (end - start);
+    // Density envelope: busiest around the middle of the track.
+    const env = 0.5 + 0.5 * Math.sin((frac - 0.25) * Math.PI * 2);
+    const gap = 0.3 + (1 - Math.max(0, env)) * 0.4; // 0.30 .. 0.70 s
+
+    let lane = Math.floor(rng() * laneCount);
+    if (lane === lastLane) lane = (lane + 1) % laneCount;
+    notes.push({ lane, time });
+    lastLane = lane;
+
+    if (rng() < 0.12) {
+      let l2 = Math.floor(rng() * laneCount);
+      if (l2 === lane) l2 = (l2 + 2) % laneCount;
+      notes.push({ lane: l2, time });
+    }
+    time += gap;
+  }
+  return notes;
+}
+
 // Live onset detection: the current energy clearly exceeds the running average
 // (a beat/transient). Used to spawn notes in real time from the spectrum.
 export function isOnset(energy: number, runningAvg: number, sensitivity = 1.45): boolean {
