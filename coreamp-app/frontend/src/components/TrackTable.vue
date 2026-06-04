@@ -134,6 +134,12 @@ const columns = computed<DataTableColumn[]>(() => [
   { key: "artist", label: "Artist" },
   { key: "album", label: "Album" },
   {
+    key: "genre",
+    label: "Genre",
+    class: "d-none d-lg-table-cell",
+    headerClass: "d-none d-lg-table-cell",
+  },
+  {
     key: "duration",
     label: "Time",
     formatter: (v) => formatTime(v as number | null),
