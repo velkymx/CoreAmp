@@ -690,12 +690,12 @@ fn list_library(
 
 #[tauri::command]
 fn toggle_liked(path: String) -> Result<bool, String> {
-    db::toggle_liked(&path)
+    db::toggle_liked(&path).map_err(String::from)
 }
 
 #[tauri::command]
 fn list_genres() -> Result<Vec<String>, String> {
-    db::list_all_genres()
+    db::list_all_genres().map_err(String::from)
 }
 
 #[tauri::command]
@@ -740,7 +740,7 @@ fn list_genre_summaries() -> Result<Vec<GenreSummary>, String> {
 
 #[tauri::command]
 fn record_play(path: String) -> Result<(), String> {
-    db::record_play(&path)
+    db::record_play(&path).map_err(String::from)
 }
 
 #[tauri::command]
@@ -807,19 +807,19 @@ fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
 
 #[tauri::command]
 fn clear_history() -> Result<(), String> {
-    db::clear_history()
+    db::clear_history().map_err(String::from)
 }
 
 #[tauri::command]
 fn library_count() -> Result<u64, String> {
-    db::library_count()
+    db::library_count().map_err(String::from)
 }
 
 /// Remove library entries whose files no longer exist on disk. Returns the
 /// number of pruned tracks.
 #[tauri::command]
 fn prune_missing_files() -> Result<usize, String> {
-    db::prune_missing_files().map(|removed| removed.len())
+    db::prune_missing_files().map(|removed| removed.len()).map_err(String::from)
 }
 
 fn is_placeholder_title(title: &Option<String>, filename: &str) -> bool {

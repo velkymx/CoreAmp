@@ -4,6 +4,7 @@ use std::io;
 use std::path::PathBuf;
 
 pub mod db;
+pub mod error;
 pub mod ipc;
 pub mod library;
 pub mod metadata;
@@ -56,7 +57,7 @@ pub fn ensure_config_dirs() -> io::Result<()> {
 
 pub fn ensure_app_data() -> Result<(), String> {
     ensure_config_dirs().map_err(|err| err.to_string())?;
-    db::init_metadata_db()
+    db::init_metadata_db().map_err(String::from)
 }
 
 #[cfg(test)]

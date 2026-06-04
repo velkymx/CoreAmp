@@ -2,6 +2,7 @@ use crate::library::ScannedFile;
 use crate::metadata::{self, TrackMetadata};
 use crate::metadata_db_path;
 use rusqlite::{Connection, OptionalExtension, params};
+use crate::error::CoreampError;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
@@ -19,7 +20,7 @@ fn configure_connection(connection: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn get_db() -> Result<&'static Mutex<Connection>, String> {
+fn get_db() -> Result<&'static Mutex<Connection>, CoreampError> {
     DB_CONN
         .get_or_init(|| {
             Connection::open(metadata_db_path())
@@ -32,6 +33,7 @@ fn get_db() -> Result<&'static Mutex<Connection>, String> {
         })
         .as_ref()
         .map_err(Clone::clone)
+        .map_err(CoreampError::from)
 }
 
 #[derive(Debug, Clone)]
@@ -152,7 +154,7 @@ fn apply_schema(connection: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-pub fn init_metadata_db() -> Result<(), String> {
+pub fn init_metadata_db() -> Result<(), CoreampError> {
     get_db().map(|_| ())
 }
 
@@ -222,10 +224,10 @@ fn upsert_scanned_files_with_connection(
     Ok(files.len())
 }
 
-pub fn upsert_scanned_files(files: &[ScannedFile]) -> Result<usize, String> {
+pub fn upsert_scanned_files(files: &[ScannedFile]) -> Result<usize, CoreampError> {
     let mutex = get_db()?;
-    let mut connection = mutex.lock().map_err(|err| err.to_string())?;
-    upsert_scanned_files_with_connection(&mut connection, files).map_err(|err| err.to_string())
+    let mut connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
+    upsert_scanned_files_with_connection(&mut connection, files).map_err(CoreampError::from)
 }
 
 pub fn list_library_files(
@@ -234,9 +236,9 @@ pub fn list_library_files(
     genre_filter: Option<String>,
     liked_only: bool,
     search_term: Option<String>,
-) -> Result<Vec<LibraryRow>, String> {
+) -> Result<Vec<LibraryRow>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
     let mut query = String::from(
         r#"
@@ -268,7 +270,7 @@ pub fn list_library_files(
         "#,
     );
 
-    let mut stmt = connection.prepare(&query).map_err(|err| err.to_string())?;
+    let mut stmt = connection.prepare(&query)?;
 
     let search_pattern = search_term.map(|s| format!("%{s}%")).unwrap_or_default();
 
@@ -296,11 +298,11 @@ pub fn list_library_files(
                 })
             },
         )
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|err| err.to_string())?);
+        out.push(row?);
     }
     Ok(out)
 }
@@ -328,7 +330,7 @@ pub(crate) fn rows_for_album(
     conn: &Connection,
     album: &str,
     artist: Option<&str>,
-) -> Result<Vec<LibraryRow>, String> {
+) -> Result<Vec<LibraryRow>, CoreampError> {
     let mut query = String::from(
         r#"
         SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number
@@ -341,31 +343,31 @@ pub(crate) fn rows_for_album(
     }
     query.push_str(" ORDER BY track_number IS NULL, track_number, filename, COALESCE(title, '')");
 
-    let mut stmt = conn.prepare(&query).map_err(|err| err.to_string())?;
+    let mut stmt = conn.prepare(&query)?;
     let mapped = if let Some(artist) = artist {
         stmt.query_map(params![album, artist], library_row_from_row)
     } else {
         stmt.query_map(params![album], library_row_from_row)
     }
-    .map_err(|err| err.to_string())?;
+    ?;
 
     let mut out = Vec::new();
     for row in mapped {
-        out.push(row.map_err(|err| err.to_string())?);
+        out.push(row?);
     }
     Ok(out)
 }
 
 /// Public wrapper over [`rows_for_album`] using the shared DB connection.
-pub fn list_album_tracks(album: &str, artist: Option<&str>) -> Result<Vec<LibraryRow>, String> {
+pub fn list_album_tracks(album: &str, artist: Option<&str>) -> Result<Vec<LibraryRow>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     rows_for_album(&connection, album, artist)
 }
 
-pub fn toggle_liked(path: &str) -> Result<bool, String> {
+pub fn toggle_liked(path: &str) -> Result<bool, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
     let current_liked: i32 = connection
         .query_row(
@@ -374,7 +376,7 @@ pub fn toggle_liked(path: &str) -> Result<bool, String> {
             |row| row.get(0),
         )
         .optional()
-        .map_err(|err| err.to_string())?
+        ?
         .unwrap_or(0);
 
     let new_liked = if current_liked == 0 { 1 } else { 0 };
@@ -384,14 +386,14 @@ pub fn toggle_liked(path: &str) -> Result<bool, String> {
             "UPDATE files SET liked = ?2, updated_at = unixepoch() WHERE path = ?1",
             params![path, new_liked],
         )
-        .map_err(|err| err.to_string())?;
+        ?;
 
     Ok(new_liked != 0)
 }
 
-pub fn list_all_genres() -> Result<Vec<String>, String> {
+pub fn list_all_genres() -> Result<Vec<String>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
     let mut stmt = connection
         .prepare(
@@ -402,22 +404,22 @@ pub fn list_all_genres() -> Result<Vec<String>, String> {
             ORDER BY genre
             "#,
         )
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let rows = stmt
         .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|err| err.to_string())?);
+        out.push(row?);
     }
     Ok(out)
 }
 
-pub fn list_all_genre_summaries() -> Result<Vec<GenreSummary>, String> {
+pub fn list_all_genre_summaries() -> Result<Vec<GenreSummary>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
     let mut stmt = connection
         .prepare(
@@ -429,7 +431,7 @@ pub fn list_all_genre_summaries() -> Result<Vec<GenreSummary>, String> {
             ORDER BY genre
             "#,
         )
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let rows = stmt
         .query_map([], |row| {
@@ -439,18 +441,18 @@ pub fn list_all_genre_summaries() -> Result<Vec<GenreSummary>, String> {
                 representative_path: row.get(2)?,
             })
         })
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|err| err.to_string())?);
+        out.push(row?);
     }
     Ok(out)
 }
 
-pub fn list_all_artists() -> Result<Vec<ArtistSummary>, String> {
+pub fn list_all_artists() -> Result<Vec<ArtistSummary>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
     let mut stmt = connection
         .prepare(
@@ -462,7 +464,7 @@ pub fn list_all_artists() -> Result<Vec<ArtistSummary>, String> {
             ORDER BY artist
             "#,
         )
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let rows = stmt
         .query_map([], |row| {
@@ -472,18 +474,18 @@ pub fn list_all_artists() -> Result<Vec<ArtistSummary>, String> {
                 representative_path: row.get(2)?,
             })
         })
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|err| err.to_string())?);
+        out.push(row?);
     }
     Ok(out)
 }
 
-pub fn list_all_albums() -> Result<Vec<AlbumSummary>, String> {
+pub fn list_all_albums() -> Result<Vec<AlbumSummary>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
     let mut stmt = connection
         .prepare(
@@ -495,7 +497,7 @@ pub fn list_all_albums() -> Result<Vec<AlbumSummary>, String> {
             ORDER BY album
             "#,
         )
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let rows = stmt
         .query_map([], |row| {
@@ -506,30 +508,30 @@ pub fn list_all_albums() -> Result<Vec<AlbumSummary>, String> {
                 representative_path: row.get(3)?,
             })
         })
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|err| err.to_string())?);
+        out.push(row?);
     }
     Ok(out)
 }
 
-pub fn record_play(path: &str) -> Result<(), String> {
+pub fn record_play(path: &str) -> Result<(), CoreampError> {
     let mutex = get_db()?;
-    let mut connection = mutex.lock().map_err(|err| err.to_string())?;
-    let tx = connection.transaction().map_err(|e| e.to_string())?;
+    let mut connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
+    let tx = connection.transaction()?;
     tx.execute(
         "UPDATE files SET play_count = play_count + 1, last_played_at = unixepoch() WHERE path = ?1",
         params![path],
     )
-    .map_err(|e| e.to_string())?;
+    ?;
     tx.execute(
         "INSERT INTO history (path, played_at) VALUES (?1, unixepoch())",
         params![path],
     )
-    .map_err(|e| e.to_string())?;
-    tx.commit().map_err(|e| e.to_string())
+    ?;
+    tx.commit().map_err(CoreampError::from)
 }
 
 fn rows_recently_added(connection: &Connection, limit: usize) -> rusqlite::Result<Vec<LibraryRow>> {
@@ -560,10 +562,10 @@ fn rows_recently_added(connection: &Connection, limit: usize) -> rusqlite::Resul
 }
 
 // Tracks most recently added/updated in the library (newest first).
-pub fn list_recently_added(limit: usize) -> Result<Vec<LibraryRow>, String> {
+pub fn list_recently_added(limit: usize) -> Result<Vec<LibraryRow>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
-    rows_recently_added(&connection, limit).map_err(|err| err.to_string())
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
+    rows_recently_added(&connection, limit).map_err(CoreampError::from)
 }
 
 fn rows_recently_played(
@@ -583,15 +585,15 @@ fn rows_recently_played(
     rows.collect()
 }
 
-pub fn list_recently_played(limit: usize) -> Result<Vec<LibraryRow>, String> {
+pub fn list_recently_played(limit: usize) -> Result<Vec<LibraryRow>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
-    rows_recently_played(&connection, limit).map_err(|err| err.to_string())
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
+    rows_recently_played(&connection, limit).map_err(CoreampError::from)
 }
 
-pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
+pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
 
     let mut stmt = connection
         .prepare(
@@ -604,7 +606,7 @@ pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
             LIMIT ?1
             "#,
         )
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let rows = stmt
         .query_map(params![limit as i64], |row| {
@@ -614,29 +616,29 @@ pub fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
                 representative_path: row.get(2)?,
             })
         })
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let mut out = Vec::new();
     for row in rows {
-        out.push(row.map_err(|err| err.to_string())?);
+        out.push(row?);
     }
     Ok(out)
 }
 
-pub fn clear_history() -> Result<(), String> {
+pub fn clear_history() -> Result<(), CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     let tx = connection
         .unchecked_transaction()
-        .map_err(|err| err.to_string())?;
+        ?;
 
     tx.execute("DELETE FROM history", [])
-        .map_err(|err| err.to_string())?;
+        ?;
 
     tx.execute("UPDATE files SET play_count = 0, last_played_at = NULL", [])
-        .map_err(|err| err.to_string())?;
+        ?;
 
-    tx.commit().map_err(|err| err.to_string())
+    tx.commit().map_err(CoreampError::from)
 }
 
 /// Delete library rows whose files no longer satisfy `exists` (e.g. removed
@@ -644,51 +646,51 @@ pub fn clear_history() -> Result<(), String> {
 pub(crate) fn delete_missing_files<F: Fn(&str) -> bool>(
     conn: &Connection,
     exists: F,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, CoreampError> {
     let all_paths: Vec<String> = {
         let mut stmt = conn
             .prepare("SELECT path FROM files")
-            .map_err(|err| err.to_string())?;
+            ?;
         let rows = stmt
             .query_map([], |row| row.get::<_, String>(0))
-            .map_err(|err| err.to_string())?;
+            ?;
         rows.collect::<Result<_, _>>()
-            .map_err(|err: rusqlite::Error| err.to_string())?
+            ?
     };
     let missing: Vec<String> = all_paths.into_iter().filter(|p| !exists(p)).collect();
 
     let tx = conn
         .unchecked_transaction()
-        .map_err(|err| err.to_string())?;
+        ?;
     for path in &missing {
         tx.execute("DELETE FROM files WHERE path = ?1", params![path])
-            .map_err(|err| err.to_string())?;
+            ?;
         tx.execute("DELETE FROM history WHERE path = ?1", params![path])
-            .map_err(|err| err.to_string())?;
+            ?;
     }
-    tx.commit().map_err(|err| err.to_string())?;
+    tx.commit()?;
     Ok(missing)
 }
 
 /// Prune library entries whose backing files have been deleted from disk.
-pub fn prune_missing_files() -> Result<Vec<String>, String> {
+pub fn prune_missing_files() -> Result<Vec<String>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     delete_missing_files(&connection, |path| Path::new(path).exists())
 }
 
-pub fn library_count() -> Result<u64, String> {
+pub fn library_count() -> Result<u64, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     let count: i64 = connection
         .query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0))
-        .map_err(|err| err.to_string())?;
+        ?;
     Ok(count.max(0) as u64)
 }
 
-pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
+pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     let row = connection
         .query_row(
             r#"
@@ -715,7 +717,7 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
             },
         )
         .optional()
-        .map_err(|err| err.to_string())?;
+        ?;
     Ok(row)
 }
 
@@ -750,25 +752,25 @@ fn select_metadata_hashes(
     Ok(out)
 }
 
-pub fn metadata_hashes_for_paths(paths: &[String]) -> Result<HashMap<String, String>, String> {
+pub fn metadata_hashes_for_paths(paths: &[String]) -> Result<HashMap<String, String>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
-    select_metadata_hashes(&connection, paths).map_err(|err| err.to_string())
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
+    select_metadata_hashes(&connection, paths).map_err(CoreampError::from)
 }
 
-pub fn backfill_duration_for_missing() -> Result<usize, String> {
+pub fn backfill_duration_for_missing() -> Result<usize, CoreampError> {
     let mutex = get_db()?;
 
     // Read candidate paths under a short lock, then release it before any file
     // I/O so the slow per-file parse never blocks other DB users.
     let paths: Vec<String> = {
-        let connection = mutex.lock().map_err(|err| err.to_string())?;
+        let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
         let mut stmt = connection
             .prepare("SELECT path FROM files WHERE duration_secs IS NULL")
-            .map_err(|err| err.to_string())?;
+            ?;
         let rows = stmt
             .query_map([], |row| row.get(0))
-            .map_err(|err| err.to_string())?;
+            ?;
         rows.filter_map(|r| r.ok()).collect()
     };
 
@@ -783,7 +785,7 @@ pub fn backfill_duration_for_missing() -> Result<usize, String> {
         .collect();
 
     // Write the results back under a short lock.
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     let mut updated = 0;
     for (path, duration) in durations {
         connection
@@ -798,9 +800,9 @@ pub fn backfill_duration_for_missing() -> Result<usize, String> {
     Ok(updated)
 }
 
-pub fn metadata_hash_for_path(path: &Path) -> Result<Option<String>, String> {
+pub fn metadata_hash_for_path(path: &Path) -> Result<Option<String>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     let hash = connection
         .query_row(
             "SELECT metadata_hash FROM files WHERE path = ?1 LIMIT 1",
@@ -808,13 +810,13 @@ pub fn metadata_hash_for_path(path: &Path) -> Result<Option<String>, String> {
             |row| row.get(0),
         )
         .optional()
-        .map_err(|err| err.to_string())?;
+        ?;
     Ok(hash)
 }
 
-pub fn list_candidates_for_enrichment(limit: usize) -> Result<Vec<EnrichmentCandidate>, String> {
+pub fn list_candidates_for_enrichment(limit: usize) -> Result<Vec<EnrichmentCandidate>, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     let mut stmt = connection
         .prepare(
             r#"
@@ -830,7 +832,7 @@ pub fn list_candidates_for_enrichment(limit: usize) -> Result<Vec<EnrichmentCand
             LIMIT ?1
             "#,
         )
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let rows = stmt
         .query_map(params![limit as i64], |row| {
@@ -839,11 +841,11 @@ pub fn list_candidates_for_enrichment(limit: usize) -> Result<Vec<EnrichmentCand
                 query: row.get(1)?,
             })
         })
-        .map_err(|err| err.to_string())?;
+        ?;
 
     let mut out = Vec::new();
     for row in rows {
-        let candidate = row.map_err(|err| err.to_string())?;
+        let candidate = row?;
         if !candidate.query.trim().is_empty() {
             out.push(candidate);
         }
@@ -851,9 +853,9 @@ pub fn list_candidates_for_enrichment(limit: usize) -> Result<Vec<EnrichmentCand
     Ok(out)
 }
 
-pub fn apply_enriched_metadata(path: &str, metadata: &TrackMetadata) -> Result<bool, String> {
+pub fn apply_enriched_metadata(path: &str, metadata: &TrackMetadata) -> Result<bool, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     let changed = connection
         .execute(
             r#"
@@ -886,13 +888,13 @@ pub fn apply_enriched_metadata(path: &str, metadata: &TrackMetadata) -> Result<b
                 &metadata.year
             ],
         )
-        .map_err(|err| err.to_string())?;
+        ?;
     Ok(changed > 0)
 }
 
-pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<bool, String> {
+pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<bool, CoreampError> {
     let mutex = get_db()?;
-    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     let changed = connection
         .execute(
             r#"
@@ -919,7 +921,7 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
                 &metadata.track_number
             ],
         )
-        .map_err(|err| err.to_string())?;
+        ?;
     Ok(changed > 0)
 }
 
