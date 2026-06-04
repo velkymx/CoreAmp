@@ -836,6 +836,23 @@ describe("player.setSource", () => {
   });
 });
 
+describe("player clearQueue", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  });
+
+  it("empties the queue, resets the index, and stops playback", async () => {
+    const p = usePlayerStore();
+    p.$patch({ source: "web", queue: mkQueue(), currentIndex: 1, isPlaying: true });
+    await p.clearQueue();
+    expect(p.queue).toHaveLength(0);
+    expect(p.currentIndex).toBe(-1);
+    expect(p.isPlaying).toBe(false);
+    expect(webDriver.pause).toHaveBeenCalled();
+  });
+});
+
 describe("player gapless", () => {
   beforeEach(() => {
     vi.clearAllMocks();

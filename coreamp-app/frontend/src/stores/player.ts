@@ -324,6 +324,15 @@ export const usePlayerStore = defineStore("player", {
       this.resyncShuffle();
     },
 
+    // Empty the whole queue and stop playback.
+    async clearQueue(): Promise<void> {
+      await this.stopPlayback();
+      this.queue = [];
+      this.currentIndex = -1;
+      this.shuffleOrder = [];
+      this.shufflePos = 0;
+    },
+
     // Drop everything before the current track ("clear played").
     clearPlayed(): void {
       if (this.currentIndex <= 0) return;

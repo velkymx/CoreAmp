@@ -23,6 +23,16 @@
       >
         Clear played
       </VibeButton>
+      <VibeButton
+        variant="danger"
+        outline
+        size="sm"
+        :disabled="player.queue.length === 0"
+        data-test="clear-queue"
+        @click="player.clearQueue"
+      >
+        Clear queue
+      </VibeButton>
     </div>
 
     <div class="queue-body flex-grow-1 overflow-auto">

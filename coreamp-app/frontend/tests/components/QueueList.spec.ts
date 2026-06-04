@@ -79,4 +79,13 @@ describe("QueueList", () => {
     await w.get('[data-test="stop-after"]').trigger("click");
     expect(p.stopAfterCurrent).toBe(true);
   });
+
+  it("clear-queue empties the queue", async () => {
+    const p = usePlayerStore();
+    p.$patch({ queue: [{ path: "/m/a.mp3", title: "A", artist: null, album: null, liked: false }] as never });
+    const spy = vi.spyOn(p, "clearQueue").mockResolvedValue();
+    const w = mount(QueueList, { global: { stubs } });
+    await w.get('[data-test="clear-queue"]').trigger("click");
+    expect(spy).toHaveBeenCalled();
+  });
 });
