@@ -1,5 +1,5 @@
 <template>
-  <div class="volume-control d-inline-flex align-items-center gap-2">
+  <div class="volume-control d-flex align-items-center gap-2">
     <VibeButton
       variant="secondary"
       outline
@@ -10,7 +10,7 @@
       <VibeIcon :icon="volumeIcon" />
     </VibeButton>
     <VibeSlider
-      class="volume-slider"
+      class="volume-slider flex-grow-1"
       :model-value="player.muted ? 0 : player.volume"
       :min="0"
       :max="1"
