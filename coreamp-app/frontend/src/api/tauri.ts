@@ -124,6 +124,8 @@ export const scanPaths = (paths: string[]) =>
 export const pickScanPaths = (kind: string) =>
   call<string[]>("pick_scan_paths", { kind });
 export const appVersion = () => call<string>("app_version");
+export const setTrayNowPlaying = (label: string | null) =>
+  call<void>("set_tray_now_playing", { label });
 
 // --- DSP / EQ ---
 export const nativeAudioSetDspSettings = (settings: NativeDspSettings) =>

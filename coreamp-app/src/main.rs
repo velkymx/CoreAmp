@@ -20,9 +20,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, mpsc};
 use std::thread;
 use std::time::Duration;
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::menu::{MenuBuilder, MenuItem, MenuItemBuilder};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
+
+// Live tray handles so the now-playing label + tooltip can be updated from the
+// frontend as the track changes.
+struct TrayHandles {
+    now_playing: MenuItem<tauri::Wry>,
+    tray: TrayIcon<tauri::Wry>,
+}
 
 #[derive(Debug, Clone, Serialize)]
 struct ScanResult {
@@ -664,6 +671,22 @@ async fn scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
 #[tauri::command]
 fn app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Update the tray's now-playing label + tooltip. `None` resets to "Not playing".
+#[tauri::command]
+fn set_tray_now_playing(app: tauri::AppHandle, label: Option<String>) -> Result<(), String> {
+    if let Some(handles) = app.try_state::<TrayHandles>() {
+        let text = label
+            .clone()
+            .unwrap_or_else(|| String::from("Not playing"));
+        handles
+            .now_playing
+            .set_text(text)
+            .map_err(|err| err.to_string())?;
+        let _ = handles.tray.set_tooltip(label.as_deref());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1836,6 +1859,11 @@ fn main() {
                 }
             });
 
+            // Disabled header line that mirrors the current track (updated from
+            // the frontend via set_tray_now_playing).
+            let now_playing_item = MenuItemBuilder::with_id("now_playing", "Not playing")
+                .enabled(false)
+                .build(app)?;
             let previous_item =
                 MenuItemBuilder::with_id("previous_track", "Previous").build(app)?;
             let toggle_item =
@@ -1845,6 +1873,7 @@ fn main() {
             let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
             let tray_menu = MenuBuilder::new(app)
                 .items(&[
+                    &now_playing_item,
                     &previous_item,
                     &toggle_item,
                     &next_item,
@@ -1853,7 +1882,7 @@ fn main() {
                 ])
                 .build()?;
 
-            TrayIconBuilder::new()
+            let tray = TrayIconBuilder::new()
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -1895,10 +1924,17 @@ fn main() {
                 })
                 .build(app)?;
 
+            // Keep handles so the now-playing label/tooltip can be updated live.
+            app.manage(TrayHandles {
+                now_playing: now_playing_item,
+                tray,
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             app_version,
+            set_tray_now_playing,
             scan_library,
             scan_paths,
             pick_scan_paths,

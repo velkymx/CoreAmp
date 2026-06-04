@@ -11,3 +11,10 @@ export function toQueueTrack(row: LibraryTrack): Track {
     liked: row.liked,
   };
 }
+
+// "Title — Artist" label for the OS tray / now-playing surfaces. Returns null
+// when nothing is playing or the track has no usable text.
+export function nowPlayingLabel(track: Track | null): string | null {
+  if (!track) return null;
+  return [track.title, track.artist].filter(Boolean).join(" — ") || null;
+}

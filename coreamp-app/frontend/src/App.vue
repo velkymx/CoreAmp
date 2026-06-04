@@ -35,7 +35,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount } from "vue";
+import { onMounted, onBeforeUnmount, watch } from "vue";
+import * as api from "@/api/tauri";
+import { nowPlayingLabel } from "@/util/track";
 import PlayerCard from "@/components/PlayerCard.vue";
 import QueueList from "@/components/QueueList.vue";
 import LibraryView from "@/components/LibraryView.vue";
@@ -57,6 +59,15 @@ import { useColorMode } from "@velkymx/vibeui";
 const player = usePlayerStore();
 const ui = useUiStore();
 const notify = useNotifyStore();
+
+// Mirror the current track into the native tray (label + tooltip). Guarded so
+// it's a harmless no-op outside a Tauri webview (tests, plain browser dev).
+watch(
+  () => player.currentTrack,
+  (track) => {
+    void api.setTrayNowPlaying(nowPlayingLabel(track)).catch(() => {});
+  },
+);
 const { initColorMode } = useColorMode();
 
 // Global transport keyboard shortcuts: Space play/pause, ←/→ seek, ↑/↓ volume,
