@@ -44,14 +44,37 @@ describe("NotificationHost", () => {
     expect(n.notes).toHaveLength(0);
   });
 
-  it("keeps an error note longer than an info note", async () => {
+  it("errors persist (never auto-dismiss) so they aren't missed", async () => {
     mount(NotificationHost, { global: { stubs } });
     const n = useNotifyStore();
     n.error("bad");
     await flushPromises();
-    vi.advanceTimersByTime(6001);
+    vi.advanceTimersByTime(60_000);
     expect(n.notes).toHaveLength(1);
-    vi.advanceTimersByTime(6000);
+  });
+
+  it("shows Clear all only when multiple notes are stacked, and clears them", async () => {
+    const w = mount(NotificationHost, { global: { stubs } });
+    const n = useNotifyStore();
+    n.error("a");
+    await flushPromises();
+    expect(w.find('[data-test="notify-clear-all"]').exists()).toBe(false);
+    n.error("b");
+    await flushPromises();
+    expect(w.find('[data-test="notify-clear-all"]').exists()).toBe(true);
+    await w.get('[data-test="notify-clear-all"]').trigger("click");
     expect(n.notes).toHaveLength(0);
+  });
+
+  it("copies an error's text to the clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const w = mount(NotificationHost, { global: { stubs } });
+    const n = useNotifyStore();
+    n.error("disk gone");
+    await flushPromises();
+    await w.get('[data-test="notify-copy"]').trigger("click");
+    expect(writeText).toHaveBeenCalledWith("disk gone");
+    vi.unstubAllGlobals();
   });
 });
