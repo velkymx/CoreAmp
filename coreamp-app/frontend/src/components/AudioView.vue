@@ -12,6 +12,16 @@
       <VibeButton variant="secondary" outline data-test="boost" @click="audio.cycleBoost">
         {{ audio.boostLabel }}
       </VibeButton>
+      <label class="d-flex align-items-center gap-2 mb-0">
+        <span class="text-secondary small">ReplayGain</span>
+        <VibeFormSelect
+          v-model="replayGainModel"
+          :options="replayGainOptions"
+          aria-label="ReplayGain mode"
+          data-test="replaygain-mode"
+          style="max-width: 9rem"
+        />
+      </label>
     </div>
 
     <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -102,9 +112,21 @@ import { computed, ref } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
 import EqGraph from "@/components/EqGraph.vue";
 import { useAudioStore, type EqPresetName } from "@/stores/audio";
+import { usePlayerStore, type ReplayGainMode } from "@/stores/player";
 import { useFrequencyData } from "@/composables/useFrequencyData";
 
 const audio = useAudioStore();
+const player = usePlayerStore();
+
+const replayGainOptions: FormSelectOption[] = [
+  { value: "off", text: "Off" },
+  { value: "track", text: "Track" },
+  { value: "album", text: "Album" },
+];
+const replayGainModel = computed<FormSelectOptionValue>({
+  get: () => player.replayGainMode,
+  set: (value) => player.setReplayGainMode(String(value) as ReplayGainMode),
+});
 const { freq } = useFrequencyData();
 
 const PRESETS: EqPresetName[] = [

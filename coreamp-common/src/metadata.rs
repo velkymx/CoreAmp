@@ -217,17 +217,26 @@ pub fn parse_replay_gain_db(value: &str) -> Option<f32> {
     s.parse::<f32>().ok()
 }
 
-/// Read the track ReplayGain (dB) from a file's tags, if present.
-pub fn read_track_replay_gain(path: &Path) -> Option<f32> {
+fn read_replay_gain_key(path: &Path, key: ItemKey) -> Option<f32> {
     let tagged_file = lofty::read_from_path(path).ok()?;
     for tag in ordered_tags(&tagged_file) {
-        if let Some(value) = tag.get_string(ItemKey::ReplayGainTrackGain)
+        if let Some(value) = tag.get_string(key)
             && let Some(db) = parse_replay_gain_db(value)
         {
             return Some(db);
         }
     }
     None
+}
+
+/// Read the track ReplayGain (dB) from a file's tags, if present.
+pub fn read_track_replay_gain(path: &Path) -> Option<f32> {
+    read_replay_gain_key(path, ItemKey::ReplayGainTrackGain)
+}
+
+/// Read the album ReplayGain (dB) from a file's tags, if present.
+pub fn read_album_replay_gain(path: &Path) -> Option<f32> {
+    read_replay_gain_key(path, ItemKey::ReplayGainAlbumGain)
 }
 
 fn is_missing(value: Option<Cow<'_, str>>) -> bool {

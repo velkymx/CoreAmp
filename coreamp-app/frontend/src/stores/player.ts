@@ -16,6 +16,25 @@ import { useNotifyStore, errorMessage } from "@/stores/notify";
 export type ToggleResult = "paused" | "resumed" | "played" | "busy" | "noop";
 export type NavResult = "played" | "ended" | "busy" | "noop";
 export type RepeatMode = "off" | "queue" | "track";
+export type ReplayGainMode = "off" | "track" | "album";
+
+const RG_MODE_KEY = "coreamp.replaygain.mode";
+function loadReplayGainMode(): ReplayGainMode {
+  try {
+    const v = localStorage.getItem(RG_MODE_KEY);
+    if (v === "off" || v === "track" || v === "album") return v;
+  } catch {
+    /* storage unavailable */
+  }
+  return "track";
+}
+function persistReplayGainMode(mode: ReplayGainMode): void {
+  try {
+    localStorage.setItem(RG_MODE_KEY, mode);
+  } catch {
+    /* best-effort */
+  }
+}
 
 interface PlayerState {
   queue: Track[];
@@ -33,6 +52,8 @@ interface PlayerState {
   shufflePos: number;
   repeatMode: RepeatMode;
   stopAfterCurrent: boolean;
+  // Which ReplayGain to apply on playback (off / per-track / per-album).
+  replayGainMode: ReplayGainMode;
   // Wall-clock ms when the sleep timer fires (null = no timer armed).
   sleepEndsAt: number | null;
   artwork: TrackArtwork | null;
@@ -66,6 +87,7 @@ export const usePlayerStore = defineStore("player", {
     shufflePos: 0,
     repeatMode: "off",
     stopAfterCurrent: false,
+    replayGainMode: "track",
     sleepEndsAt: null,
     artwork: null,
     signal: null,
@@ -88,6 +110,7 @@ export const usePlayerStore = defineStore("player", {
     init(): void {
       this.source = "web";
       this.nativeAvailable = false;
+      this.replayGainMode = loadReplayGainMode();
 
       // Restore the queue from the previous session (paused — we remember what
       // was queued and where, but don't auto-start audio on launch).
@@ -344,6 +367,36 @@ export const usePlayerStore = defineStore("player", {
       await this.playCurrent();
     },
 
+    // Read the given track's ReplayGain and apply the value selected by the
+    // current mode (album falls back to track gain). Guarded so a slow read for
+    // a track the user already skipped past is dropped. "off" → unity.
+    applyReplayGainFor(path: string): void {
+      if (this.replayGainMode === "off") {
+        webDriver.setReplayGain(null);
+        return;
+      }
+      const mode = this.replayGainMode;
+      void api
+        .readReplayGain(path)
+        .then((info) => {
+          if (this.queue[this.currentIndex]?.path !== path) return;
+          const db = mode === "album" ? (info.album ?? info.track) : info.track;
+          webDriver.setReplayGain(db ?? null);
+        })
+        .catch(() => {});
+    },
+
+    // Change the ReplayGain mode (persisted) and re-apply to the current track.
+    setReplayGainMode(mode: ReplayGainMode): void {
+      this.replayGainMode = mode;
+      persistReplayGainMode(mode);
+      const current = this.queue[this.currentIndex];
+      if (current && !(this.source === "native" && this.nativeAvailable)) {
+        if (mode === "off") webDriver.setReplayGain(null);
+        else this.applyReplayGainFor(current.path);
+      }
+    },
+
     async playCurrent(): Promise<void> {
       const track = this.queue[this.currentIndex];
       if (!track) return;
@@ -353,18 +406,9 @@ export const usePlayerStore = defineStore("player", {
         } else {
           webDriver.load(track.path);
           webDriver.setVolume(this.muted ? 0 : this.volume);
-          // Reset ReplayGain for the new track, then apply its tag once read.
-          // Guarded so a slow read for a track the user skipped past is dropped.
+          // Reset ReplayGain for the new track, then apply per the current mode.
           webDriver.setReplayGain(null);
-          const rgPath = track.path;
-          void api
-            .readReplayGain(rgPath)
-            .then((db) => {
-              if (this.queue[this.currentIndex]?.path === rgPath) {
-                webDriver.setReplayGain(db);
-              }
-            })
-            .catch(() => {});
+          this.applyReplayGainFor(track.path);
           await webDriver.resume();
         }
         this.isPlaying = true;

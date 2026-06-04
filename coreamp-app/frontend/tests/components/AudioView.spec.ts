@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import AudioView from "@/components/AudioView.vue";
 import { useAudioStore } from "@/stores/audio";
+import { usePlayerStore } from "@/stores/player";
 
 vi.mock("@/api/tauri", () => ({
   nativeAudioSetDspSettings: vi.fn().mockResolvedValue(undefined),
@@ -41,6 +42,13 @@ describe("AudioView", () => {
     const w = mount(AudioView, { global: { stubs } });
     expect(w.findAll('[data-test="eq-band"]')).toHaveLength(5);
     expect(w.find('[data-test="eq-graph"]').exists()).toBe(true);
+  });
+
+  it("changing the ReplayGain mode updates the player store", async () => {
+    const w = mount(AudioView, { global: { stubs } });
+    const player = usePlayerStore();
+    await w.get('[data-test="replaygain-mode"]').setValue("album");
+    expect(player.replayGainMode).toBe("album");
   });
 
   it("the boost button cycles the boost level", async () => {

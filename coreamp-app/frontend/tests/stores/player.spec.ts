@@ -16,7 +16,7 @@ vi.mock("@/api/tauri", () => ({
   nativeAudioSelectedOutputDevice: vi.fn().mockResolvedValue({ selected_name: null }),
   nativeAudioSetOutputDevice: vi.fn().mockResolvedValue(undefined),
   recordPlay: vi.fn().mockResolvedValue(undefined),
-  readReplayGain: vi.fn().mockResolvedValue(null),
+  readReplayGain: vi.fn().mockResolvedValue({ track: null, album: null }),
 }));
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
@@ -839,9 +839,10 @@ describe("player ReplayGain", () => {
     (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
   });
 
-  it("resets then applies the track ReplayGain on web playback", async () => {
-    vi.mocked(readReplayGain).mockResolvedValue(-6.48);
+  it("resets then applies the track ReplayGain on web playback (track mode)", async () => {
+    vi.mocked(readReplayGain).mockResolvedValue({ track: -6.48, album: -7.2 });
     const p = usePlayerStore();
+    p.replayGainMode = "track";
     await p.playTracks(
       [{ path: "/m/a.mp3", title: "A", artist: null, album: null, liked: false }] as never,
       0,
@@ -850,6 +851,30 @@ describe("player ReplayGain", () => {
     expect(readReplayGain).toHaveBeenCalledWith("/m/a.mp3");
     expect(webDriver.setReplayGain).toHaveBeenCalledWith(null);
     expect(webDriver.setReplayGain).toHaveBeenCalledWith(-6.48);
+  });
+
+  it("applies album gain in album mode (falling back to track gain)", async () => {
+    vi.mocked(readReplayGain).mockResolvedValue({ track: -6.48, album: -7.2 });
+    const p = usePlayerStore();
+    p.replayGainMode = "album";
+    await p.playTracks(
+      [{ path: "/m/a.mp3", title: "A", artist: null, album: null, liked: false }] as never,
+      0,
+    );
+    await flushPromises();
+    expect(webDriver.setReplayGain).toHaveBeenCalledWith(-7.2);
+  });
+
+  it("leaves gain at unity in off mode (never reads tags)", async () => {
+    const p = usePlayerStore();
+    p.replayGainMode = "off";
+    await p.playTracks(
+      [{ path: "/m/a.mp3", title: "A", artist: null, album: null, liked: false }] as never,
+      0,
+    );
+    await flushPromises();
+    expect(readReplayGain).not.toHaveBeenCalled();
+    expect(webDriver.setReplayGain).toHaveBeenCalledWith(null);
   });
 });
 

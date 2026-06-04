@@ -770,10 +770,20 @@ fn list_recently_added(limit: usize) -> Result<Vec<LibraryTrack>, String> {
     Ok(rows.into_iter().map(library_track_from_row).collect())
 }
 
-/// Track ReplayGain in dB from the file's tags (None when untagged).
+#[derive(Debug, Serialize)]
+struct ReplayGainInfo {
+    track: Option<f32>,
+    album: Option<f32>,
+}
+
+/// Track + album ReplayGain (dB) from the file's tags (None when untagged).
 #[tauri::command]
-fn read_replay_gain(path: String) -> Option<f32> {
-    metadata::read_track_replay_gain(Path::new(&path))
+fn read_replay_gain(path: String) -> ReplayGainInfo {
+    let p = Path::new(&path);
+    ReplayGainInfo {
+        track: metadata::read_track_replay_gain(p),
+        album: metadata::read_album_replay_gain(p),
+    }
 }
 
 #[tauri::command]
