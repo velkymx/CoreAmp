@@ -6,6 +6,7 @@ import {
   judge,
   scoreFor,
   nextCombo,
+  comboMultiplier,
   comboMessage,
   accuracy,
   LANE_COUNT,
@@ -83,6 +84,17 @@ describe("nextCombo", () => {
     expect(nextCombo(4, "perfect")).toBe(5);
     expect(nextCombo(4, "good")).toBe(5);
     expect(nextCombo(9, "miss")).toBe(0);
+  });
+});
+
+describe("comboMultiplier", () => {
+  it("climbs x1 → x4 with the combo", () => {
+    expect(comboMultiplier(0)).toBe(1);
+    expect(comboMultiplier(9)).toBe(1);
+    expect(comboMultiplier(10)).toBe(2);
+    expect(comboMultiplier(20)).toBe(3);
+    expect(comboMultiplier(30)).toBe(4);
+    expect(comboMultiplier(999)).toBe(4);
   });
 });
 

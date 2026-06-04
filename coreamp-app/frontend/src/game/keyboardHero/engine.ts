@@ -64,6 +64,14 @@ export function nextCombo(combo: number, judgement: Judgement): number {
   return judgement === "miss" ? 0 : combo + 1;
 }
 
+// Guitar-Hero-style score multiplier that climbs with the combo (x1 → x4).
+export function comboMultiplier(combo: number): number {
+  if (combo >= 30) return 4;
+  if (combo >= 20) return 3;
+  if (combo >= 10) return 2;
+  return 1;
+}
+
 // Celebratory message at combo milestones (null otherwise).
 export function comboMessage(combo: number): string | null {
   switch (combo) {

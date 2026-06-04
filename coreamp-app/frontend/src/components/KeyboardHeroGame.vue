@@ -1,20 +1,34 @@
 <template>
   <div ref="hostEl" class="kh-game" data-test="keyboard-hero">
+    <!-- Full-frame flash on big hits / milestones. -->
+    <div class="kh-flash" :style="{ opacity: flash * 0.5 }" aria-hidden="true"></div>
+
     <!-- HUD -->
     <div class="kh-hud">
       <span class="kh-score" data-test="kh-score">{{ score.toLocaleString() }}</span>
-      <span v-if="combo > 1" class="kh-combo" data-test="kh-combo">{{ combo }} combo</span>
+      <div class="kh-streak">
+        <span v-if="multiplier > 1" class="kh-mult" :class="`m${multiplier}`" data-test="kh-mult">
+          ×{{ multiplier }}
+        </span>
+        <span v-if="combo > 1" class="kh-combo" data-test="kh-combo">{{ combo }} combo</span>
+      </div>
       <span v-if="message" class="kh-message" data-test="kh-message">{{ message }}</span>
     </div>
 
     <!-- Lane labels (always visible) -->
     <div class="kh-lanes" aria-hidden="true">
-      <span v-for="(key, i) in LANE_KEYS" :key="i" class="kh-lane-label">{{ key.toUpperCase() }}</span>
+      <span
+        v-for="(key, i) in LANE_KEYS"
+        :key="i"
+        class="kh-lane-label"
+        :style="{ color: laneCss(i) }"
+        >{{ key.toUpperCase() }}</span
+      >
     </div>
 
     <!-- End-of-song results -->
     <div v-if="finished" class="kh-results" data-test="kh-results">
-      <h2 class="h5 mb-3">Song complete</h2>
+      <h2 class="h4 mb-3">Song complete</h2>
       <dl class="kh-result-grid">
         <dt>Score</dt><dd>{{ score.toLocaleString() }}</dd>
         <dt>Accuracy</dt><dd>{{ finalAccuracy }}%</dd>
@@ -45,6 +59,7 @@ import {
   judge,
   scoreFor,
   nextCombo,
+  comboMultiplier,
   comboMessage,
   accuracy,
   type Judgement,
@@ -52,28 +67,35 @@ import {
 
 defineEmits<{ (e: "close"): void }>();
 
+// Neon per-lane colors (Guitar-Hero-ish).
+const LANE_COLORS = [0x39ff14, 0xff2d55, 0xffe600, 0x2d7bff, 0xff8a00, 0xb14dff];
+function laneCss(i: number): string {
+  return `#${LANE_COLORS[i].toString(16).padStart(6, "0")}`;
+}
+
 const hostEl = ref<HTMLDivElement | null>(null);
 const error = ref("");
 const { freq } = useFrequencyData();
 const player = usePlayerStore();
 
-// Reactive HUD state.
 const score = ref(0);
 const combo = ref(0);
+const multiplier = ref(1);
 const maxCombo = ref(0);
 const message = ref("");
+const flash = ref(0);
 const finished = ref(false);
 const finalAccuracy = ref(0);
 
-// Counts for accuracy.
 let perfect = 0;
 let good = 0;
 let miss = 0;
+let everPlayed = false;
 
-// Note travel time (spawn → hit line) in seconds.
 const TRAVEL = 1.6;
-const SPAWN_Z = -34;
-const HIT_Z = 4;
+const SPAWN_Z = -36;
+const HIT_Z = 5;
+const HIT_WINDOW = 0.12;
 
 let three: any = null;
 let raf = 0;
@@ -84,36 +106,82 @@ let messageTimer: ReturnType<typeof setTimeout> | undefined;
 
 interface ActiveNote {
   lane: number;
-  arrival: number; // performance.now()/1000 when it reaches the hit line
+  arrival: number;
   mesh: any;
+  glow: any;
   judged: boolean;
 }
 let notes: ActiveNote[] = [];
 let laneFlash: number[] = new Array(LANE_COUNT).fill(0);
 
+// Particle pool (additive points; fade to black = invisible).
+const PARTICLE_MAX = 1200;
+let pPos: Float32Array;
+let pVel: Float32Array;
+let pLife: Float32Array;
+let pMax: Float32Array;
+let pBase: Float32Array; // base rgb
+let pGeo: any = null;
+let pColorAttr: any = null;
+let pCursor = 0;
+
 function laneX(lane: number): number {
-  const spread = 9;
-  return (lane - (LANE_COUNT - 1) / 2) * (spread / LANE_COUNT) * 1.6;
+  return (lane - (LANE_COUNT - 1) / 2) * 2.6;
 }
 
 function setMessage(text: string): void {
   message.value = text;
   if (messageTimer) clearTimeout(messageTimer);
-  messageTimer = setTimeout(() => (message.value = ""), 1200);
+  messageTimer = setTimeout(() => (message.value = ""), 1100);
+}
+
+function nowSecs(): number {
+  return performance.now() / 1000;
 }
 
 function resetState(): void {
   score.value = 0;
   combo.value = 0;
+  multiplier.value = 1;
   maxCombo.value = 0;
   message.value = "";
+  flash.value = 0;
   finished.value = false;
   perfect = good = miss = 0;
+  everPlayed = false;
   runningAvg = 0;
   spawnCounter = 0;
   lastSpawn = 0;
-  for (const n of notes) n.mesh.parent?.remove(n.mesh);
+  for (const n of notes) {
+    n.mesh.parent?.remove(n.mesh);
+    n.glow?.parent?.remove(n.glow);
+  }
   notes = [];
+}
+
+function spawnBurst(x: number, y: number, z: number, color: number, count: number, speed: number): void {
+  if (!pGeo) return;
+  const r = ((color >> 16) & 255) / 255;
+  const g = ((color >> 8) & 255) / 255;
+  const b = (color & 255) / 255;
+  for (let k = 0; k < count; k++) {
+    const idx = pCursor % PARTICLE_MAX;
+    pCursor++;
+    const a = Math.random() * Math.PI * 2;
+    const el = (Math.random() - 0.2) * Math.PI;
+    const sp = speed * (0.4 + Math.random() * 0.8);
+    pPos[idx * 3] = x;
+    pPos[idx * 3 + 1] = y;
+    pPos[idx * 3 + 2] = z;
+    pVel[idx * 3] = Math.cos(a) * Math.cos(el) * sp;
+    pVel[idx * 3 + 1] = Math.abs(Math.sin(el)) * sp + 2;
+    pVel[idx * 3 + 2] = Math.sin(a) * Math.cos(el) * sp;
+    pMax[idx] = 0.5 + Math.random() * 0.5;
+    pLife[idx] = pMax[idx];
+    pBase[idx * 3] = r;
+    pBase[idx * 3 + 1] = g;
+    pBase[idx * 3 + 2] = b;
+  }
 }
 
 function init(THREE: any): void {
@@ -124,74 +192,168 @@ function init(THREE: any): void {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x05060d, 1);
+  renderer.setClearColor(0x04060f, 1);
+  renderer.autoClearColor = true;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x05060d, 18, 40);
-  const camera = new THREE.PerspectiveCamera(62, w / h, 0.1, 120);
-  camera.position.set(0, 7.5, 14);
+  scene.fog = new THREE.Fog(0x04060f, 16, 46);
+  const camera = new THREE.PerspectiveCamera(64, w / h, 0.1, 140);
+  camera.position.set(0, 8, 15);
   camera.lookAt(0, 0, -10);
 
-  // Lane dividers + hit line.
-  const laneMat = new THREE.LineBasicMaterial({ color: 0x2a3a66 });
-  for (let i = 0; i <= LANE_COUNT; i++) {
-    const x = laneX(i) - (laneX(1) - laneX(0)) / 2;
-    const geo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(x, 0, SPAWN_Z),
-      new THREE.Vector3(x, 0, HIT_Z + 2),
-    ]);
-    scene.add(new THREE.Line(geo, laneMat));
-  }
-  const hitGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(laneX(0) - 1, 0.02, HIT_Z),
-    new THREE.Vector3(laneX(LANE_COUNT - 1) + 1, 0.02, HIT_Z),
-  ]);
-  const hitLine = new THREE.Line(hitGeo, new THREE.LineBasicMaterial({ color: 0x6ea8fe }));
-  scene.add(hitLine);
+  // Floor grid (neon, additive).
+  const grid = new THREE.GridHelper(120, 60, 0x16306a, 0x0c1c44);
+  grid.position.z = -14;
+  (grid.material as any).transparent = true;
+  (grid.material as any).opacity = 0.5;
+  scene.add(grid);
 
-  // Per-lane flash quads at the hit line.
+  // Lane glow strips + dividers.
+  const laneStrips: any[] = [];
+  for (let i = 0; i < LANE_COUNT; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: LANE_COLORS[i],
+      transparent: true,
+      opacity: 0.06,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(2.2, SPAWN_Z * -1 + HIT_Z + 4), mat);
+    strip.rotation.x = -Math.PI / 2;
+    strip.position.set(laneX(i), -0.02, (SPAWN_Z + HIT_Z) / 2);
+    scene.add(strip);
+    laneStrips.push(strip);
+  }
+
+  // Per-lane hit-flash columns.
   const flashMeshes: any[] = [];
   for (let i = 0; i < LANE_COUNT; i++) {
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x6ea8fe,
+      color: LANE_COLORS[i],
       transparent: true,
       opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 3), mat);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(laneX(i), 0.01, HIT_Z - 1);
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 5), mat);
+    mesh.position.set(laneX(i), 1.4, HIT_Z);
     scene.add(mesh);
     flashMeshes.push(mesh);
   }
 
-  three = { THREE, scene, camera, renderer, flashMeshes, hitLine };
+  // Hit line glow bar.
+  const hitBarMat = new THREE.MeshBasicMaterial({
+    color: 0x9fd0ff,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const hitBar = new THREE.Mesh(
+    new THREE.PlaneGeometry(laneX(LANE_COUNT - 1) - laneX(0) + 3, 0.5),
+    hitBarMat,
+  );
+  hitBar.rotation.x = -Math.PI / 2;
+  hitBar.position.set(0, 0.05, HIT_Z);
+  scene.add(hitBar);
+
+  // Particle system.
+  pPos = new Float32Array(PARTICLE_MAX * 3);
+  pVel = new Float32Array(PARTICLE_MAX * 3);
+  pLife = new Float32Array(PARTICLE_MAX);
+  pMax = new Float32Array(PARTICLE_MAX);
+  pBase = new Float32Array(PARTICLE_MAX * 3);
+  const pCol = new Float32Array(PARTICLE_MAX * 3);
+  pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+  pColorAttr = new THREE.BufferAttribute(pCol, 3);
+  pGeo.setAttribute("color", pColorAttr);
+  const pMat = new THREE.PointsMaterial({
+    size: 0.32,
+    vertexColors: true,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  scene.add(new THREE.Points(pGeo, pMat));
+
+  // Starfield backdrop.
+  const sGeo = new THREE.BufferGeometry();
+  const sPos = new Float32Array(300 * 3);
+  for (let i = 0; i < 300; i++) {
+    sPos[i * 3] = (Math.random() - 0.5) * 120;
+    sPos[i * 3 + 1] = Math.random() * 40 + 4;
+    sPos[i * 3 + 2] = -Math.random() * 80 - 10;
+  }
+  sGeo.setAttribute("position", new THREE.BufferAttribute(sPos, 3));
+  scene.add(
+    new THREE.Points(
+      sGeo,
+      new THREE.PointsMaterial({ color: 0x35508f, size: 0.25, transparent: true, opacity: 0.6 }),
+    ),
+  );
+
+  three = { THREE, scene, camera, renderer, flashMeshes, laneStrips, hitBar, hitBarMat, camBaseY: 8 };
 }
 
 function spawnNote(lane: number): void {
   if (!three) return;
   const { THREE, scene } = three;
-  const mat = new THREE.MeshBasicMaterial({ color: 0x8fd0ff });
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 1.0), mat);
-  mesh.position.set(laneX(lane), 0.3, SPAWN_Z);
+  const color = LANE_COLORS[lane];
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+  });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 1.1), mat);
+  mesh.position.set(laneX(lane), 0.35, SPAWN_Z);
   scene.add(mesh);
-  notes.push({ lane, arrival: nowSecs() + TRAVEL, mesh, judged: false });
+  // Trailing glow.
+  const glowMat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.35,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), glowMat);
+  glow.position.copy(mesh.position);
+  glow.rotation.x = -Math.PI / 2;
+  scene.add(glow);
+  notes.push({ lane, arrival: nowSecs() + TRAVEL, mesh, glow, judged: false });
 }
 
-function nowSecs(): number {
-  return performance.now() / 1000;
-}
-
-function registerJudgement(j: Judgement): void {
+function registerJudgement(j: Judgement, lane: number): void {
+  const mult = comboMultiplier(combo.value);
   if (j === "perfect") perfect++;
   else if (j === "good") good++;
   else miss++;
-  score.value += scoreFor(j);
+  score.value += scoreFor(j) * mult;
   combo.value = nextCombo(combo.value, j);
+  multiplier.value = comboMultiplier(combo.value);
   if (combo.value > maxCombo.value) maxCombo.value = combo.value;
+
   const m = comboMessage(combo.value);
-  if (m) setMessage(m);
-  if (j === "miss") setMessage("Miss");
+  if (m) {
+    setMessage(m);
+    flash.value = 1;
+  } else if (j === "miss") {
+    setMessage("Miss");
+  }
+
+  if (j !== "miss" && three) {
+    const big = j === "perfect";
+    spawnBurst(
+      laneX(lane),
+      0.5,
+      HIT_Z,
+      LANE_COLORS[lane],
+      big ? 60 : 28,
+      big ? 11 : 7,
+    );
+    laneFlash[lane] = big ? 1.4 : 1;
+  }
 }
 
 function onKey(e: KeyboardEvent): void {
@@ -199,8 +361,7 @@ function onKey(e: KeyboardEvent): void {
   const lane = LANE_KEYS.indexOf(e.key.toLowerCase() as never);
   if (lane < 0) return;
   e.preventDefault();
-  laneFlash[lane] = 1;
-  // Nearest un-judged note in this lane.
+  laneFlash[lane] = Math.max(laneFlash[lane], 0.6);
   let best: ActiveNote | null = null;
   let bestDelta = Infinity;
   const t = nowSecs();
@@ -212,10 +373,11 @@ function onKey(e: KeyboardEvent): void {
       best = n;
     }
   }
-  if (best && bestDelta <= 0.12) {
+  if (best && bestDelta <= HIT_WINDOW) {
     best.judged = true;
-    registerJudgement(judge(best.arrival - t));
+    registerJudgement(judge(best.arrival - t), lane);
     best.mesh.parent?.remove(best.mesh);
+    best.glow?.parent?.remove(best.glow);
     notes = notes.filter((n) => n !== best);
   }
 }
@@ -223,51 +385,87 @@ function onKey(e: KeyboardEvent): void {
 function tick(): void {
   raf = requestAnimationFrame(tick);
   if (!three) return;
-  const { renderer, scene, camera, flashMeshes } = three;
+  const { THREE, renderer, scene, camera, flashMeshes, laneStrips, hitBarMat, camBaseY } = three;
   const t = nowSecs();
   const bands = extractBands(freq.value);
   const energy = bands.bass * 0.7 + bands.mid * 0.3;
 
-  // Onset → spawn (rate-limited so notes never stack on one frame).
+  if (player.isPlaying) everPlayed = true;
+
+  // Onset → spawn note.
   runningAvg = runningAvg * 0.92 + energy * 0.08;
-  if (player.isPlaying && isOnset(energy, runningAvg) && t - lastSpawn > 0.18) {
+  if (player.isPlaying && isOnset(energy, runningAvg) && t - lastSpawn > 0.16) {
     spawnCounter++;
     const bandIndex = bands.treble > bands.bass ? 2 : bands.mid > bands.bass ? 1 : 0;
     spawnNote(laneForSpawn(bandIndex, spawnCounter));
     lastSpawn = t;
   }
 
-  // Advance notes; miss any that pass the hit line + window.
+  // Advance notes; a missed (un-pressed) note just resets the combo — the game
+  // keeps going until the song ends.
   for (const n of notes) {
-    const progress = 1 - (n.arrival - t) / TRAVEL; // 0 spawn .. 1 hit line
-    n.mesh.position.z = SPAWN_Z + progress * (HIT_Z - SPAWN_Z);
-    if (!n.judged && t - n.arrival > 0.12) {
+    const progress = 1 - (n.arrival - t) / TRAVEL;
+    const z = SPAWN_Z + progress * (HIT_Z - SPAWN_Z);
+    n.mesh.position.z = z;
+    n.mesh.rotation.x += 0.06;
+    if (n.glow) n.glow.position.z = z;
+    if (!n.judged && t - n.arrival > HIT_WINDOW) {
       n.judged = true;
-      registerJudgement("miss");
+      registerJudgement("miss", n.lane);
     }
   }
   notes = notes.filter((n) => {
     if (n.judged && t - n.arrival > 0.2) {
       n.mesh.parent?.remove(n.mesh);
+      n.glow?.parent?.remove(n.glow);
       return false;
     }
     return true;
   });
 
-  // Lane flashes decay.
-  for (let i = 0; i < LANE_COUNT; i++) {
-    laneFlash[i] = Math.max(0, laneFlash[i] - 0.08);
-    flashMeshes[i].material.opacity = laneFlash[i] * 0.6;
+  // Particles.
+  const dt = 1 / 60;
+  const col = pColorAttr.array as Float32Array;
+  for (let i = 0; i < PARTICLE_MAX; i++) {
+    if (pLife[i] <= 0) {
+      col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = 0;
+      continue;
+    }
+    pLife[i] -= dt;
+    pVel[i * 3 + 1] -= 14 * dt; // gravity
+    pPos[i * 3] += pVel[i * 3] * dt;
+    pPos[i * 3 + 1] += pVel[i * 3 + 1] * dt;
+    pPos[i * 3 + 2] += pVel[i * 3 + 2] * dt;
+    const f = Math.max(0, pLife[i] / pMax[i]);
+    col[i * 3] = pBase[i * 3] * f;
+    col[i * 3 + 1] = pBase[i * 3 + 1] * f;
+    col[i * 3 + 2] = pBase[i * 3 + 2] * f;
   }
+  pGeo.attributes.position.needsUpdate = true;
+  pColorAttr.needsUpdate = true;
 
-  // Reactive background pulse + end detection.
-  renderer.setClearColor(
-    new three.THREE.Color(0x05060d).offsetHSL(0, 0, bands.bass * 0.06),
-    1,
-  );
-  if (!finished.value && !player.isPlaying && (perfect + good + miss) > 0) {
-    finalAccuracy.value = accuracy(perfect, good, miss);
-    finished.value = true;
+  // Lane flashes + beat-reactive strips.
+  for (let i = 0; i < LANE_COUNT; i++) {
+    laneFlash[i] = Math.max(0, laneFlash[i] - 0.07);
+    flashMeshes[i].material.opacity = laneFlash[i] * 0.7;
+    laneStrips[i].material.opacity = 0.05 + bands.bass * 0.12 + laneFlash[i] * 0.1;
+  }
+  hitBarMat.opacity = 0.6 + bands.bass * 0.4;
+
+  // Beat camera bob + shake; screen-flash decay.
+  camera.position.y = camBaseY + Math.sin(t * 4) * 0.1 + bands.bass * 0.6;
+  camera.position.x = (Math.random() - 0.5) * bands.bass * 0.5;
+  camera.lookAt(0, 0, -10);
+  flash.value = Math.max(0, flash.value - 0.05);
+  renderer.setClearColor(new THREE.Color(0x04060f).offsetHSL(0, 0, bands.bass * 0.05), 1);
+
+  // End only when the song actually ends (never on a miss or a pause).
+  if (!finished.value && everPlayed) {
+    const dur = player.durationSecs;
+    if (dur != null && dur > 0 && player.positionSecs >= dur - 0.25) {
+      finalAccuracy.value = accuracy(perfect, good, miss);
+      finished.value = true;
+    }
   }
 
   renderer.render(scene, camera);
@@ -309,24 +507,54 @@ onBeforeUnmount(() => {
 .kh-game {
   position: absolute;
   inset: 0;
-  background: #05060d;
+  background: #04060f;
   overflow: hidden;
+}
+.kh-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.6), rgba(120, 180, 255, 0.2) 60%, transparent 75%);
+  pointer-events: none;
+  transition: opacity 0.1s ease;
 }
 .kh-hud {
   position: absolute;
   top: 0.5rem;
-  left: 0.75rem;
-  z-index: 4;
+  left: 0.85rem;
+  z-index: 6;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.15rem;
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
   pointer-events: none;
 }
 .kh-score {
-  font-size: 1.4rem;
-  font-weight: 700;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.kh-streak {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.kh-mult {
+  font-weight: 900;
+  font-size: 1.2rem;
+  padding: 0 0.35rem;
+  border-radius: 0.25rem;
+}
+.kh-mult.m2 {
+  color: #39ff14;
+}
+.kh-mult.m3 {
+  color: #ffe600;
+}
+.kh-mult.m4 {
+  color: #ff2d55;
+  text-shadow: 0 0 10px #ff2d55;
 }
 .kh-combo {
   color: #8fd0ff;
@@ -334,42 +562,44 @@ onBeforeUnmount(() => {
 }
 .kh-message {
   color: #ffd86e;
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 1.1rem;
+  text-shadow: 0 0 12px rgba(255, 216, 110, 0.6);
 }
 .kh-lanes {
   position: absolute;
   bottom: 0.4rem;
   left: 0;
   right: 0;
-  z-index: 4;
+  z-index: 6;
   display: flex;
   justify-content: center;
-  gap: 2.2rem;
+  gap: 2.4rem;
   pointer-events: none;
 }
 .kh-lane-label {
-  color: #6ea8fe;
-  font-weight: 700;
-  font-size: 0.9rem;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  font-weight: 800;
+  font-size: 1rem;
+  text-shadow: 0 0 8px currentColor, 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 .kh-results {
   position: absolute;
   inset: 0;
-  z-index: 6;
+  z-index: 7;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(5, 6, 13, 0.85);
+  background: rgba(4, 6, 15, 0.88);
   color: #fff;
   text-align: center;
 }
 .kh-result-grid {
   display: grid;
   grid-template-columns: auto auto;
-  gap: 0.25rem 1.5rem;
+  gap: 0.3rem 1.6rem;
   margin: 0;
+  font-size: 1.1rem;
 }
 .kh-result-grid dt {
   color: #9fb3d8;
@@ -377,14 +607,14 @@ onBeforeUnmount(() => {
 }
 .kh-result-grid dd {
   margin: 0;
-  font-weight: 700;
+  font-weight: 800;
 }
 .kh-btn {
   border: 1px solid var(--bs-border-color, rgba(127, 127, 127, 0.4));
   background: transparent;
   color: #fff;
   border-radius: 0.3rem;
-  padding: 0.3rem 0.9rem;
+  padding: 0.35rem 1rem;
   cursor: pointer;
 }
 .kh-btn.primary {
@@ -395,6 +625,6 @@ onBeforeUnmount(() => {
   position: absolute;
   left: 0.75rem;
   bottom: 2.5rem;
-  z-index: 5;
+  z-index: 6;
 }
 </style>
