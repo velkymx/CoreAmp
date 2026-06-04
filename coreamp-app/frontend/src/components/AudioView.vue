@@ -107,7 +107,15 @@ import { useFrequencyData } from "@/composables/useFrequencyData";
 const audio = useAudioStore();
 const { freq } = useFrequencyData();
 
-const PRESETS: EqPresetName[] = ["Flat", "Warm", "Presence", "V Curve", "Bass Cut"];
+const PRESETS: EqPresetName[] = [
+  "Flat",
+  "Warm",
+  "Presence",
+  "V Curve",
+  "Bass Cut",
+  "Hip-Hop",
+  "Dance",
+];
 const newPresetName = ref("");
 // User presets are namespaced "user:<name>" in the select so they don't collide
 // with the built-ins.

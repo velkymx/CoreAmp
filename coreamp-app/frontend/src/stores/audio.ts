@@ -12,7 +12,14 @@ import {
 // are conventional for a 5-band graphic EQ.
 export const EQ_FREQUENCIES = [60, 230, 910, 3600, 14000] as const;
 
-export type EqPresetName = "Flat" | "Warm" | "Presence" | "V Curve" | "Bass Cut";
+export type EqPresetName =
+  | "Flat"
+  | "Warm"
+  | "Presence"
+  | "V Curve"
+  | "Bass Cut"
+  | "Hip-Hop"
+  | "Dance";
 
 // Per-band gain (dB) for each named preset, in EQ_FREQUENCIES order.
 const PRESET_GAINS: Record<EqPresetName, number[]> = {
@@ -21,6 +28,8 @@ const PRESET_GAINS: Record<EqPresetName, number[]> = {
   Presence: [-1, 0, 2, 4, 3],
   "V Curve": [6, 2, -3, 2, 6],
   "Bass Cut": [-8, -3, 0, 0, 0],
+  "Hip-Hop": [7, 5, 0, 1, 2],
+  Dance: [6, 3, -1, 3, 5],
 };
 
 export const BOOST_LABELS = ["Boost Off", "Boost+", "Boost++"] as const;
