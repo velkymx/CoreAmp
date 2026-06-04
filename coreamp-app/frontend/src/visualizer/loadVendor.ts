@@ -22,3 +22,9 @@ export async function loadThree(): Promise<any> {
   await loadScript("/vendor/three.min.js");
   return (window as unknown as { THREE?: unknown }).THREE;
 }
+
+// Load the vendored AudioMotion-Analyzer (UMD) and return its constructor.
+export async function loadAudioMotion(): Promise<any> {
+  await loadScript("/vendor/audiomotion-analyzer.min.js");
+  return (window as unknown as { AudioMotionAnalyzer?: unknown }).AudioMotionAnalyzer;
+}

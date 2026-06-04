@@ -6,6 +6,9 @@ import Visualizer from "@/components/Visualizer.vue";
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
     getAnalyser: vi.fn(() => null),
+    ensureGraph: vi.fn(),
+    getAudioContext: vi.fn(() => null),
+    getVizSource: vi.fn(() => null),
   },
 }));
 
@@ -22,9 +25,9 @@ describe("Visualizer", () => {
     vi.clearAllMocks();
   });
 
-  it("renders a canvas and the plugin selector", () => {
+  it("defaults to the EQ visualizer and shows the plugin selector", () => {
     const w = mount(Visualizer, { global: { stubs } });
-    expect(w.find("canvas").exists()).toBe(true);
+    expect(w.find('[data-test="audiomotion-viz"]').exists()).toBe(true);
     expect(w.find('[data-test="viz-plugin"]').exists()).toBe(true);
   });
 

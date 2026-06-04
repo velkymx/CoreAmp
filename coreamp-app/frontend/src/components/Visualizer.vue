@@ -1,10 +1,10 @@
 <template>
   <div class="viz-wrap" :class="{ 'is-fullscreen': fullscreen }">
     <div class="visualizer" data-test="visualizer">
-    <ThreeOrb v-if="pluginId === 'orb'" />
+    <AudioMotionViz v-if="pluginId === 'eq'" :key="'eq'" />
+    <ThreeOrb v-else-if="pluginId === 'orb'" />
     <ThreeSceneHost v-else-if="pluginId === 'vortex'" :key="'vortex'" :create="createVortex" />
     <ThreeSceneHost v-else-if="pluginId === 'storm'" :key="'storm'" :create="createStorm" />
-    <canvas v-else ref="canvasEl" class="viz-canvas"></canvas>
 
     <!-- Controls overlay: hidden until you hover the visualizer (or in
          fullscreen) so it never covers the visuals during normal playback. -->
@@ -46,28 +46,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
 import { useFrequencyData } from "@/composables/useFrequencyData";
 import { usePlayerStore } from "@/stores/player";
-import { visualizerPlugins, getPlugin } from "@/visualizer/registry";
-import type { VizFrame } from "@/visualizer/types";
 import ThreeOrb from "@/components/ThreeOrb.vue";
 import ThreeSceneHost from "@/components/ThreeSceneHost.vue";
+import AudioMotionViz from "@/components/AudioMotionViz.vue";
 import ProgressBar from "@/components/ProgressBar.vue";
 import TransportControls from "@/components/TransportControls.vue";
 import { createVortex } from "@/visualizer/vortex";
 import { createStorm } from "@/visualizer/storm";
 
 const player = usePlayerStore();
-const canvasEl = ref<HTMLCanvasElement | null>(null);
-const pluginId = ref<FormSelectOptionValue>("bars");
+const pluginId = ref<FormSelectOptionValue>("eq");
 
-// Shared analysis data (one RAF for the whole app); redraw whenever it updates.
-const { freq, wave, active } = useFrequencyData();
+// Drives the "press play" hint until audio analysis is live.
+const { active } = useFrequencyData();
 
+// The EQ (AudioMotion-Analyzer) replaces the old hand-rolled bars/spectrum/
+// oscilloscope canvas modes; the three.js scenes remain as extra visuals.
 const pluginOptions = computed<FormSelectOption[]>(() => [
-  ...visualizerPlugins.map((p) => ({ value: p.id, text: p.label })),
+  { value: "eq", text: "EQ" },
   { value: "orb", text: "Orb (3D)" },
   { value: "vortex", text: "Vortex" },
   { value: "storm", text: "Storm" },
@@ -84,26 +84,6 @@ function onKey(e: KeyboardEvent): void {
 }
 onMounted(() => window.addEventListener("keydown", onKey));
 onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
-
-function draw(): void {
-  const canvas = canvasEl.value;
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const w = canvas.clientWidth || 320;
-  const h = canvas.clientHeight || 120;
-  if (canvas.width !== w) canvas.width = w;
-  if (canvas.height !== h) canvas.height = h;
-  const frame: VizFrame = {
-    freq: freq.value,
-    wave: wave.value,
-    t: performance.now(),
-    active: active.value,
-  };
-  getPlugin(String(pluginId.value)).draw(ctx, w, h, frame);
-}
-
-watch([freq, pluginId], draw);
 </script>
 
 <style scoped>
