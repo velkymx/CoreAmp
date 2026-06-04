@@ -10,6 +10,11 @@
       :key="'keyboard'"
       @close="pluginId = 'eq'"
     />
+    <ChickenLanderGame
+      v-else-if="pluginId === 'chicken'"
+      :key="'chicken'"
+      @close="pluginId = 'eq'"
+    />
 
     <!-- Controls overlay: hidden until you hover the visualizer (or in
          fullscreen) so it never covers the visuals during normal playback. -->
@@ -59,6 +64,7 @@ import ThreeOrb from "@/components/ThreeOrb.vue";
 import ThreeSceneHost from "@/components/ThreeSceneHost.vue";
 import AudioMotionViz from "@/components/AudioMotionViz.vue";
 import KeyboardHeroGame from "@/components/KeyboardHeroGame.vue";
+import ChickenLanderGame from "@/components/ChickenLanderGame.vue";
 import ProgressBar from "@/components/ProgressBar.vue";
 import TransportControls from "@/components/TransportControls.vue";
 import { createVortex } from "@/visualizer/vortex";
@@ -78,6 +84,7 @@ const pluginOptions = computed<FormSelectOption[]>(() => [
   { value: "vortex", text: "Vortex" },
   { value: "storm", text: "Storm" },
   { value: "keyboard", text: "Keyboard Hero" },
+  { value: "chicken", text: "Chicken Lander" },
 ]);
 
 // Pseudo-fullscreen: expand the visualizer to a fixed full-window overlay

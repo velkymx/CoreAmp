@@ -83,6 +83,7 @@ const { initColorMode } = useColorMode();
 // n/p next/prev, m mute, s shuffle, r repeat. Skipped while typing or when a
 // visualizer/game holds focus.
 function onGlobalKey(e: KeyboardEvent): void {
+  if (ui.interactiveVisualizer) return; // a game owns the keyboard
   if (shouldIgnoreTarget(e.target)) return;
   if (applyShortcut(player, e.key)) e.preventDefault();
 }

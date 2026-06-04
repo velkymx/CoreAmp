@@ -50,6 +50,7 @@ import { loadThree } from "@/visualizer/loadVendor";
 import { useFrequencyData } from "@/composables/useFrequencyData";
 import { extractBands } from "@/visualizer/bands";
 import { usePlayerStore } from "@/stores/player";
+import { useUiStore } from "@/stores/ui";
 import { errorMessage } from "@/stores/notify";
 import {
   LANE_KEYS,
@@ -77,6 +78,7 @@ const hostEl = ref<HTMLDivElement | null>(null);
 const error = ref("");
 const { freq } = useFrequencyData();
 const player = usePlayerStore();
+const ui = useUiStore();
 
 const score = ref(0);
 const combo = ref(0);
@@ -476,6 +478,7 @@ function restart(): void {
 }
 
 onMounted(async () => {
+  ui.setInteractiveVisualizer(true);
   try {
     const THREE = await loadThree();
     if (!THREE) throw new Error("three.js global not found");
@@ -488,6 +491,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  ui.setInteractiveVisualizer(false);
   if (raf) cancelAnimationFrame(raf);
   if (messageTimer) clearTimeout(messageTimer);
   window.removeEventListener("keydown", onKey);

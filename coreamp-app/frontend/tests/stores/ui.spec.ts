@@ -40,6 +40,15 @@ describe("ui store", () => {
     expect(ui.detailsTarget).toBeNull();
   });
 
+  it("setInteractiveVisualizer toggles the keyboard-claim flag", () => {
+    const ui = useUiStore();
+    expect(ui.interactiveVisualizer).toBe(false);
+    ui.setInteractiveVisualizer(true);
+    expect(ui.interactiveVisualizer).toBe(true);
+    ui.setInteractiveVisualizer(false);
+    expect(ui.interactiveVisualizer).toBe(false);
+  });
+
   it("bumpData increments the data version each call", () => {
     const ui = useUiStore();
     expect(ui.dataVersion).toBe(0);

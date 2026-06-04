@@ -19,6 +19,9 @@ interface UiState {
   detailsTarget: LibraryTrack | null;
   // Bumped whenever a track's metadata/like changes so views can refresh.
   dataVersion: number;
+  // True while an interactive visualizer (a game) owns the keyboard, so global
+  // transport shortcuts (Space, arrows, s/r/…) are suppressed.
+  interactiveVisualizer: boolean;
 }
 
 // Owns the active tab and shared modal targets so any view can navigate (e.g.
@@ -30,6 +33,7 @@ export const useUiStore = defineStore("ui", {
     playlistTarget: null,
     detailsTarget: null,
     dataVersion: 0,
+    interactiveVisualizer: false,
   }),
   actions: {
     setTab(tab: TabName): void {
@@ -56,6 +60,9 @@ export const useUiStore = defineStore("ui", {
     // Signal that library data changed; views watch this to reload.
     bumpData(): void {
       this.dataVersion += 1;
+    },
+    setInteractiveVisualizer(active: boolean): void {
+      this.interactiveVisualizer = active;
     },
   },
 });
