@@ -7,6 +7,22 @@
       <SummaryGrid :items="topArtistItems" icon="person" @select="onArtist" />
     </section>
 
+    <section class="mb-4">
+      <h2 class="h6 text-secondary text-uppercase">Recently added</h2>
+      <TrackTable
+        :tracks="recentlyAdded"
+        :active-path="player.currentTrack?.path ?? null"
+        @play="onPlayAdded"
+        @like="onLike"
+        @play-next="(t) => player.playNext(toQueueTrack(t))"
+        @enqueue="(t) => player.enqueue(toQueueTrack(t))"
+        @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
+        @edit="(t) => ui.openEdit(t)"
+        @browse="onArtist"
+        @play-from-here="onPlayAddedFromHere"
+      />
+    </section>
+
     <section>
       <h2 class="h6 text-secondary text-uppercase">Recently played</h2>
       <TrackTable
@@ -44,14 +60,19 @@ const { run } = useNotify();
 
 const topArtists = ref<ArtistSummary[]>([]);
 const recent = ref<LibraryTrack[]>([]);
+const recentlyAdded = ref<LibraryTrack[]>([]);
 
 async function load(): Promise<void> {
   const data = await run(
     async () =>
-      Promise.all([api.listTopArtists(12), api.listRecentlyPlayed(25)]),
+      Promise.all([
+        api.listTopArtists(12),
+        api.listRecentlyPlayed(25),
+        api.listRecentlyAdded(25),
+      ]),
     { errorPrefix: "Couldn't load dashboard" },
   );
-  if (data) [topArtists.value, recent.value] = data;
+  if (data) [topArtists.value, recent.value, recentlyAdded.value] = data;
 }
 onMounted(load);
 watch(() => ui.dataVersion, load);
@@ -71,6 +92,15 @@ function onPlayRecent(track: LibraryTrack): void {
 function onPlayFromHere(track: LibraryTrack): void {
   const index = recent.value.findIndex((t) => t.path === track.path);
   void player.playTracks(recent.value.map(toQueueTrack), Math.max(index, 0));
+}
+
+function onPlayAdded(track: LibraryTrack): void {
+  void player.playTracks([toQueueTrack(track)], 0);
+}
+
+function onPlayAddedFromHere(track: LibraryTrack): void {
+  const index = recentlyAdded.value.findIndex((t) => t.path === track.path);
+  void player.playTracks(recentlyAdded.value.map(toQueueTrack), Math.max(index, 0));
 }
 
 async function onLike(path: string): Promise<void> {

@@ -76,6 +76,8 @@ export const listGenreSummaries = () =>
 export const recordPlay = (path: string) => call<void>("record_play", { path });
 export const listRecentlyPlayed = (limit: number) =>
   call<LibraryTrack[]>("list_recently_played", { limit });
+export const listRecentlyAdded = (limit: number) =>
+  call<LibraryTrack[]>("list_recently_added", { limit });
 export const listTopArtists = (limit: number) =>
   call<ArtistSummary[]>("list_top_artists", { limit });
 export const clearHistory = () => call<void>("clear_history");

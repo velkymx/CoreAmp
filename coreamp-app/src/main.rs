@@ -759,6 +759,12 @@ fn list_recently_played(limit: usize) -> Result<Vec<LibraryTrack>, String> {
 }
 
 #[tauri::command]
+fn list_recently_added(limit: usize) -> Result<Vec<LibraryTrack>, String> {
+    let rows = db::list_recently_added(limit)?;
+    Ok(rows.into_iter().map(library_track_from_row).collect())
+}
+
+#[tauri::command]
 fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
     let rows = db::list_top_artists(limit)?;
     Ok(rows
@@ -1862,6 +1868,7 @@ fn main() {
             toggle_liked,
             record_play,
             list_recently_played,
+            list_recently_added,
             list_top_artists,
             clear_history,
             list_playlists,

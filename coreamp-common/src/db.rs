@@ -452,6 +452,38 @@ pub fn record_play(path: &str) -> Result<(), String> {
     tx.commit().map_err(|e| e.to_string())
 }
 
+fn rows_recently_added(connection: &Connection, limit: usize) -> rusqlite::Result<Vec<LibraryRow>> {
+    let mut stmt = connection.prepare(
+        r#"
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs
+        FROM files
+        ORDER BY updated_at DESC, id DESC
+        LIMIT ?1
+        "#,
+    )?;
+    let rows = stmt.query_map(params![limit as i64], |row| {
+        Ok(LibraryRow {
+            path: row.get(0)?,
+            filename: row.get(1)?,
+            artist: row.get(2)?,
+            album: row.get(3)?,
+            title: row.get(4)?,
+            year: row.get(5)?,
+            genre: row.get(6)?,
+            liked: row.get::<_, i32>(7)? != 0,
+            duration_secs: row.get(8)?,
+        })
+    })?;
+    rows.collect()
+}
+
+// Tracks most recently added/updated in the library (newest first).
+pub fn list_recently_added(limit: usize) -> Result<Vec<LibraryRow>, String> {
+    let mutex = get_db()?;
+    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    rows_recently_added(&connection, limit).map_err(|err| err.to_string())
+}
+
 pub fn list_recently_played(limit: usize) -> Result<Vec<LibraryRow>, String> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|err| err.to_string())?;
@@ -843,6 +875,42 @@ mod tests {
 
         drop(conn);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rows_recently_added_orders_by_updated_at_desc() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("schema");
+        // Insert with explicit updated_at so ordering is deterministic.
+        for (path, updated) in [("/m/a.mp3", 100), ("/m/b.mp3", 300), ("/m/c.mp3", 200)] {
+            conn.execute(
+                "INSERT INTO files(path, filename, updated_at) VALUES (?1, ?2, ?3)",
+                rusqlite::params![path, "f.mp3", updated],
+            )
+            .expect("insert");
+        }
+        let rows = super::rows_recently_added(&conn, 10).expect("query");
+        assert_eq!(
+            rows.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(),
+            vec!["/m/b.mp3", "/m/c.mp3", "/m/a.mp3"]
+        );
+    }
+
+    #[test]
+    fn rows_recently_added_respects_limit() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("schema");
+        for i in 0..5 {
+            conn.execute(
+                "INSERT INTO files(path, filename, updated_at) VALUES (?1, ?2, ?3)",
+                rusqlite::params![format!("/m/{i}.mp3"), "f.mp3", i],
+            )
+            .expect("insert");
+        }
+        assert_eq!(
+            super::rows_recently_added(&conn, 2).expect("query").len(),
+            2
+        );
     }
 
     #[test]
