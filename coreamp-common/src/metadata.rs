@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use lofty::config::WriteOptions;
 use lofty::picture::PictureType;
 use lofty::prelude::{Accessor, AudioFile, TaggedFileExt};
+use lofty::tag::ItemKey;
 use lofty::tag::Tag;
 use lofty::tag::items::Timestamp;
 
@@ -12,6 +13,7 @@ use lofty::tag::items::Timestamp;
 pub struct TrackMetadata {
     pub artist: Option<String>,
     pub album: Option<String>,
+    pub album_artist: Option<String>,
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
@@ -129,6 +131,10 @@ fn fill_missing_metadata(metadata: &mut TrackMetadata, tag: &Tag) {
     }
     if !is_present(&metadata.album) {
         metadata.album = normalize(tag.album());
+    }
+    if !is_present(&metadata.album_artist) {
+        metadata.album_artist =
+            normalize_owned(tag.get_string(ItemKey::AlbumArtist).map(str::to_string));
     }
     if !is_present(&metadata.title) {
         metadata.title = normalize(tag.title());
@@ -284,6 +290,7 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
 
     let artist = normalize_owned(metadata.artist.clone());
     let album = normalize_owned(metadata.album.clone());
+    let album_artist = normalize_owned(metadata.album_artist.clone());
     let title = normalize_owned(metadata.title.clone());
     let year = parse_year_timestamp(&normalize_owned(metadata.year.clone()));
     let genre = normalize_owned(metadata.genre.clone());
@@ -299,6 +306,20 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
         let current_album = normalize(tag.album());
         if current_album != album {
             tag.set_album(album.clone().unwrap_or_default());
+            changed = true;
+        }
+
+        let current_album_artist =
+            normalize_owned(tag.get_string(ItemKey::AlbumArtist).map(str::to_string));
+        if current_album_artist != album_artist {
+            match &album_artist {
+                Some(value) => {
+                    tag.insert_text(ItemKey::AlbumArtist, value.clone());
+                }
+                None => {
+                    tag.remove_key(ItemKey::AlbumArtist);
+                }
+            }
             changed = true;
         }
 

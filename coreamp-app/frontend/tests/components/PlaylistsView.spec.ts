@@ -97,7 +97,7 @@ describe("PlaylistsView", () => {
 
   it("opening a playlist loads it into the queue and plays", async () => {
     vi.mocked(api.loadPlaylist).mockResolvedValue([
-      { path: "/m/x.mp3", filename: "x.mp3", artist: null, album: null, title: "X", year: null, genre: null, liked: false, duration: 100 },
+      { path: "/m/x.mp3", filename: "x.mp3", artist: null, album: null, album_artist: null, title: "X", year: null, genre: null, liked: false, duration: 100 },
     ]);
     const w = mount(PlaylistsView, { global: { stubs } });
     const player = usePlayerStore();

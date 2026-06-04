@@ -33,6 +33,7 @@ const track = {
   filename: "a.mp3",
   artist: null,
   album: null,
+  album_artist: null,
   title: "A",
   year: null,
   genre: null,

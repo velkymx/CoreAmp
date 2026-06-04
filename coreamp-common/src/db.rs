@@ -40,6 +40,7 @@ pub struct LibraryRow {
     pub filename: String,
     pub artist: Option<String>,
     pub album: Option<String>,
+    pub album_artist: Option<String>,
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
@@ -82,6 +83,7 @@ CREATE TABLE IF NOT EXISTS files (
     filename TEXT NOT NULL,
     artist TEXT,
     album TEXT,
+    album_artist TEXT,
     title TEXT,
     year TEXT,
     genre TEXT,
@@ -138,6 +140,9 @@ fn apply_schema(connection: &Connection) -> rusqlite::Result<()> {
     if !columns.contains("duration_secs") {
         connection.execute("ALTER TABLE files ADD COLUMN duration_secs INTEGER", [])?;
     }
+    if !columns.contains("album_artist") {
+        connection.execute("ALTER TABLE files ADD COLUMN album_artist TEXT", [])?;
+    }
 
     Ok(())
 }
@@ -154,8 +159,8 @@ fn upsert_scanned_files_with_connection(
     {
         let mut stmt = tx.prepare(
             r#"
-            INSERT INTO files(path, filename, artist, album, title, year, genre, metadata_hash, duration_secs, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, unixepoch())
+            INSERT INTO files(path, filename, artist, album, album_artist, title, year, genre, metadata_hash, duration_secs, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, unixepoch())
             ON CONFLICT(path) DO UPDATE SET
                 filename = excluded.filename,
                 metadata_hash = excluded.metadata_hash,
@@ -166,6 +171,10 @@ fn upsert_scanned_files_with_connection(
                 album = CASE
                     WHEN files.album IS NULL OR files.album = '' THEN excluded.album
                     ELSE files.album
+                END,
+                album_artist = CASE
+                    WHEN files.album_artist IS NULL OR files.album_artist = '' THEN excluded.album_artist
+                    ELSE files.album_artist
                 END,
                 title = CASE
                     WHEN files.title IS NULL OR files.title = '' THEN excluded.title
@@ -190,6 +199,7 @@ fn upsert_scanned_files_with_connection(
                 &file.filename,
                 &file.artist,
                 &file.album,
+                &file.album_artist,
                 &file.title,
                 &file.year,
                 &file.genre,
@@ -220,7 +230,7 @@ pub fn list_library_files(
 
     let mut query = String::from(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist
         FROM files
         WHERE 1=1
         "#,
@@ -271,6 +281,7 @@ pub fn list_library_files(
                     genre: row.get(6)?,
                     liked: row.get::<_, i32>(7)? != 0,
                     duration_secs: row.get(8)?,
+                    album_artist: row.get(9)?,
                 })
             },
         )
@@ -294,6 +305,7 @@ fn library_row_from_row(row: &rusqlite::Row) -> rusqlite::Result<LibraryRow> {
         genre: row.get(6)?,
         liked: row.get::<_, i32>(7)? != 0,
         duration_secs: row.get(8)?,
+        album_artist: row.get(9)?,
     })
 }
 
@@ -307,7 +319,7 @@ pub(crate) fn rows_for_album(
 ) -> Result<Vec<LibraryRow>, String> {
     let mut query = String::from(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist
         FROM files
         WHERE album = ?1
         "#,
@@ -511,7 +523,7 @@ pub fn record_play(path: &str) -> Result<(), String> {
 fn rows_recently_added(connection: &Connection, limit: usize) -> rusqlite::Result<Vec<LibraryRow>> {
     let mut stmt = connection.prepare(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist
         FROM files
         ORDER BY updated_at DESC, id DESC
         LIMIT ?1
@@ -528,6 +540,7 @@ fn rows_recently_added(connection: &Connection, limit: usize) -> rusqlite::Resul
             genre: row.get(6)?,
             liked: row.get::<_, i32>(7)? != 0,
             duration_secs: row.get(8)?,
+            album_artist: row.get(9)?,
         })
     })?;
     rows.collect()
@@ -568,6 +581,7 @@ pub fn list_recently_played(limit: usize) -> Result<Vec<LibraryRow>, String> {
                 genre: row.get(6)?,
                 liked: row.get::<_, i32>(7)? != 0,
                 duration_secs: row.get(8)?,
+                album_artist: row.get(9)?,
             })
         })
         .map_err(|err| err.to_string())?;
@@ -682,7 +696,7 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
     let row = connection
         .query_row(
             r#"
-            SELECT path, filename, artist, album, title, year, genre, liked, duration_secs
+            SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist
             FROM files
             WHERE path = ?1
             LIMIT 1
@@ -699,6 +713,7 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
                     genre: row.get(6)?,
                     liked: row.get::<_, i32>(7)? != 0,
                     duration_secs: row.get(8)?,
+                    album_artist: row.get(9)?,
                 })
             },
         )
@@ -891,6 +906,7 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
                 title = ?4,
                 year = ?5,
                 genre = ?6,
+                album_artist = ?7,
                 updated_at = unixepoch()
             WHERE path = ?1
             "#,
@@ -900,7 +916,8 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
                 &metadata.album,
                 &metadata.title,
                 &metadata.year,
-                &metadata.genre
+                &metadata.genre,
+                &metadata.album_artist
             ],
         )
         .map_err(|err| err.to_string())?;
@@ -1008,6 +1025,58 @@ mod tests {
     }
 
     #[test]
+    fn upsert_persists_and_preserves_album_artist() {
+        let mut conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("schema");
+
+        let with_aa = ScannedFile {
+            path: PathBuf::from("/m/x.mp3"),
+            filename: String::from("x.mp3"),
+            artist: Some(String::from("Track Artist")),
+            album: Some(String::from("Album")),
+            album_artist: Some(String::from("Various Artists")),
+            title: Some(String::from("Song")),
+            year: None,
+            genre: None,
+            metadata_hash: String::from("h1"),
+            duration_secs: None,
+        };
+        super::upsert_scanned_files_with_connection(&mut conn, &[with_aa]).expect("insert");
+
+        let read: Option<String> = conn
+            .query_row(
+                "SELECT album_artist FROM files WHERE path = '/m/x.mp3'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("select");
+        assert_eq!(read.as_deref(), Some("Various Artists"));
+
+        // A later scan with an empty album_artist must not clobber the stored one.
+        let rescan = ScannedFile {
+            path: PathBuf::from("/m/x.mp3"),
+            filename: String::from("x.mp3"),
+            artist: Some(String::from("Track Artist")),
+            album: Some(String::from("Album")),
+            album_artist: None,
+            title: Some(String::from("Song")),
+            year: None,
+            genre: None,
+            metadata_hash: String::from("h2"),
+            duration_secs: None,
+        };
+        super::upsert_scanned_files_with_connection(&mut conn, &[rescan]).expect("rescan");
+        let preserved: Option<String> = conn
+            .query_row(
+                "SELECT album_artist FROM files WHERE path = '/m/x.mp3'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("select");
+        assert_eq!(preserved.as_deref(), Some("Various Artists"));
+    }
+
+    #[test]
     fn rows_for_album_returns_album_tracks_ordered_and_artist_scoped() {
         let conn = Connection::open_in_memory().expect("in-memory db");
         super::apply_schema(&conn).expect("schema");
@@ -1034,7 +1103,10 @@ mod tests {
         // Scoped to one artist.
         let scoped = super::rows_for_album(&conn, "Skyline", Some("Aurora")).expect("scoped");
         assert_eq!(
-            scoped.iter().map(|r| r.title.as_deref()).collect::<Vec<_>>(),
+            scoped
+                .iter()
+                .map(|r| r.title.as_deref())
+                .collect::<Vec<_>>(),
             vec![Some("Track One"), Some("Track Two")]
         );
     }
@@ -1107,6 +1179,7 @@ mod tests {
             filename: String::from("a.mp3"),
             artist: Some(String::from("artist-a")),
             album: None,
+            album_artist: None,
             title: Some(String::from("title-a")),
             year: None,
             genre: None,
@@ -1118,6 +1191,7 @@ mod tests {
             filename: String::from("renamed.mp3"),
             artist: Some(String::from("artist-b")),
             album: Some(String::from("album-b")),
+            album_artist: None,
             title: Some(String::from("title-b")),
             year: Some(String::from("2026")),
             genre: Some(String::from("Genre B")),
@@ -1149,6 +1223,7 @@ mod tests {
             filename: String::from("f.mp3"),
             artist: None,
             album: None,
+            album_artist: None,
             title: None,
             year: None,
             genre: None,

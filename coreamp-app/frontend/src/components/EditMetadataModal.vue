@@ -19,6 +19,10 @@
         <label class="form-label small">Album</label>
         <VibeFormInput v-model="form.album" data-test="edit-album" />
       </div>
+      <div class="mb-2">
+        <label class="form-label small">Album artist</label>
+        <VibeFormInput v-model="form.album_artist" data-test="edit-album-artist" />
+      </div>
       <div class="row g-2 mb-3">
         <div class="col">
           <label class="form-label small">Year</label>
@@ -55,6 +59,7 @@ const form = reactive({
   title: "",
   artist: "",
   album: "",
+  album_artist: "",
   year: "",
   genre: "",
 });
@@ -66,6 +71,7 @@ watch(
     form.title = track?.title ?? "";
     form.artist = track?.artist ?? "";
     form.album = track?.album ?? "";
+    form.album_artist = track?.album_artist ?? "";
     form.year = track?.year ?? "";
     form.genre = track?.genre ?? "";
   },
@@ -82,6 +88,7 @@ async function onSave(): Promise<void> {
         title: form.title.trim() || null,
         artist: form.artist.trim() || null,
         album: form.album.trim() || null,
+        album_artist: form.album_artist.trim() || null,
         year: form.year.trim() || null,
         genre: form.genre.trim() || null,
       }),

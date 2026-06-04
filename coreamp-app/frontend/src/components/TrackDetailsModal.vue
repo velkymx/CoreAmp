@@ -24,6 +24,8 @@
       <dl class="details-grid small mb-3">
         <dt class="text-secondary">Album</dt>
         <dd class="text-truncate">{{ track.album || "—" }}</dd>
+        <dt class="text-secondary">Album artist</dt>
+        <dd class="text-truncate">{{ track.album_artist || "—" }}</dd>
         <dt class="text-secondary">Year</dt>
         <dd>{{ track.year || "—" }}</dd>
         <dt class="text-secondary">Genre</dt>

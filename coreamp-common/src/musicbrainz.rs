@@ -98,6 +98,7 @@ fn from_response(value: &Value) -> Option<TrackMetadata> {
     let metadata = TrackMetadata {
         artist,
         album,
+        album_artist: None,
         title,
         year,
         genre: None,

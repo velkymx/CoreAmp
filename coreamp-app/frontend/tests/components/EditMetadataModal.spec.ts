@@ -27,6 +27,7 @@ const track = {
   filename: "a.mp3",
   artist: "Old",
   album: "OldAlbum",
+  album_artist: null,
   title: "OldTitle",
   year: "1999",
   genre: "Rock",
@@ -68,6 +69,20 @@ describe("EditMetadataModal", () => {
     );
     expect(ui.editTarget).toBeNull();
     expect(ui.dataVersion).toBe(1);
+  });
+
+  it("edits and saves the album artist", async () => {
+    vi.mocked(api.updateTrackMetadataForPath).mockResolvedValue({ ...track });
+    const w = mount(EditMetadataModal, { global: { stubs } });
+    useUiStore().openEdit(track);
+    await flushPromises();
+    await w.get('[data-test="edit-album-artist"]').setValue("Various Artists");
+    await w.get('[data-test="edit-save"]').trigger("click");
+    await flushPromises();
+    expect(api.updateTrackMetadataForPath).toHaveBeenCalledWith(
+      "/m/a.mp3",
+      expect.objectContaining({ album_artist: "Various Artists" }),
+    );
   });
 
   it("cancel closes without saving", async () => {

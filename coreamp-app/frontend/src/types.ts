@@ -26,6 +26,7 @@ export interface LibraryTrack {
   filename: string;
   artist: string | null;
   album: string | null;
+  album_artist: string | null;
   title: string | null;
   year: string | null;
   genre: string | null;
@@ -73,6 +74,7 @@ export interface AppSettings {
 export interface TrackMetadataInput {
   artist: string | null;
   album: string | null;
+  album_artist: string | null;
   title: string | null;
   year: string | null;
   genre: string | null;

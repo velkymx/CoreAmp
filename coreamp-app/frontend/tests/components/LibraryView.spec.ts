@@ -48,6 +48,7 @@ const row = (over = {}) => ({
   filename: "a.mp3",
   artist: "X",
   album: "Y",
+  album_artist: null,
   title: "A",
   year: null,
   genre: null,
