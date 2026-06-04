@@ -76,7 +76,16 @@
       </div>
     </section>
 
-    <p v-if="status" class="text-secondary small" data-test="settings-status">{{ status }}</p>
+    <div v-if="status || busy" class="d-flex align-items-center gap-2">
+      <span
+        v-if="busy"
+        class="spinner-border spinner-border-sm text-secondary"
+        role="status"
+        aria-hidden="true"
+        data-test="import-spinner"
+      ></span>
+      <p v-if="status" class="text-secondary small mb-0" data-test="settings-status">{{ status }}</p>
+    </div>
     <p class="text-secondary small">CoreAmp {{ version }}</p>
   </div>
 </template>
@@ -94,15 +103,30 @@ const importPath = ref("");
 const version = ref("");
 const status = ref("");
 const dragging = ref(false);
+const busy = ref(false);
+
+// Show the spinner while a scan/import is in flight. Reference-counted so
+// overlapping operations don't clear it early.
+let busyCount = 0;
+async function track<T>(p: Promise<T>): Promise<T> {
+  busyCount += 1;
+  busy.value = true;
+  try {
+    return await p;
+  } finally {
+    busyCount -= 1;
+    if (busyCount === 0) busy.value = false;
+  }
+}
 
 // Scan whatever paths were dropped onto the window. The scanner ignores
 // non-audio files (e.g. a stray .m3u), so dropping a mixed selection is safe.
 async function importDropped(paths: string[]): Promise<void> {
   if (paths.length === 0) return;
   status.value = "Importing dropped items…";
-  const result = await run(() => api.scanPaths(paths), {
+  const result = await track(run(() => api.scanPaths(paths), {
     errorPrefix: "Import failed",
-  });
+  }));
   if (result) {
     status.value = `Imported ${result.files_upserted} file(s) from ${paths.length} dropped item(s).`;
   }
@@ -163,9 +187,9 @@ async function onSave(): Promise<void> {
 
 async function onScan(): Promise<void> {
   status.value = "Scanning…";
-  const result = await run(() => api.scanLibrary(), {
+  const result = await track(run(() => api.scanLibrary(), {
     errorPrefix: "Scan failed",
-  });
+  }));
   if (result) {
     status.value = `Scan complete: ${result.files_upserted} of ${result.files_discovered} files updated.`;
   }
@@ -177,9 +201,9 @@ async function onAddFolders(): Promise<void> {
   });
   if (!paths || paths.length === 0) return;
   status.value = "Scanning new folders…";
-  const result = await run(() => api.scanPaths(paths), {
+  const result = await track(run(() => api.scanPaths(paths), {
     errorPrefix: "Scan failed",
-  });
+  }));
   if (result) {
     status.value = `Added ${result.files_upserted} files from ${result.roots_scanned} folder(s).`;
   }
@@ -189,9 +213,9 @@ async function onImportPath(): Promise<void> {
   const path = importPath.value.trim();
   if (!path) return;
   status.value = "Importing path…";
-  const result = await run(() => api.scanPaths([path]), {
+  const result = await track(run(() => api.scanPaths([path]), {
     errorPrefix: "Import failed",
-  });
+  }));
   if (result) {
     status.value = `Imported ${result.files_upserted} file(s) from "${path}".`;
     importPath.value = "";
@@ -204,9 +228,9 @@ async function onChooseFiles(): Promise<void> {
   });
   if (!paths || paths.length === 0) return;
   status.value = "Importing files…";
-  const result = await run(() => api.scanPaths(paths), {
+  const result = await track(run(() => api.scanPaths(paths), {
     errorPrefix: "Import failed",
-  });
+  }));
   if (result) {
     status.value = `Imported ${result.files_upserted} of ${paths.length} file(s).`;
   }

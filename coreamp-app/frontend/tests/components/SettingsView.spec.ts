@@ -117,6 +117,24 @@ describe("SettingsView", () => {
     expect(api.scanPaths).not.toHaveBeenCalled();
   });
 
+  it("shows a spinner while a scan is in flight and hides it when done", async () => {
+    let resolveScan!: (v: unknown) => void;
+    vi.mocked(api.scanLibrary).mockReturnValue(
+      new Promise((r) => {
+        resolveScan = r;
+      }) as never,
+    );
+    const w = mount(SettingsView, { global: { stubs } });
+    await flushPromises();
+    await w.get('[data-test="scan-library"]').trigger("click");
+    await w.vm.$nextTick();
+    expect(w.find('[data-test="import-spinner"]').exists()).toBe(true);
+
+    resolveScan({ roots: [], roots_scanned: 1, files_discovered: 1, files_upserted: 1 });
+    await flushPromises();
+    expect(w.find('[data-test="import-spinner"]').exists()).toBe(false);
+  });
+
   it("clearing history calls the backend", async () => {
     const w = mount(SettingsView, { global: { stubs } });
     await flushPromises();
