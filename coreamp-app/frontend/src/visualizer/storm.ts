@@ -4,6 +4,31 @@ let state: any = null;
 let containerEl: HTMLElement | null = null;
 let bassVelocity = 0;
 
+    function generateCloudTexture(THREE) {
+      const size = 256;
+      const c = document.createElement("canvas");
+      c.width = size; c.height = size;
+      const cx = c.getContext("2d");
+      cx.fillStyle = "rgba(0,0,0,0)";
+      cx.fillRect(0, 0, size, size);
+      const layers = 10 + Math.floor(Math.random() * 6);
+      for (let i = 0; i < layers; i++) {
+        const x = size * 0.3 + Math.random() * size * 0.4;
+        const y = size * 0.3 + Math.random() * size * 0.4;
+        const r = size * (0.15 + Math.random() * 0.25);
+        const g = cx.createRadialGradient(x, y, 0, x, y, r);
+        const a = 0.12 + Math.random() * 0.18;
+        g.addColorStop(0, `rgba(255,255,255,${a})`);
+        g.addColorStop(0.5, `rgba(220,225,240,${a * 0.5})`);
+        g.addColorStop(1, "rgba(200,210,230,0)");
+        cx.fillStyle = g;
+        cx.fillRect(0, 0, size, size);
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      return tex;
+    }
+
     function initStormVisualizer() {
       if (state) return;
       if (!window.THREE) return;
