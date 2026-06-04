@@ -28,6 +28,19 @@
     </div>
 
     <span v-if="!active" class="viz-hint small text-light">Press play to see it move</span>
+
+    <!-- Full-frame mini-player: track + progress + transport, shown in
+         fullscreen (where the main player card is hidden). -->
+    <div v-if="fullscreen" class="viz-miniplayer p-2" data-test="viz-miniplayer">
+      <div class="viz-mp-track text-truncate small text-light mb-1">
+        {{ player.currentTrack?.title || "—" }}
+        <span v-if="player.currentTrack?.artist" class="text-secondary">
+          · {{ player.currentTrack?.artist }}
+        </span>
+      </div>
+      <ProgressBar class="mb-1" />
+      <TransportControls />
+    </div>
     </div>
   </div>
 </template>
@@ -36,13 +49,17 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
 import { useFrequencyData } from "@/composables/useFrequencyData";
+import { usePlayerStore } from "@/stores/player";
 import { visualizerPlugins, getPlugin } from "@/visualizer/registry";
 import type { VizFrame } from "@/visualizer/types";
 import ThreeOrb from "@/components/ThreeOrb.vue";
 import ThreeSceneHost from "@/components/ThreeSceneHost.vue";
+import ProgressBar from "@/components/ProgressBar.vue";
+import TransportControls from "@/components/TransportControls.vue";
 import { createVortex } from "@/visualizer/vortex";
 import { createStorm } from "@/visualizer/storm";
 
+const player = usePlayerStore();
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 const pluginId = ref<FormSelectOptionValue>("bars");
 
@@ -160,6 +177,14 @@ watch([freq, pluginId], draw);
 }
 .visualizer:hover .viz-hint {
   opacity: 1;
+}
+.viz-miniplayer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
 }
 .viz-link {
   border: 0;
