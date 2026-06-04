@@ -2,6 +2,8 @@
   <div class="viz-wrap" :class="{ 'is-fullscreen': fullscreen }">
     <div class="visualizer" data-test="visualizer">
     <ThreeOrb v-if="pluginId === 'orb'" />
+    <ThreeSceneHost v-else-if="pluginId === 'vortex'" :key="'vortex'" :create="createVortex" />
+    <ThreeSceneHost v-else-if="pluginId === 'storm'" :key="'storm'" :create="createStorm" />
     <canvas v-else ref="canvasEl" class="viz-canvas"></canvas>
 
     <!-- Controls overlay: hidden until you hover the visualizer (or in
@@ -37,6 +39,9 @@ import { useFrequencyData } from "@/composables/useFrequencyData";
 import { visualizerPlugins, getPlugin } from "@/visualizer/registry";
 import type { VizFrame } from "@/visualizer/types";
 import ThreeOrb from "@/components/ThreeOrb.vue";
+import ThreeSceneHost from "@/components/ThreeSceneHost.vue";
+import { createVortex } from "@/visualizer/vortex";
+import { createStorm } from "@/visualizer/storm";
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 const pluginId = ref<FormSelectOptionValue>("bars");
@@ -47,6 +52,8 @@ const { freq, wave, active } = useFrequencyData();
 const pluginOptions = computed<FormSelectOption[]>(() => [
   ...visualizerPlugins.map((p) => ({ value: p.id, text: p.label })),
   { value: "orb", text: "Orb (3D)" },
+  { value: "vortex", text: "Vortex" },
+  { value: "storm", text: "Storm" },
 ]);
 
 // Pseudo-fullscreen: expand the visualizer to a fixed full-window overlay
