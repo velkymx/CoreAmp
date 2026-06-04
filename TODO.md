@@ -104,7 +104,7 @@ Features users expect from a modern desktop music player.
 * [x] Sort by Artist. (VibeDataTable column sort)
 * [x] Sort by Album. (VibeDataTable column sort)
 * [x] A-Z / Z-A toggle. (VibeDataTable asc/desc)
-* [ ] Search sort by genre.
+* [x] Search sort by genre. (sortable Genre column)
 * [ ] Unknown-title grouping under U.
 * [ ] Recently Added view.
 * [x] Fix duration backfill for tracks added through explicit path import.
