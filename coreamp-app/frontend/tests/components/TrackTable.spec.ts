@@ -90,6 +90,10 @@ describe("TrackTable (VibeDataTable)", () => {
   it("the row menu emits play-next / enqueue / add-to-playlist / edit", async () => {
     const w = mount(TrackTable, { props: { tracks: [row()] }, global: { stubs } });
     await w.get('[data-test="track-menu"]').trigger("click");
+    await w.get('[data-test="menu-play-here"]').trigger("click");
+    expect(w.emitted("play-from-here")?.[0][0]).toMatchObject({ path: "/m/a.mp3" });
+
+    await w.get('[data-test="track-menu"]').trigger("click");
     await w.get('[data-test="menu-play-next"]').trigger("click");
     expect(w.emitted("play-next")?.[0][0]).toMatchObject({ path: "/m/a.mp3" });
 

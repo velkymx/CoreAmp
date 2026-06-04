@@ -72,18 +72,21 @@
             data-test="track-menu-popup"
             @click.stop
           >
-            <button type="button" class="track-menu-item" data-test="menu-play-next" @click.stop="emitMenu('play-next', item)">
+            <VibeButton variant="link" class="track-menu-item" data-test="menu-play-here" @click.stop="emitMenu('play-from-here', item)">
+              Play from here
+            </VibeButton>
+            <VibeButton variant="link" class="track-menu-item" data-test="menu-play-next" @click.stop="emitMenu('play-next', item)">
               Play next
-            </button>
-            <button type="button" class="track-menu-item" data-test="menu-queue" @click.stop="emitMenu('enqueue', item)">
+            </VibeButton>
+            <VibeButton variant="link" class="track-menu-item" data-test="menu-queue" @click.stop="emitMenu('enqueue', item)">
               Add to queue
-            </button>
-            <button type="button" class="track-menu-item" data-test="menu-add-playlist" @click.stop="emitMenu('add-to-playlist', item)">
+            </VibeButton>
+            <VibeButton variant="link" class="track-menu-item" data-test="menu-add-playlist" @click.stop="emitMenu('add-to-playlist', item)">
               Add to playlist…
-            </button>
-            <button type="button" class="track-menu-item" data-test="menu-edit" @click.stop="emitMenu('edit', item)">
+            </VibeButton>
+            <VibeButton variant="link" class="track-menu-item" data-test="menu-edit" @click.stop="emitMenu('edit', item)">
               Edit metadata…
-            </button>
+            </VibeButton>
           </div>
         </div>
       </template>
@@ -115,6 +118,7 @@ const emit = defineEmits<{
   (e: "enqueue", track: LibraryTrack): void;
   (e: "add-to-playlist", track: LibraryTrack): void;
   (e: "edit", track: LibraryTrack): void;
+  (e: "play-from-here", track: LibraryTrack): void;
   (e: "browse", value: string): void;
 }>();
 
@@ -145,10 +149,11 @@ function toggleMenu(path: string): void {
 }
 
 function emitMenu(
-  event: "play-next" | "enqueue" | "add-to-playlist" | "edit",
+  event: "play-from-here" | "play-next" | "enqueue" | "add-to-playlist" | "edit",
   track: LibraryTrack,
 ): void {
-  if (event === "play-next") emit("play-next", track);
+  if (event === "play-from-here") emit("play-from-here", track);
+  else if (event === "play-next") emit("play-next", track);
   else if (event === "enqueue") emit("enqueue", track);
   else if (event === "add-to-playlist") emit("add-to-playlist", track);
   else emit("edit", track);
@@ -195,8 +200,11 @@ function emitMenu(
   padding: 0.35rem 0.6rem;
   border-radius: 0.25rem;
   color: inherit;
+  text-decoration: none;
 }
 .track-menu-item:hover {
   background: var(--bs-tertiary-bg, rgba(127, 127, 127, 0.15));
+  color: inherit;
+  text-decoration: none;
 }
 </style>

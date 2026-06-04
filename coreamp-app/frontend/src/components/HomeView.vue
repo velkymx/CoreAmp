@@ -19,6 +19,7 @@
         @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
         @edit="(t) => ui.openEdit(t)"
         @browse="onArtist"
+        @play-from-here="onPlayFromHere"
       />
     </section>
   </div>
@@ -65,6 +66,11 @@ const topArtistItems = computed<SummaryItem[]>(() =>
 
 function onPlayRecent(track: LibraryTrack): void {
   void player.playTracks([toQueueTrack(track)], 0);
+}
+
+function onPlayFromHere(track: LibraryTrack): void {
+  const index = recent.value.findIndex((t) => t.path === track.path);
+  void player.playTracks(recent.value.map(toQueueTrack), Math.max(index, 0));
 }
 
 async function onLike(path: string): Promise<void> {

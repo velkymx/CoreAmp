@@ -10,6 +10,7 @@
       @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
       @edit="(t) => ui.openEdit(t)"
       @browse="onBrowse"
+      @play-from-here="onPlayFromHere"
     />
   </div>
 </template>
@@ -42,6 +43,11 @@ watch(() => ui.dataVersion, load);
 
 function onPlay(track: LibraryTrack): void {
   void player.playTracks([toQueueTrack(track)], 0);
+}
+
+function onPlayFromHere(track: LibraryTrack): void {
+  const index = tracks.value.findIndex((t) => t.path === track.path);
+  void player.playTracks(tracks.value.map(toQueueTrack), Math.max(index, 0));
 }
 
 // Clicking artist/album metadata jumps to a filtered Library view.

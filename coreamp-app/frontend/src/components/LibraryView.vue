@@ -41,6 +41,7 @@
         @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
         @edit="(t) => ui.openEdit(t)"
         @browse="(v) => library.setSearch(v)"
+        @play-from-here="onPlayFromHere"
       />
       <SummaryGrid
         v-else
@@ -132,6 +133,12 @@ const summaryItems = computed<SummaryItem[]>(() => {
 // Clicking a track replaces the queue with just that track and plays it.
 function onPlay(track: LibraryTrack): void {
   void player.playTracks([toQueueTrack(track)], 0);
+}
+
+// "Play from here": queue the whole list from this track onward.
+function onPlayFromHere(track: LibraryTrack): void {
+  const index = library.tracks.findIndex((t) => t.path === track.path);
+  void player.playTracks(library.tracks.map(toQueueTrack), Math.max(index, 0));
 }
 
 // Clicking a summary card drills into the matching tracks: genres use the
