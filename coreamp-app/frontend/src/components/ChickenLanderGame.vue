@@ -23,6 +23,7 @@ const ui = useUiStore();
 let raf = 0;
 let beat = 0; // beat-flash amount, decays
 let runningAvg = 0;
+let bgScale = 1.5; // smoothed bg zoom; pulses up ~20% on bass
 let cleanup: (() => void) | null = null;
 
 onMounted(() => {
@@ -290,13 +291,16 @@ onMounted(() => {
     const H = canvas.height;
 
     if (bgReady) {
-      const scale = 1.5;
+      const scale = bgScale;
       const dw = W * scale;
       const dh = H * scale;
-      const ox = -((bgOffset * scale) % dw);
       const dy = -(H * (scale - 1) / 2);
-      ctx.drawImage(bg, ox, dy, dw, dh);
-      ctx.drawImage(bg, ox + dw, dy, dw, dh);
+      // Tile across the full width starting from a guaranteed <= 0 offset so a
+      // positive parallax offset never leaves an uncovered strip at the edge.
+      const startX = -((((bgOffset * scale) % dw) + dw) % dw);
+      for (let x = startX; x < W; x += dw) {
+        ctx.drawImage(bg, x, dy, dw, dh);
+      }
     } else {
       ctx.fillStyle = "#2b1a0e";
       ctx.fillRect(0, 0, W, H);
@@ -376,6 +380,8 @@ onMounted(() => {
     runningAvg = runningAvg * 0.92 + energy * 0.08;
     if (energy > 0.06 && energy > runningAvg * 1.45) beat = 1;
     beat = Math.max(0, beat - 0.06);
+    // Bg zooms up to +20% on bass and eases back — a gentle pulse to the beat.
+    bgScale += (1.5 * (1 + bands.bass * 0.2) - bgScale) * 0.18;
     update(dt);
     if (game.platform) draw(bands);
   }
