@@ -38,6 +38,7 @@
 import { onMounted, onBeforeUnmount, watch } from "vue";
 import * as api from "@/api/tauri";
 import { nowPlayingLabel } from "@/util/track";
+import { useMediaSession } from "@/composables/useMediaSession";
 import PlayerCard from "@/components/PlayerCard.vue";
 import QueueList from "@/components/QueueList.vue";
 import LibraryView from "@/components/LibraryView.vue";
@@ -68,6 +69,14 @@ watch(
     void api.setTrayNowPlaying(nowPlayingLabel(track)).catch(() => {});
   },
 );
+
+// OS media keys + Now Playing (macOS) via the Web Media Session API.
+const media = useMediaSession();
+if (media.available) {
+  media.bindTransport(player);
+  watch(() => player.currentTrack, (track) => media.setMetadata(track), { immediate: true });
+  watch(() => player.isPlaying, (playing) => media.setPlaybackState(playing), { immediate: true });
+}
 const { initColorMode } = useColorMode();
 
 // Global transport keyboard shortcuts: Space play/pause, ←/→ seek, ↑/↓ volume,
