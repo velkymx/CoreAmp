@@ -59,6 +59,17 @@
         :icon="summaryIcon"
         @select="onSummarySelect"
       />
+      <div v-if="library.view === 'tracks' && library.hasMore" class="text-center my-2">
+        <VibeButton
+          variant="secondary"
+          outline
+          :disabled="library.loading"
+          data-test="library-load-more"
+          @click="library.loadMore()"
+        >
+          {{ library.loading ? "Loading…" : "Load more" }}
+        </VibeButton>
+      </div>
     </div>
   </div>
 </template>

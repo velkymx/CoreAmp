@@ -43,6 +43,8 @@ describe("library store", () => {
     lib.$patch({ search: "  daft  ", genreFilter: "Electronic", likedOnly: true });
     await lib.loadTracks();
     expect(listLibrary).toHaveBeenCalledWith({
+      limit: 200,
+      offset: 0,
       search: "daft",
       genre: "Electronic",
       likedOnly: true,
@@ -53,10 +55,44 @@ describe("library store", () => {
     const lib = useLibraryStore();
     await lib.loadTracks();
     expect(listLibrary).toHaveBeenCalledWith({
+      limit: 200,
+      offset: 0,
       search: null,
       genre: null,
       likedOnly: false,
     });
+  });
+
+  it("flags hasMore when a full page comes back, and pages with loadMore", async () => {
+    const lib = useLibraryStore();
+    const fullPage = Array.from({ length: 200 }, (_, i) => row({ path: `/m/${i}.mp3` }));
+    vi.mocked(listLibrary).mockResolvedValueOnce(fullPage);
+    await lib.loadTracks();
+    expect(lib.tracks).toHaveLength(200);
+    expect(lib.hasMore).toBe(true);
+
+    // Second page is short → no more after it; tracks are appended at the right offset.
+    vi.mocked(listLibrary).mockResolvedValueOnce([row({ path: "/m/x.mp3" })]);
+    await lib.loadMore();
+    expect(listLibrary).toHaveBeenLastCalledWith({
+      limit: 200,
+      offset: 200,
+      search: null,
+      genre: null,
+      likedOnly: false,
+    });
+    expect(lib.tracks).toHaveLength(201);
+    expect(lib.hasMore).toBe(false);
+  });
+
+  it("hasMore stays false (and loadMore no-ops) for a short first page", async () => {
+    const lib = useLibraryStore();
+    vi.mocked(listLibrary).mockResolvedValueOnce([row()]);
+    await lib.loadTracks();
+    expect(lib.hasMore).toBe(false);
+    vi.mocked(listLibrary).mockClear();
+    await lib.loadMore();
+    expect(listLibrary).not.toHaveBeenCalled();
   });
 
   it("setView switches view and loads the matching summary", async () => {

@@ -10,6 +10,10 @@ import { useNotifyStore, errorMessage } from "@/stores/notify";
 
 export type LibraryView = "tracks" | "artists" | "albums" | "genres";
 
+// Tracks are paged so a large library doesn't truncate (the backend caps a
+// single query). A full page back means there may be more to load.
+const PAGE_SIZE = 200;
+
 interface LibraryState {
   view: LibraryView;
   tracks: LibraryTrack[];
@@ -23,6 +27,8 @@ interface LibraryState {
   count: number;
   loading: boolean;
   loadToken: number;
+  // More track pages remain for the current filter.
+  hasMore: boolean;
 }
 
 export const useLibraryStore = defineStore("library", {
@@ -39,6 +45,7 @@ export const useLibraryStore = defineStore("library", {
     count: 0,
     loading: false,
     loadToken: 0,
+    hasMore: false,
   }),
   actions: {
 
@@ -50,15 +57,45 @@ export const useLibraryStore = defineStore("library", {
       this.loading = true;
       try {
         const tracks = await api.listLibrary({
+          limit: PAGE_SIZE,
+          offset: 0,
           search: this.search.trim() || null,
           genre: this.genreFilter,
           likedOnly: this.likedOnly,
         });
         if (token !== this.loadToken) return;
         this.tracks = tracks;
+        this.hasMore = tracks.length === PAGE_SIZE;
       } catch (err) {
         if (token === this.loadToken) {
           useNotifyStore().error(`Couldn't load library: ${errorMessage(err)}`);
+        }
+      } finally {
+        if (token === this.loadToken) this.loading = false;
+      }
+    },
+
+    // Append the next page of tracks for the current filter. No-op when nothing
+    // more remains or a load is already running. Shares loadToken so changing
+    // the filter mid-load discards the stale page.
+    async loadMore(): Promise<void> {
+      if (!this.hasMore || this.loading) return;
+      const token = ++this.loadToken;
+      this.loading = true;
+      try {
+        const page = await api.listLibrary({
+          limit: PAGE_SIZE,
+          offset: this.tracks.length,
+          search: this.search.trim() || null,
+          genre: this.genreFilter,
+          likedOnly: this.likedOnly,
+        });
+        if (token !== this.loadToken) return;
+        this.tracks = [...this.tracks, ...page];
+        this.hasMore = page.length === PAGE_SIZE;
+      } catch (err) {
+        if (token === this.loadToken) {
+          useNotifyStore().error(`Couldn't load more: ${errorMessage(err)}`);
         }
       } finally {
         if (token === this.loadToken) this.loading = false;

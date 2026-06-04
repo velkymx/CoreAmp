@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import LibraryView from "@/components/LibraryView.vue";
 import { useLibraryStore } from "@/stores/library";
@@ -114,6 +114,24 @@ describe("LibraryView", () => {
     await lib.loadTracks();
     await w.vm.$nextTick();
     expect(w.find('[data-test="save-search"]').exists()).toBe(false);
+  });
+
+  it("shows Load more when more pages remain and triggers loadMore", async () => {
+    const w = mount(LibraryView, { global: { stubs } });
+    const lib = useLibraryStore();
+    await flushPromises(); // let onMounted's initial load settle first
+    lib.$patch({ view: "tracks", hasMore: true, tracks: [row()] });
+    await w.vm.$nextTick();
+    const spy = vi.spyOn(lib, "loadMore").mockResolvedValue();
+    await w.get('[data-test="library-load-more"]').trigger("click");
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it("hides Load more when no more pages remain", async () => {
+    const w = mount(LibraryView, { global: { stubs } });
+    useLibraryStore().$patch({ view: "tracks", hasMore: false, tracks: [row()] });
+    await w.vm.$nextTick();
+    expect(w.find('[data-test="library-load-more"]').exists()).toBe(false);
   });
 
   it("typing in the search box drives setSearch", async () => {
