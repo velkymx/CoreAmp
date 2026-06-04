@@ -11,8 +11,9 @@ const applyEq = webDriver.applyEq as ReturnType<typeof vi.fn>;
 describe("audio store", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("starts with a flat 5-band EQ matching the fixed frequencies", () => {
+  it("starts with a flat 10-band EQ matching the fixed frequencies", () => {
     const a = useAudioStore();
+    expect(a.bands).toHaveLength(10);
     expect(a.bands.map((b) => b.frequency)).toEqual([...EQ_FREQUENCIES]);
     expect(a.bands.every((b) => b.gain === 0)).toBe(true);
   });
@@ -37,7 +38,7 @@ describe("audio store", () => {
   it("applyPreset sets the band gains and enables the EQ", async () => {
     const a = useAudioStore();
     await a.applyPreset("Bass Cut");
-    expect(a.bands[0].gain).toBe(-8);
+    expect(a.bands[0].gain).toBe(-10);
     expect(a.eqEnabled).toBe(true);
     expect(applyEq).toHaveBeenCalled();
   });
@@ -62,7 +63,7 @@ describe("audio store", () => {
       limiter_enabled: false,
       crossfeed_enabled: true,
     });
-    expect(a.dspSettings.eq_bands).toHaveLength(5);
+    expect(a.dspSettings.eq_bands).toHaveLength(10);
   });
 
   it("setPreamp clamps to ±18 dB and pushes", async () => {

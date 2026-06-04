@@ -5,6 +5,7 @@
 // module so decision logic stays deterministic.
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { replayGainMultiplier } from "@/util/gain";
+import { EQ_FREQUENCIES } from "@/audio/eqFrequencies";
 
 interface Deck {
   el: HTMLAudioElement;
@@ -78,10 +79,10 @@ function ensureGraph(): void {
     // preamp → b0 … b4 → analyser
     let node: AudioNode = preampNode;
     eqNodes = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < EQ_FREQUENCIES.length; i++) {
       const biquad = ctx.createBiquadFilter();
       biquad.type = "peaking";
-      biquad.frequency.value = 1000;
+      biquad.frequency.value = EQ_FREQUENCIES[i];
       biquad.Q.value = 1;
       biquad.gain.value = 0;
       node.connect(biquad);

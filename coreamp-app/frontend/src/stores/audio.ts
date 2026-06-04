@@ -7,10 +7,11 @@ import {
   deleteUserEqPreset,
   type UserEqPreset,
 } from "@/audio/userEqPresets";
+import { EQ_FREQUENCIES } from "@/audio/eqFrequencies";
 
-// Fixed 5-band layout. Only gain/Q are user-adjustable; the centre frequencies
-// are conventional for a 5-band graphic EQ.
-export const EQ_FREQUENCIES = [60, 230, 910, 3600, 14000] as const;
+// 10-band graphic EQ. Only gain/Q are user-adjustable; centre frequencies are
+// the fixed ISO octave bands (see eqFrequencies.ts).
+export { EQ_FREQUENCIES };
 
 export type EqPresetName =
   | "Flat"
@@ -21,15 +22,16 @@ export type EqPresetName =
   | "Hip-Hop"
   | "Dance";
 
-// Per-band gain (dB) for each named preset, in EQ_FREQUENCIES order.
+// Per-band gain (dB) for each named preset, in EQ_FREQUENCIES order
+// (31, 62, 125, 250, 500, 1k, 2k, 4k, 8k, 16k).
 const PRESET_GAINS: Record<EqPresetName, number[]> = {
-  Flat: [0, 0, 0, 0, 0],
-  Warm: [5, 3, 0, -2, -4],
-  Presence: [-1, 0, 2, 4, 3],
-  "V Curve": [6, 2, -3, 2, 6],
-  "Bass Cut": [-8, -3, 0, 0, 0],
-  "Hip-Hop": [7, 5, 0, 1, 2],
-  Dance: [6, 3, -1, 3, 5],
+  Flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  Warm: [5, 5, 4, 2, 0, -1, -2, -3, -4, -4],
+  Presence: [-1, -1, 0, 0, 1, 2, 3, 4, 3, 2],
+  "V Curve": [6, 5, 3, 0, -3, -3, 0, 3, 5, 6],
+  "Bass Cut": [-10, -8, -5, -2, 0, 0, 0, 0, 0, 0],
+  "Hip-Hop": [7, 7, 5, 3, 1, 0, 1, 2, 2, 3],
+  Dance: [6, 5, 3, 1, -1, 0, 2, 3, 4, 5],
 };
 
 export const BOOST_LABELS = ["Boost Off", "Boost+", "Boost++"] as const;

@@ -38,9 +38,9 @@ describe("AudioView", () => {
     vi.clearAllMocks();
   });
 
-  it("renders five EQ band columns and the curve graph", () => {
+  it("renders ten EQ band columns and the curve graph", () => {
     const w = mount(AudioView, { global: { stubs } });
-    expect(w.findAll('[data-test="eq-band"]')).toHaveLength(5);
+    expect(w.findAll('[data-test="eq-band"]')).toHaveLength(10);
     expect(w.find('[data-test="eq-graph"]').exists()).toBe(true);
   });
 
