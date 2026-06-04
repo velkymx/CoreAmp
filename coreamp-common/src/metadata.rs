@@ -91,7 +91,9 @@ fn read_directory_artwork(track_path: &Path) -> Option<EmbeddedArtwork> {
     None
 }
 
-fn normalize(value: Option<Cow<'_, str>>) -> Option<String> {
+// Trim a tag value, treating empty/whitespace as absent. Generic so it accepts
+// both borrowed accessor values (Cow) and owned Strings.
+fn normalize<S: AsRef<str>>(value: Option<S>) -> Option<String> {
     value.and_then(|raw| {
         let trimmed = raw.as_ref().trim();
         if trimmed.is_empty() {
@@ -135,7 +137,7 @@ fn fill_missing_metadata(metadata: &mut TrackMetadata, tag: &Tag) {
     }
     if !is_present(&metadata.album_artist) {
         metadata.album_artist =
-            normalize_owned(tag.get_string(ItemKey::AlbumArtist).map(str::to_string));
+            normalize(tag.get_string(ItemKey::AlbumArtist).map(str::to_string));
     }
     if !is_present(&metadata.title) {
         metadata.title = normalize(tag.title());
@@ -240,21 +242,7 @@ pub fn read_album_replay_gain(path: &Path) -> Option<f32> {
 }
 
 fn is_missing(value: Option<Cow<'_, str>>) -> bool {
-    match value {
-        None => true,
-        Some(text) => text.trim().is_empty(),
-    }
-}
-
-fn normalize_owned(value: Option<String>) -> Option<String> {
-    value.and_then(|raw| {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
-        }
-    })
+    normalize(value).is_none()
 }
 
 fn parse_year_timestamp(value: &Option<String>) -> Option<Timestamp> {
@@ -324,12 +312,12 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
         tagged_file.insert_tag(Tag::new(tagged_file.primary_tag_type()));
     }
 
-    let artist = normalize_owned(metadata.artist.clone());
-    let album = normalize_owned(metadata.album.clone());
-    let album_artist = normalize_owned(metadata.album_artist.clone());
-    let title = normalize_owned(metadata.title.clone());
-    let year = parse_year_timestamp(&normalize_owned(metadata.year.clone()));
-    let genre = normalize_owned(metadata.genre.clone());
+    let artist = normalize(metadata.artist.clone());
+    let album = normalize(metadata.album.clone());
+    let album_artist = normalize(metadata.album_artist.clone());
+    let title = normalize(metadata.title.clone());
+    let year = parse_year_timestamp(&normalize(metadata.year.clone()));
+    let genre = normalize(metadata.genre.clone());
 
     let mut changed = false;
     if let Some(tag) = tagged_file.primary_tag_mut() {
@@ -346,7 +334,7 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
         }
 
         let current_album_artist =
-            normalize_owned(tag.get_string(ItemKey::AlbumArtist).map(str::to_string));
+            normalize(tag.get_string(ItemKey::AlbumArtist).map(str::to_string));
         if current_album_artist != album_artist {
             match &album_artist {
                 Some(value) => {
