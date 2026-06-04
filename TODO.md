@@ -105,8 +105,8 @@ Features users expect from a modern desktop music player.
 * [x] Sort by Album. (VibeDataTable column sort)
 * [x] A-Z / Z-A toggle. (VibeDataTable asc/desc)
 * [x] Search sort by genre. (sortable Genre column)
-* [ ] Unknown-title grouping under U.
-* [ ] Recently Added view.
+* [x] Unknown-title grouping under U. (N/A — flat datatable has no alpha sections)
+* [x] Recently Added view. (Home dashboard)
 * [x] Fix duration backfill for tracks added through explicit path import.
 * [ ] Mobile and small-window layout support.
 * [ ] Album artist editing.
@@ -124,6 +124,7 @@ Features users expect from a modern desktop music player.
 
 ## Audio
 
+* [ ] Volume slider does not work
 * [x] Save user EQ presets.
 * [x] Delete user EQ presets.
 * [ ] Add Hip-Hop EQ preset.
@@ -215,6 +216,8 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 ## P5 Visualizer
 
 #### ThreeJS Visualizers
+
+* [ ] Visualizer locked at 6x9 aspect
 
 Review the current implementations that already exist. They will all need to be converted into their own component to easy management. In addition to porting over the Storm, Orb, Vortex we need to review other projects for ideas on how best to do it.
 
