@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
 
 vi.mock("@/api/tauri", () => ({
   nativeAudioPause: vi.fn().mockResolvedValue(undefined),
@@ -48,6 +49,7 @@ import {
 } from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { usePlayerStore } from "@/stores/player";
+import { persistQueue } from "@/util/queueStorage";
 import type { TrackArtwork, TrackSignalDetails } from "@/types";
 
 const track = { path: "/m/a.mp3", title: "A", artist: "X", album: "Y", liked: false };
@@ -824,5 +826,29 @@ describe("player.setSource", () => {
     p.$patch({ source: "web" });
     await p.setSource("web");
     expect(nativeAudioStop).not.toHaveBeenCalled();
+  });
+});
+
+describe("player queue persistence", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("init() restores the queue and index from a previous session (paused)", () => {
+    persistQueue(mkQueue(), 2);
+    const p = usePlayerStore();
+    p.init();
+    expect(p.queue.map((t) => t.path)).toEqual(["/m/0.mp3", "/m/1.mp3", "/m/2.mp3"]);
+    expect(p.currentIndex).toBe(2);
+    expect(p.isPlaying).toBe(false);
+  });
+
+  it("persists queue changes after init so they survive a reload", () => {
+    const p = usePlayerStore();
+    p.init();
+    p.enqueue({ path: "/m/x.mp3", title: "X", artist: "X", album: "Y", liked: false } as never);
+    // A fresh store reading storage sees the enqueued track.
+    setActivePinia(createPinia());
+    const reloaded = usePlayerStore();
+    reloaded.init();
+    expect(reloaded.queue.map((t) => t.path)).toContain("/m/x.mp3");
   });
 });

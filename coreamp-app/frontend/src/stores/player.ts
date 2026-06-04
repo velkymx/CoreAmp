@@ -10,6 +10,7 @@ import type {
 import * as api from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { buildShuffleOrder } from "@/util/shuffle";
+import { restoreQueue, persistQueueIfChanged } from "@/util/queueStorage";
 import { useNotifyStore, errorMessage } from "@/stores/notify";
 
 export type ToggleResult = "paused" | "resumed" | "played" | "busy" | "noop";
@@ -77,6 +78,20 @@ export const usePlayerStore = defineStore("player", {
     init(): void {
       this.source = "web";
       this.nativeAvailable = false;
+
+      // Restore the queue from the previous session (paused — we remember what
+      // was queued and where, but don't auto-start audio on launch).
+      const restored = restoreQueue();
+      if (restored && restored.queue.length > 0) {
+        this.queue = restored.queue;
+        this.currentIndex = restored.currentIndex;
+      }
+
+      // Persist on every structural queue/index change. The signature guard in
+      // persistQueueIfChanged ignores the frequent position-only status ticks.
+      this.$subscribe(() => persistQueueIfChanged(this.queue, this.currentIndex), {
+        flush: "sync",
+      });
     },
 
     // Switch the output path (native rodio vs in-webview Web Audio). Restarts the
