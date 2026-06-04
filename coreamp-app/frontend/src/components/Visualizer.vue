@@ -25,16 +25,7 @@
       </button>
     </div>
 
-    <span v-if="!active" class="viz-hint small text-light">
-      <template v-if="player.source === 'native'">
-        Native output —
-        <button type="button" class="viz-link" data-test="viz-use-web" @click="useWeb">
-          switch to Web output
-        </button>
-        to react to audio
-      </template>
-      <template v-else>Press play to see it move</template>
-    </span>
+    <span v-if="!active" class="viz-hint small text-light">Press play to see it move</span>
     </div>
   </div>
 </template>
@@ -42,13 +33,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
-import { usePlayerStore } from "@/stores/player";
 import { useFrequencyData } from "@/composables/useFrequencyData";
 import { visualizerPlugins, getPlugin } from "@/visualizer/registry";
 import type { VizFrame } from "@/visualizer/types";
 import ThreeOrb from "@/components/ThreeOrb.vue";
 
-const player = usePlayerStore();
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 const pluginId = ref<FormSelectOptionValue>("bars");
 
@@ -59,10 +48,6 @@ const pluginOptions = computed<FormSelectOption[]>(() => [
   ...visualizerPlugins.map((p) => ({ value: p.id, text: p.label })),
   { value: "orb", text: "Orb (3D)" },
 ]);
-
-function useWeb(): void {
-  void player.setSource("web");
-}
 
 // Pseudo-fullscreen: expand the visualizer to a fixed full-window overlay
 // (matches the legacy behavior; reliable inside the webview). Esc exits.
