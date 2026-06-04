@@ -22,6 +22,8 @@
       </div>
 
       <dl class="details-grid small mb-3">
+        <dt class="text-secondary">Track #</dt>
+        <dd>{{ track.track_number ?? "—" }}</dd>
         <dt class="text-secondary">Album</dt>
         <dd class="text-truncate">{{ track.album || "—" }}</dd>
         <dt class="text-secondary">Album artist</dt>

@@ -19,6 +19,7 @@ pub struct ScannedFile {
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
+    pub track_number: Option<i64>,
     pub metadata_hash: String,
     pub duration_secs: Option<i64>,
 }
@@ -104,6 +105,7 @@ fn to_scanned_file(path: &Path, metadata_hash: String) -> Option<ScannedFile> {
         title: file_metadata.title.or(default_title),
         year: file_metadata.year,
         genre: file_metadata.genre,
+        track_number: file_metadata.track_number.map(i64::from),
         metadata_hash,
         duration_secs: file_metadata.duration_secs,
     })

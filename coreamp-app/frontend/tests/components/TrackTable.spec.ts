@@ -47,6 +47,7 @@ const row = (over: Partial<LibraryTrack> = {}): LibraryTrack => ({
   artist: "Artist",
   album: "Album",
   album_artist: null,
+  track_number: null,
   title: "Title",
   year: "2020",
   genre: "Rock",

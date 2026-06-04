@@ -25,6 +25,10 @@
       </div>
       <div class="row g-2 mb-3">
         <div class="col">
+          <label class="form-label small">Track #</label>
+          <VibeFormInput v-model="form.track_number" type="number" data-test="edit-track-number" />
+        </div>
+        <div class="col">
           <label class="form-label small">Year</label>
           <VibeFormInput v-model="form.year" data-test="edit-year" />
         </div>
@@ -60,6 +64,7 @@ const form = reactive({
   artist: "",
   album: "",
   album_artist: "",
+  track_number: "",
   year: "",
   genre: "",
 });
@@ -72,11 +77,19 @@ watch(
     form.artist = track?.artist ?? "";
     form.album = track?.album ?? "";
     form.album_artist = track?.album_artist ?? "";
+    form.track_number = track?.track_number != null ? String(track.track_number) : "";
     form.year = track?.year ?? "";
     form.genre = track?.genre ?? "";
   },
   { immediate: true },
 );
+
+// Parse the track-number field into a positive integer, or null when blank
+// or invalid (so it clears the tag rather than writing a bogus value).
+function parseTrackNumber(value: string): number | null {
+  const n = Number.parseInt(value.trim(), 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 async function onSave(): Promise<void> {
   const track = ui.editTarget;
@@ -89,6 +102,7 @@ async function onSave(): Promise<void> {
         artist: form.artist.trim() || null,
         album: form.album.trim() || null,
         album_artist: form.album_artist.trim() || null,
+        track_number: parseTrackNumber(form.track_number),
         year: form.year.trim() || null,
         genre: form.genre.trim() || null,
       }),

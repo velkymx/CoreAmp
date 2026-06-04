@@ -26,6 +26,7 @@ const row = (over = {}) => ({
   artist: "X",
   album: "Y",
   album_artist: null,
+  track_number: null,
   title: "A",
   year: "2020",
   genre: "Rock",

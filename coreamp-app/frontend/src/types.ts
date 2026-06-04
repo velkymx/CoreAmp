@@ -30,6 +30,7 @@ export interface LibraryTrack {
   title: string | null;
   year: string | null;
   genre: string | null;
+  track_number: number | null;
   liked: boolean;
   duration: number | null;
 }
@@ -78,6 +79,7 @@ export interface TrackMetadataInput {
   title: string | null;
   year: string | null;
   genre: string | null;
+  track_number: number | null;
 }
 
 export interface EqBand {

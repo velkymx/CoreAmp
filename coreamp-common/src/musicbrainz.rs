@@ -102,6 +102,7 @@ fn from_response(value: &Value) -> Option<TrackMetadata> {
         title,
         year,
         genre: None,
+        track_number: None,
         duration_secs: None,
     };
 

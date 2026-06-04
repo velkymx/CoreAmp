@@ -17,6 +17,7 @@ pub struct TrackMetadata {
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
+    pub track_number: Option<u32>,
     pub duration_secs: Option<i64>,
 }
 
@@ -144,6 +145,9 @@ fn fill_missing_metadata(metadata: &mut TrackMetadata, tag: &Tag) {
     }
     if !is_present(&metadata.genre) {
         metadata.genre = normalize(tag.genre());
+    }
+    if metadata.track_number.is_none() {
+        metadata.track_number = tag.track();
     }
 }
 
@@ -343,6 +347,15 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
         let current_genre = normalize(tag.genre());
         if current_genre != genre {
             tag.set_genre(genre.clone().unwrap_or_default());
+            changed = true;
+        }
+
+        let track_number = metadata.track_number;
+        if tag.track() != track_number {
+            match track_number {
+                Some(value) => tag.set_track(value),
+                None => tag.remove_track(),
+            }
             changed = true;
         }
     }

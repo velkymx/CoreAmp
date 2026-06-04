@@ -42,6 +42,7 @@ struct LibraryTrack {
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
+    pub track_number: Option<i64>,
     pub liked: bool,
     pub duration: Option<i64>,
 }
@@ -54,6 +55,7 @@ struct TrackMetadataInput {
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
+    pub track_number: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -755,6 +757,7 @@ fn list_recently_played(limit: usize) -> Result<Vec<LibraryTrack>, String> {
             title: r.title,
             year: r.year,
             genre: r.genre,
+            track_number: r.track_number,
             liked: r.liked,
             duration: r.duration_secs,
         })
@@ -832,6 +835,7 @@ fn library_track_from_row(row: db::LibraryRow) -> LibraryTrack {
         title: row.title,
         year: row.year,
         genre: row.genre,
+        track_number: row.track_number,
         liked: row.liked,
         duration: row.duration_secs,
     };
@@ -863,6 +867,7 @@ fn track_from_path(path: &Path) -> LibraryTrack {
         title: metadata.title,
         year: metadata.year,
         genre: metadata.genre,
+        track_number: metadata.track_number.map(i64::from),
         liked: false,
         duration: metadata.duration_secs,
     }
@@ -1083,6 +1088,7 @@ fn write_missing_tags_for_path(path: String) -> Result<bool, String> {
         title: row.title,
         year: row.year,
         genre: row.genre,
+        track_number: row.track_number.and_then(|n| u32::try_from(n).ok()),
         duration_secs: row.duration_secs,
     };
     metadata::write_missing_tags(Path::new(&path), &metadata)
@@ -1107,6 +1113,7 @@ fn normalize_metadata_input(input: TrackMetadataInput) -> metadata::TrackMetadat
         title: clean(input.title),
         year: clean(input.year),
         genre: clean(input.genre),
+        track_number: input.track_number,
         duration_secs: None,
     }
 }
@@ -1960,6 +1967,7 @@ mod tests {
             title: Some("Real Title".to_string()),
             year: Some("2020".to_string()),
             genre: Some("Rock".to_string()),
+            track_number: Some(7),
             liked: true,
             duration_secs: Some(200),
         }

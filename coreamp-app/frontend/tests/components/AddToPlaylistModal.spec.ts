@@ -34,6 +34,7 @@ const track = {
   artist: null,
   album: null,
   album_artist: null,
+  track_number: null,
   title: "A",
   year: null,
   genre: null,

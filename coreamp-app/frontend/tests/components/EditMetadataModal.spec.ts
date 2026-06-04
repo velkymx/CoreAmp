@@ -28,6 +28,7 @@ const track = {
   artist: "Old",
   album: "OldAlbum",
   album_artist: null,
+  track_number: null,
   title: "OldTitle",
   year: "1999",
   genre: "Rock",
@@ -82,6 +83,20 @@ describe("EditMetadataModal", () => {
     expect(api.updateTrackMetadataForPath).toHaveBeenCalledWith(
       "/m/a.mp3",
       expect.objectContaining({ album_artist: "Various Artists" }),
+    );
+  });
+
+  it("edits and saves the track number as an integer", async () => {
+    vi.mocked(api.updateTrackMetadataForPath).mockResolvedValue({ ...track });
+    const w = mount(EditMetadataModal, { global: { stubs } });
+    useUiStore().openEdit(track);
+    await flushPromises();
+    await w.get('[data-test="edit-track-number"]').setValue("5");
+    await w.get('[data-test="edit-save"]').trigger("click");
+    await flushPromises();
+    expect(api.updateTrackMetadataForPath).toHaveBeenCalledWith(
+      "/m/a.mp3",
+      expect.objectContaining({ track_number: 5 }),
     );
   });
 

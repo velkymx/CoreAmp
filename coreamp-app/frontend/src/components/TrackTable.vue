@@ -128,6 +128,13 @@ const emit = defineEmits<{
 
 const columns = computed<DataTableColumn[]>(() => [
   {
+    key: "track_number",
+    label: "#",
+    class: "d-none d-lg-table-cell text-secondary",
+    headerClass: "d-none d-lg-table-cell",
+    formatter: (v) => (v == null ? "" : String(v)),
+  },
+  {
     key: "title",
     label: "Title",
     formatter: (_v, row) => {

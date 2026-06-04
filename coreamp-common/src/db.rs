@@ -44,6 +44,7 @@ pub struct LibraryRow {
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
+    pub track_number: Option<i64>,
     pub liked: bool,
     pub duration_secs: Option<i64>,
 }
@@ -85,6 +86,7 @@ CREATE TABLE IF NOT EXISTS files (
     album TEXT,
     album_artist TEXT,
     title TEXT,
+    track_number INTEGER,
     year TEXT,
     genre TEXT,
     liked INTEGER NOT NULL DEFAULT 0,
@@ -143,6 +145,9 @@ fn apply_schema(connection: &Connection) -> rusqlite::Result<()> {
     if !columns.contains("album_artist") {
         connection.execute("ALTER TABLE files ADD COLUMN album_artist TEXT", [])?;
     }
+    if !columns.contains("track_number") {
+        connection.execute("ALTER TABLE files ADD COLUMN track_number INTEGER", [])?;
+    }
 
     Ok(())
 }
@@ -159,8 +164,8 @@ fn upsert_scanned_files_with_connection(
     {
         let mut stmt = tx.prepare(
             r#"
-            INSERT INTO files(path, filename, artist, album, album_artist, title, year, genre, metadata_hash, duration_secs, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, unixepoch())
+            INSERT INTO files(path, filename, artist, album, album_artist, title, year, genre, track_number, metadata_hash, duration_secs, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, unixepoch())
             ON CONFLICT(path) DO UPDATE SET
                 filename = excluded.filename,
                 metadata_hash = excluded.metadata_hash,
@@ -188,6 +193,10 @@ fn upsert_scanned_files_with_connection(
                     WHEN files.genre IS NULL OR files.genre = '' THEN excluded.genre
                     ELSE files.genre
                 END,
+                track_number = CASE
+                    WHEN files.track_number IS NULL THEN excluded.track_number
+                    ELSE files.track_number
+                END,
                 duration_secs = excluded.duration_secs,
                 updated_at = unixepoch()
             "#,
@@ -203,6 +212,7 @@ fn upsert_scanned_files_with_connection(
                 &file.title,
                 &file.year,
                 &file.genre,
+                &file.track_number,
                 &file.metadata_hash,
                 &file.duration_secs
             ])?;
@@ -230,7 +240,7 @@ pub fn list_library_files(
 
     let mut query = String::from(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number
         FROM files
         WHERE 1=1
         "#,
@@ -282,6 +292,7 @@ pub fn list_library_files(
                     liked: row.get::<_, i32>(7)? != 0,
                     duration_secs: row.get(8)?,
                     album_artist: row.get(9)?,
+                    track_number: row.get(10)?,
                 })
             },
         )
@@ -306,6 +317,7 @@ fn library_row_from_row(row: &rusqlite::Row) -> rusqlite::Result<LibraryRow> {
         liked: row.get::<_, i32>(7)? != 0,
         duration_secs: row.get(8)?,
         album_artist: row.get(9)?,
+        track_number: row.get(10)?,
     })
 }
 
@@ -319,7 +331,7 @@ pub(crate) fn rows_for_album(
 ) -> Result<Vec<LibraryRow>, String> {
     let mut query = String::from(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number
         FROM files
         WHERE album = ?1
         "#,
@@ -327,7 +339,7 @@ pub(crate) fn rows_for_album(
     if artist.is_some() {
         query.push_str(" AND artist = ?2");
     }
-    query.push_str(" ORDER BY filename, COALESCE(title, '')");
+    query.push_str(" ORDER BY track_number IS NULL, track_number, filename, COALESCE(title, '')");
 
     let mut stmt = conn.prepare(&query).map_err(|err| err.to_string())?;
     let mapped = if let Some(artist) = artist {
@@ -523,7 +535,7 @@ pub fn record_play(path: &str) -> Result<(), String> {
 fn rows_recently_added(connection: &Connection, limit: usize) -> rusqlite::Result<Vec<LibraryRow>> {
     let mut stmt = connection.prepare(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number
         FROM files
         ORDER BY updated_at DESC, id DESC
         LIMIT ?1
@@ -541,6 +553,7 @@ fn rows_recently_added(connection: &Connection, limit: usize) -> rusqlite::Resul
             liked: row.get::<_, i32>(7)? != 0,
             duration_secs: row.get(8)?,
             album_artist: row.get(9)?,
+            track_number: row.get(10)?,
         })
     })?;
     rows.collect()
@@ -553,10 +566,13 @@ pub fn list_recently_added(limit: usize) -> Result<Vec<LibraryRow>, String> {
     rows_recently_added(&connection, limit).map_err(|err| err.to_string())
 }
 
-fn rows_recently_played(connection: &Connection, limit: usize) -> rusqlite::Result<Vec<LibraryRow>> {
+fn rows_recently_played(
+    connection: &Connection,
+    limit: usize,
+) -> rusqlite::Result<Vec<LibraryRow>> {
     let mut stmt = connection.prepare(
         r#"
-        SELECT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked, f.duration_secs, f.album_artist
+        SELECT f.path, f.filename, f.artist, f.album, f.title, f.year, f.genre, f.liked, f.duration_secs, f.album_artist, f.track_number
         FROM files f
         JOIN (SELECT path, MAX(played_at) AS last_played FROM history GROUP BY path) h ON h.path = f.path
         ORDER BY h.last_played DESC
@@ -676,7 +692,7 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
     let row = connection
         .query_row(
             r#"
-            SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist
+            SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number
             FROM files
             WHERE path = ?1
             LIMIT 1
@@ -694,6 +710,7 @@ pub fn get_library_file(path: &str) -> Result<Option<LibraryRow>, String> {
                     liked: row.get::<_, i32>(7)? != 0,
                     duration_secs: row.get(8)?,
                     album_artist: row.get(9)?,
+                    track_number: row.get(10)?,
                 })
             },
         )
@@ -887,6 +904,7 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
                 year = ?5,
                 genre = ?6,
                 album_artist = ?7,
+                track_number = ?8,
                 updated_at = unixepoch()
             WHERE path = ?1
             "#,
@@ -897,7 +915,8 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
                 &metadata.title,
                 &metadata.year,
                 &metadata.genre,
-                &metadata.album_artist
+                &metadata.album_artist,
+                &metadata.track_number
             ],
         )
         .map_err(|err| err.to_string())?;
@@ -1041,6 +1060,7 @@ mod tests {
             title: Some(String::from("Song")),
             year: None,
             genre: None,
+            track_number: None,
             metadata_hash: String::from("h1"),
             duration_secs: None,
         };
@@ -1062,6 +1082,7 @@ mod tests {
             artist: Some(String::from("Track Artist")),
             album: Some(String::from("Album")),
             album_artist: None,
+            track_number: None,
             title: Some(String::from("Song")),
             year: None,
             genre: None,
@@ -1183,6 +1204,7 @@ mod tests {
             artist: Some(String::from("artist-a")),
             album: None,
             album_artist: None,
+            track_number: None,
             title: Some(String::from("title-a")),
             year: None,
             genre: None,
@@ -1195,6 +1217,7 @@ mod tests {
             artist: Some(String::from("artist-b")),
             album: Some(String::from("album-b")),
             album_artist: None,
+            track_number: None,
             title: Some(String::from("title-b")),
             year: Some(String::from("2026")),
             genre: Some(String::from("Genre B")),
@@ -1227,6 +1250,7 @@ mod tests {
             artist: None,
             album: None,
             album_artist: None,
+            track_number: None,
             title: None,
             year: None,
             genre: None,
