@@ -13,6 +13,9 @@ vi.mock("@/api/tauri", () => ({
   listGenres: vi.fn().mockResolvedValue([]),
   toggleLiked: vi.fn().mockResolvedValue(false),
   recordPlay: vi.fn().mockResolvedValue(undefined),
+  savePlaylist: vi
+    .fn()
+    .mockResolvedValue({ name: "daft", path: "/p/daft.m3u", track_count: 2 }),
   nativeAudioPlay: vi.fn().mockResolvedValue(undefined),
   readTrackArtwork: vi.fn().mockResolvedValue(null),
   readTrackSignalDetails: vi.fn().mockResolvedValue(null),
@@ -88,6 +91,29 @@ describe("LibraryView", () => {
     expect(queue).toHaveLength(1);
     expect(queue[0].path).toBe("/m/b.mp3");
     expect(index).toBe(0);
+  });
+
+  it("saves the filtered tracks as a playlist named after the search", async () => {
+    const { listLibrary, savePlaylist } = await import("@/api/tauri");
+    vi.mocked(listLibrary).mockResolvedValue([row(), row({ path: "/m/b.mp3" })]);
+    const w = mount(LibraryView, { global: { stubs } });
+    const lib = useLibraryStore();
+    lib.$patch({ view: "tracks", search: "daft" });
+    await lib.loadTracks();
+    await w.vm.$nextTick();
+    await w.get('[data-test="save-search"]').trigger("click");
+    expect(savePlaylist).toHaveBeenCalledWith("daft", ["/m/a.mp3", "/m/b.mp3"]);
+  });
+
+  it("hides the save-as-playlist button when no filter is active", async () => {
+    const { listLibrary } = await import("@/api/tauri");
+    vi.mocked(listLibrary).mockResolvedValue([row()]);
+    const w = mount(LibraryView, { global: { stubs } });
+    const lib = useLibraryStore();
+    lib.$patch({ view: "tracks", search: "" });
+    await lib.loadTracks();
+    await w.vm.$nextTick();
+    expect(w.find('[data-test="save-search"]').exists()).toBe(false);
   });
 
   it("typing in the search box drives setSearch", async () => {

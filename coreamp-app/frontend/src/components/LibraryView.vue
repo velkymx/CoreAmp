@@ -27,6 +27,15 @@
         aria-label="Filter by genre"
         data-test="library-genre"
       />
+      <VibeButton
+        v-if="canSaveSearch"
+        variant="secondary"
+        outline
+        data-test="save-search"
+        @click="onSaveSearch"
+      >
+        Save as playlist
+      </VibeButton>
     </div>
     <div class="library-content flex-grow-1 overflow-auto">
       <TrackTable
@@ -62,12 +71,40 @@ import TrackTable from "@/components/TrackTable.vue";
 import SummaryGrid, { type SummaryItem } from "@/components/SummaryGrid.vue";
 import { useLibraryStore, type LibraryView } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
+import { usePlaylistsStore } from "@/stores/playlists";
 import { useUiStore } from "@/stores/ui";
+import { useNotify } from "@/composables/useNotify";
 import { toQueueTrack } from "@/util/track";
 
 const library = useLibraryStore();
 const player = usePlayerStore();
+const playlists = usePlaylistsStore();
 const ui = useUiStore();
+const { run } = useNotify();
+
+// A filter is "active" when a search term or genre narrows the track list, so
+// the result is a meaningful subset worth saving as a playlist.
+const canSaveSearch = computed(
+  () =>
+    library.view === "tracks" &&
+    library.tracks.length > 0 &&
+    (library.search.trim() !== "" || library.genreFilter != null),
+);
+
+// Name the saved playlist after whatever is narrowing the list.
+function searchPlaylistName(): string {
+  return library.search.trim() || library.genreFilter || "Library results";
+}
+
+// Persist the currently filtered tracks as a new playlist.
+async function onSaveSearch(): Promise<void> {
+  const name = searchPlaylistName();
+  const paths = library.tracks.map((t) => t.path);
+  await run(() => playlists.save(name, paths), {
+    errorPrefix: "Couldn't save playlist",
+    success: `Saved "${name}".`,
+  });
+}
 
 // Reload the track list after a metadata edit elsewhere.
 watch(
