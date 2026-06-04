@@ -36,6 +36,22 @@ function persistReplayGainMode(mode: ReplayGainMode): void {
   }
 }
 
+const GAPLESS_KEY = "coreamp.gapless";
+function loadGapless(): boolean {
+  try {
+    return localStorage.getItem(GAPLESS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function persistGapless(on: boolean): void {
+  try {
+    localStorage.setItem(GAPLESS_KEY, on ? "1" : "0");
+  } catch {
+    /* best-effort */
+  }
+}
+
 interface PlayerState {
   queue: Track[];
   currentIndex: number;
@@ -54,6 +70,8 @@ interface PlayerState {
   stopAfterCurrent: boolean;
   // Which ReplayGain to apply on playback (off / per-track / per-album).
   replayGainMode: ReplayGainMode;
+  // Preload the next track into a second deck and swap on end-of-track.
+  gapless: boolean;
   // Wall-clock ms when the sleep timer fires (null = no timer armed).
   sleepEndsAt: number | null;
   artwork: TrackArtwork | null;
@@ -88,6 +106,7 @@ export const usePlayerStore = defineStore("player", {
     repeatMode: "off",
     stopAfterCurrent: false,
     replayGainMode: "track",
+    gapless: false,
     sleepEndsAt: null,
     artwork: null,
     signal: null,
@@ -111,6 +130,7 @@ export const usePlayerStore = defineStore("player", {
       this.source = "web";
       this.nativeAvailable = false;
       this.replayGainMode = loadReplayGainMode();
+      this.gapless = loadGapless();
 
       // Restore the queue from the previous session (paused — we remember what
       // was queued and where, but don't auto-start audio on launch).
@@ -397,6 +417,23 @@ export const usePlayerStore = defineStore("player", {
       }
     },
 
+    // When gapless is on, buffer the upcoming track into the second deck so the
+    // end-of-track advance can swap to it without a load gap. Only the linear
+    // next track is preloaded (shuffle order is decided at advance time).
+    preloadNext(): void {
+      if (!this.gapless) return;
+      if (this.source === "native" && this.nativeAvailable) return;
+      const next = this.queue[this.currentIndex + 1];
+      if (next) webDriver.preload?.(next.path);
+    },
+
+    // Toggle gapless (persisted). Turning it on preloads the next track now.
+    setGapless(on: boolean): void {
+      this.gapless = on;
+      persistGapless(on);
+      if (on) this.preloadNext();
+    },
+
     async playCurrent(): Promise<void> {
       const track = this.queue[this.currentIndex];
       if (!track) return;
@@ -404,12 +441,17 @@ export const usePlayerStore = defineStore("player", {
         if (this.source === "native" && this.nativeAvailable) {
           await api.nativeAudioPlay(track.path);
         } else {
-          webDriver.load(track.path);
+          // Gapless: if the next deck already buffered this track, swap to it
+          // instead of reloading; otherwise load normally.
+          const swapped =
+            webDriver.preloadedPath?.() === track.path && webDriver.swapToPreloaded();
+          if (!swapped) webDriver.load(track.path);
           webDriver.setVolume(this.muted ? 0 : this.volume);
           // Reset ReplayGain for the new track, then apply per the current mode.
           webDriver.setReplayGain(null);
           this.applyReplayGainFor(track.path);
           await webDriver.resume();
+          this.preloadNext();
         }
         this.isPlaying = true;
         void this.loadNowPlayingMeta();

@@ -1,24 +1,27 @@
-// Thin adapter over a single HTMLAudioElement. The store calls this for the
-// 'web' source; tests mock this module so decision logic stays deterministic.
+// Adapter over a pair of HTMLAudioElements ("decks") feeding one Web Audio
+// graph. The active deck plays; the inactive deck can preload the next track so
+// gapless playback swaps to an already-buffered element instead of loading on
+// end-of-track. The store calls this for the 'web' source; tests mock this
+// module so decision logic stays deterministic.
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { replayGainMultiplier } from "@/util/gain";
 
-let el: HTMLAudioElement | null = null;
-let loadedPath: string | null = null;
+interface Deck {
+  el: HTMLAudioElement;
+  source: MediaElementAudioSourceNode | null;
+  path: string | null;
+}
 
-// Web Audio graph: source → preamp → EQ biquads → analyser → destination.
-// Built lazily on first playback. The EQ biquads actually shape the sound
-// (peaking filters), and the analyser feeds the visualizer + EQ graph.
+let decks: Deck[] = [];
+let activeIndex = 0;
+
+// Web Audio graph: (deckA, deckB) → preamp → EQ biquads → analyser →
+// replayGain → masterGain → destination. Built lazily on first playback.
 let ctx: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
-let sourceNode: MediaElementAudioSourceNode | null = null;
 let preampNode: GainNode | null = null;
 let eqNodes: BiquadFilterNode[] = [];
-// Master volume. Once the element is routed through Web Audio, HTMLAudioElement
-// .volume no longer affects output — output level must be set on a GainNode.
 let masterGain: GainNode | null = null;
-// Per-track ReplayGain stage (linear multiplier); unity until a tagged track
-// sets it. Sits between the analyser and the master volume.
 let replayGainNode: GainNode | null = null;
 let lastReplayGain = 1;
 let lastVolume = 1;
@@ -30,26 +33,50 @@ interface EqSettings {
 }
 let pendingEq: EqSettings | null = null;
 
+function ensureDecks(): void {
+  if (decks.length) return;
+  for (let i = 0; i < 2; i++) {
+    const el = new Audio();
+    el.crossOrigin = "anonymous";
+    el.preload = "auto";
+    decks.push({ el, source: null, path: null });
+  }
+}
+
+function activeDeck(): Deck {
+  ensureDecks();
+  return decks[activeIndex];
+}
+
+function inactiveDeck(): Deck {
+  ensureDecks();
+  return decks[1 - activeIndex];
+}
+
+// The active element — kept as a helper so the transport methods read/write a
+// single deck without caring which one is active.
 function audio(): HTMLAudioElement {
-  if (!el) el = new Audio();
-  el.crossOrigin = "anonymous";
-  return el;
+  return activeDeck().el;
 }
 
 function ensureGraph(): void {
   if (analyser || typeof AudioContext === "undefined") return;
   try {
+    ensureDecks();
     ctx = new AudioContext();
-    sourceNode = ctx.createMediaElementSource(audio());
     preampNode = ctx.createGain();
     analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.8;
 
-    // Chain: source → preamp → b0 … b4 → analyser → destination.
-    let node: AudioNode = sourceNode;
-    node.connect(preampNode);
-    node = preampNode;
+    // Both decks feed the preamp; the paused deck is silent.
+    for (const deck of decks) {
+      if (!deck.source) deck.source = ctx.createMediaElementSource(deck.el);
+      deck.source.connect(preampNode);
+    }
+
+    // preamp → b0 … b4 → analyser
+    let node: AudioNode = preampNode;
     eqNodes = [];
     for (let i = 0; i < 5; i++) {
       const biquad = ctx.createBiquadFilter();
@@ -62,6 +89,7 @@ function ensureGraph(): void {
       eqNodes.push(biquad);
     }
     node.connect(analyser);
+
     // analyser → replayGain → masterGain → destination
     replayGainNode = ctx.createGain();
     replayGainNode.gain.value = lastReplayGain;
@@ -93,12 +121,39 @@ function applyEqInternal(settings: EqSettings): void {
 }
 
 export const webDriver = {
-  // Point the element at a local file path, resolved through Tauri's asset
+  // Point the active deck at a local file path, resolved through Tauri's asset
   // protocol so the webview is allowed to read it. No-op if already loaded.
   load(path: string): void {
-    if (loadedPath === path) return;
-    audio().src = convertFileSrc(path);
-    loadedPath = path;
+    const deck = activeDeck();
+    if (deck.path === path) return;
+    deck.el.src = convertFileSrc(path);
+    deck.path = path;
+  },
+  // Buffer a track into the inactive deck so a later swap is gapless. No-op if
+  // that deck already holds this path.
+  preload(path: string): void {
+    const deck = inactiveDeck();
+    if (deck.path === path) return;
+    deck.el.src = convertFileSrc(path);
+    deck.path = path;
+    deck.el.load();
+  },
+  // The path currently buffered in the inactive (preload) deck, if any.
+  preloadedPath(): string | null {
+    return decks.length ? inactiveDeck().path : null;
+  },
+  // Swap the inactive (preloaded) deck to active. Pauses the old deck and
+  // rewinds it. Returns false when nothing is preloaded. The caller resumes the
+  // now-active deck. Used for gapless advance.
+  swapToPreloaded(): boolean {
+    if (!decks.length) return false;
+    const next = inactiveDeck();
+    if (!next.path) return false;
+    const current = activeDeck();
+    current.el.pause();
+    current.el.currentTime = 0;
+    activeIndex = 1 - activeIndex;
+    return true;
   },
   isLoaded(): boolean {
     return Boolean(audio().src);
@@ -115,11 +170,10 @@ export const webDriver = {
     await audio().play();
   },
   // Build the audio graph now (without waiting for first playback) so visual
-  // engines like butterchurn have an AudioContext + node to attach to.
+  // engines can attach to an AudioContext + node.
   ensureGraph(): void {
     ensureGraph();
   },
-  // The AudioContext backing the graph (null until built / unavailable).
   getAudioContext(): AudioContext | null {
     return ctx;
   },
@@ -127,13 +181,9 @@ export const webDriver = {
   getVizSource(): AudioNode | null {
     return preampNode;
   },
-  // Live frequency analyser for the visualizer (null until web playback has
-  // started, or when Web Audio is unavailable).
   getAnalyser(): AnalyserNode | null {
     return analyser;
   },
-  // Apply EQ + preamp to the audio. Stored and re-applied once the graph is
-  // built if it isn't yet (settings can arrive before first playback).
   applyEq(settings: EqSettings): void {
     pendingEq = settings;
     if (analyser) applyEqInternal(settings);
@@ -145,7 +195,7 @@ export const webDriver = {
     const d = audio().duration;
     return Number.isFinite(d) ? d : 0;
   },
-  // True when the current track has played to the end (drives queue advance).
+  // True when the active deck has played to the end (drives queue advance).
   hasEnded(): boolean {
     return audio().ended;
   },

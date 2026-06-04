@@ -22,6 +22,7 @@
           style="max-width: 9rem"
         />
       </label>
+      <VibeFormSwitch v-model="gaplessModel" label="Gapless" data-test="gapless-toggle" />
     </div>
 
     <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -126,6 +127,10 @@ const replayGainOptions: FormSelectOption[] = [
 const replayGainModel = computed<FormSelectOptionValue>({
   get: () => player.replayGainMode,
   set: (value) => player.setReplayGainMode(String(value) as ReplayGainMode),
+});
+const gaplessModel = computed<boolean>({
+  get: () => player.gapless,
+  set: (value) => player.setGapless(value),
 });
 const { freq } = useFrequencyData();
 

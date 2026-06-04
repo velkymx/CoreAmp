@@ -51,6 +51,14 @@ describe("AudioView", () => {
     expect(player.replayGainMode).toBe("album");
   });
 
+  it("toggling Gapless updates the player store", async () => {
+    const w = mount(AudioView, { global: { stubs } });
+    const player = usePlayerStore();
+    expect(player.gapless).toBe(false);
+    await w.get('[data-test="gapless-toggle"] input').setValue(true);
+    expect(player.gapless).toBe(true);
+  });
+
   it("the boost button cycles the boost level", async () => {
     const w = mount(AudioView, { global: { stubs } });
     const audio = useAudioStore();

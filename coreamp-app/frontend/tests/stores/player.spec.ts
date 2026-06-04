@@ -21,6 +21,9 @@ vi.mock("@/api/tauri", () => ({
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
     load: vi.fn(),
+    preload: vi.fn(),
+    preloadedPath: vi.fn(() => null),
+    swapToPreloaded: vi.fn(() => false),
     isLoaded: vi.fn(() => false),
     isPaused: vi.fn(() => true),
     pause: vi.fn(),
@@ -830,6 +833,53 @@ describe("player.setSource", () => {
     p.$patch({ source: "web" });
     await p.setSource("web");
     expect(nativeAudioStop).not.toHaveBeenCalled();
+  });
+});
+
+describe("player gapless", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    (webDriver.preloadedPath as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (webDriver.swapToPreloaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  });
+
+  it("preloads the next track when gapless is on", async () => {
+    const p = usePlayerStore();
+    p.gapless = true;
+    await p.playTracks(mkQueue() as never, 0);
+    await flushPromises();
+    expect(webDriver.preload).toHaveBeenCalledWith("/m/1.mp3");
+  });
+
+  it("does not preload when gapless is off", async () => {
+    const p = usePlayerStore();
+    p.gapless = false;
+    await p.playTracks(mkQueue() as never, 0);
+    await flushPromises();
+    expect(webDriver.preload).not.toHaveBeenCalled();
+  });
+
+  it("swaps to the preloaded deck instead of reloading on a matching advance", async () => {
+    const p = usePlayerStore();
+    p.gapless = true;
+    p.$patch({ queue: mkQueue(), currentIndex: 0 });
+    // Deck B already holds track index 1.
+    (webDriver.preloadedPath as ReturnType<typeof vi.fn>).mockReturnValue("/m/1.mp3");
+    (webDriver.swapToPreloaded as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    await p.nextTrack();
+    await flushPromises();
+    expect(webDriver.swapToPreloaded).toHaveBeenCalled();
+    expect(webDriver.load).not.toHaveBeenCalled();
+  });
+
+  it("setGapless(true) preloads immediately and persists", async () => {
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 0 });
+    p.setGapless(true);
+    expect(p.gapless).toBe(true);
+    expect(localStorage.getItem("coreamp.gapless")).toBe("1");
+    expect(webDriver.preload).toHaveBeenCalledWith("/m/1.mp3");
   });
 });
 
