@@ -13,6 +13,10 @@ let analyser: AnalyserNode | null = null;
 let sourceNode: MediaElementAudioSourceNode | null = null;
 let preampNode: GainNode | null = null;
 let eqNodes: BiquadFilterNode[] = [];
+// Master volume. Once the element is routed through Web Audio, HTMLAudioElement
+// .volume no longer affects output — output level must be set on a GainNode.
+let masterGain: GainNode | null = null;
+let lastVolume = 1;
 
 interface EqSettings {
   eq_enabled: boolean;
@@ -53,7 +57,10 @@ function ensureGraph(): void {
       eqNodes.push(biquad);
     }
     node.connect(analyser);
-    analyser.connect(ctx.destination);
+    masterGain = ctx.createGain();
+    masterGain.gain.value = lastVolume;
+    analyser.connect(masterGain);
+    masterGain.connect(ctx.destination);
 
     if (pendingEq) applyEqInternal(pendingEq);
   } catch {
@@ -137,7 +144,11 @@ export const webDriver = {
     audio().currentTime = secs;
   },
   setVolume(level: number): void {
-    audio().volume = level;
+    lastVolume = level;
+    // Master GainNode controls output once the graph exists; before that, the
+    // element's own volume applies.
+    if (masterGain) masterGain.gain.value = level;
+    else audio().volume = level;
   },
 };
 
