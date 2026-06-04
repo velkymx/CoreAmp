@@ -127,8 +127,8 @@ Features users expect from a modern desktop music player.
 * [ ] Volume slider does not work
 * [x] Save user EQ presets.
 * [x] Delete user EQ presets.
-* [ ] Add Hip-Hop EQ preset.
-* [ ] Add Dance EQ preset.
+* [x] Add Hip-Hop EQ preset.
+* [x] Add Dance EQ preset.
 * [ ] Verify boost processing parity.
 * [ ] Verify limiter processing parity.
 * [ ] Verify crossfeed processing parity.
