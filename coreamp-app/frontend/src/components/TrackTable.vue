@@ -140,6 +140,12 @@ const columns = computed<DataTableColumn[]>(() => [
     headerClass: "d-none d-lg-table-cell",
   },
   {
+    key: "year",
+    label: "Year",
+    class: "d-none d-lg-table-cell",
+    headerClass: "d-none d-lg-table-cell",
+  },
+  {
     key: "duration",
     label: "Time",
     formatter: (v) => formatTime(v as number | null),
