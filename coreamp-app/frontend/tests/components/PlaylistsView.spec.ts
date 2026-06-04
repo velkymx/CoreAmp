@@ -15,6 +15,7 @@ vi.mock("@/api/tauri", () => ({
   appendToPlaylist: vi.fn(),
   importPlaylistFile: vi.fn(),
   loadPlaylist: vi.fn().mockResolvedValue([]),
+  listLibrary: vi.fn().mockResolvedValue([]),
   recordPlay: vi.fn().mockResolvedValue(undefined),
   nativeAudioPlay: vi.fn().mockResolvedValue(undefined),
   readTrackArtwork: vi.fn().mockResolvedValue(null),
@@ -74,6 +75,23 @@ describe("PlaylistsView", () => {
     usePlaylistsStore().$patch({ playlists: [pl("A", "/p/a.m3u")] });
     await w.vm.$nextTick();
     expect(w.findAll('[data-test="playlist-row"]')).toHaveLength(1);
+  });
+
+  it("smart Liked Songs loads liked tracks and plays them", async () => {
+    vi.mocked(api.listLibrary).mockResolvedValue([
+      { path: "/m/a.mp3", title: "A", artist: null, album: null, liked: true },
+      { path: "/m/b.mp3", title: "B", artist: null, album: null, liked: true },
+    ] as never);
+    const w = mount(PlaylistsView, { global: { stubs } });
+    const player = usePlayerStore();
+    const spy = vi.spyOn(player, "playTracks").mockResolvedValue();
+    await w.get('[data-test="smart-liked"]').trigger("click");
+    await w.vm.$nextTick();
+    expect(api.listLibrary).toHaveBeenCalledWith({ likedOnly: true });
+    expect(spy).toHaveBeenCalledOnce();
+    const [queue, index] = spy.mock.calls[0];
+    expect(queue.map((t: { path: string }) => t.path)).toEqual(["/m/a.mp3", "/m/b.mp3"]);
+    expect(index).toBe(0);
   });
 
   it("adds the current queue to the selected playlist", async () => {

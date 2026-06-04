@@ -27,12 +27,29 @@
     </div>
 
     <div class="playlists-list flex-grow-1 overflow-auto">
+      <!-- Smart playlists: dynamic, always reflect current data (not stored
+           .m3u files). "Liked Songs" plays everything currently liked. -->
+      <ul class="list-group list-group-flush smart-playlists mt-2">
+        <li
+          class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+          role="button"
+          data-test="smart-liked"
+          @click="onOpenLiked"
+        >
+          <span class="d-flex align-items-center gap-2">
+            <VibeIcon icon="heart-fill" class="text-danger" />
+            Liked Songs
+          </span>
+          <span class="badge text-bg-secondary">smart</span>
+        </li>
+      </ul>
+
       <div
         v-if="playlists.playlists.length === 0"
         class="p-4 text-center text-secondary"
         data-test="playlists-empty"
       >
-        No playlists yet
+        No saved playlists yet
       </div>
       <VibeDataTable
         v-else
@@ -99,7 +116,7 @@ import { useNotify } from "@/composables/useNotify";
 
 const playlists = usePlaylistsStore();
 const player = usePlayerStore();
-const { run } = useNotify();
+const { run, notify } = useNotify();
 const newName = ref("");
 const dragging = ref(false);
 
@@ -146,6 +163,20 @@ async function onSave(): Promise<void> {
     { errorPrefix: "Couldn't save playlist", success: `Saved "${name}".` },
   );
   if (saved) newName.value = "";
+}
+
+// Smart "Liked Songs": load every currently-liked track and play it. Dynamic,
+// so it always reflects the latest likes rather than a saved snapshot.
+async function onOpenLiked(): Promise<void> {
+  const rows = await run(() => api.listLibrary({ likedOnly: true }), {
+    errorPrefix: "Couldn't load liked songs",
+  });
+  if (!rows) return;
+  if (rows.length === 0) {
+    notify.info("No liked songs yet.");
+    return;
+  }
+  await player.playTracks(rows.map(toQueueTrack), 0);
 }
 
 // Append the current play queue to an existing playlist.
