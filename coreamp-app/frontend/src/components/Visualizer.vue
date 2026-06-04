@@ -2,7 +2,6 @@
   <div class="viz-wrap" :class="{ 'is-fullscreen': fullscreen }">
     <div class="visualizer" data-test="visualizer">
     <ThreeOrb v-if="pluginId === 'orb'" />
-    <SoundRunner v-else-if="pluginId === 'game'" />
     <canvas v-else ref="canvasEl" class="viz-canvas"></canvas>
 
     <!-- Controls overlay: hidden until you hover the visualizer (or in
@@ -48,7 +47,6 @@ import { useFrequencyData } from "@/composables/useFrequencyData";
 import { visualizerPlugins, getPlugin } from "@/visualizer/registry";
 import type { VizFrame } from "@/visualizer/types";
 import ThreeOrb from "@/components/ThreeOrb.vue";
-import SoundRunner from "@/components/SoundRunner.vue";
 
 const player = usePlayerStore();
 const canvasEl = ref<HTMLCanvasElement | null>(null);
@@ -60,7 +58,6 @@ const { freq, wave, active } = useFrequencyData();
 const pluginOptions = computed<FormSelectOption[]>(() => [
   ...visualizerPlugins.map((p) => ({ value: p.id, text: p.label })),
   { value: "orb", text: "Orb (3D)" },
-  { value: "game", text: "Astro Chicken" },
 ]);
 
 function useWeb(): void {
