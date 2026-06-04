@@ -37,6 +37,9 @@
         <VibeButton variant="secondary" outline data-test="add-folders" @click="onAddFolders">
           Add folders…
         </VibeButton>
+        <VibeButton variant="secondary" outline data-test="choose-files" @click="onChooseFiles">
+          Choose files…
+        </VibeButton>
         <VibeButton variant="secondary" outline data-test="prune-missing" @click="onPruneMissing">
           Remove missing tracks
         </VibeButton>
@@ -112,6 +115,20 @@ async function onAddFolders(): Promise<void> {
   });
   if (result) {
     status.value = `Added ${result.files_upserted} files from ${result.roots_scanned} folder(s).`;
+  }
+}
+
+async function onChooseFiles(): Promise<void> {
+  const paths = await run(() => api.pickScanPaths("file"), {
+    errorPrefix: "File picker failed",
+  });
+  if (!paths || paths.length === 0) return;
+  status.value = "Importing files…";
+  const result = await run(() => api.scanPaths(paths), {
+    errorPrefix: "Import failed",
+  });
+  if (result) {
+    status.value = `Imported ${result.files_upserted} of ${paths.length} file(s).`;
   }
 }
 

@@ -67,6 +67,26 @@ describe("SettingsView", () => {
     expect(w.get('[data-test="settings-status"]').text()).toContain("3 of 10");
   });
 
+  it("choosing files imports the picked paths and reports the result", async () => {
+    vi.mocked(api.pickScanPaths).mockResolvedValue(["/m/a.mp3", "/m/b.mp3"]);
+    const w = mount(SettingsView, { global: { stubs } });
+    await flushPromises();
+    await w.get('[data-test="choose-files"]').trigger("click");
+    await flushPromises();
+    expect(api.pickScanPaths).toHaveBeenCalledWith("file");
+    expect(api.scanPaths).toHaveBeenCalledWith(["/m/a.mp3", "/m/b.mp3"]);
+    expect(w.get('[data-test="settings-status"]').text()).toContain("5 of 2");
+  });
+
+  it("choosing files does nothing when the picker is cancelled", async () => {
+    vi.mocked(api.pickScanPaths).mockResolvedValue([]);
+    const w = mount(SettingsView, { global: { stubs } });
+    await flushPromises();
+    await w.get('[data-test="choose-files"]').trigger("click");
+    await flushPromises();
+    expect(api.scanPaths).not.toHaveBeenCalled();
+  });
+
   it("clearing history calls the backend", async () => {
     const w = mount(SettingsView, { global: { stubs } });
     await flushPromises();
