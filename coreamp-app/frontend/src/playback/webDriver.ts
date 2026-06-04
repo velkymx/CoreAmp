@@ -1,6 +1,7 @@
 // Thin adapter over a single HTMLAudioElement. The store calls this for the
 // 'web' source; tests mock this module so decision logic stays deterministic.
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { replayGainMultiplier } from "@/util/gain";
 
 let el: HTMLAudioElement | null = null;
 let loadedPath: string | null = null;
@@ -16,6 +17,10 @@ let eqNodes: BiquadFilterNode[] = [];
 // Master volume. Once the element is routed through Web Audio, HTMLAudioElement
 // .volume no longer affects output — output level must be set on a GainNode.
 let masterGain: GainNode | null = null;
+// Per-track ReplayGain stage (linear multiplier); unity until a tagged track
+// sets it. Sits between the analyser and the master volume.
+let replayGainNode: GainNode | null = null;
+let lastReplayGain = 1;
 let lastVolume = 1;
 
 interface EqSettings {
@@ -57,9 +62,13 @@ function ensureGraph(): void {
       eqNodes.push(biquad);
     }
     node.connect(analyser);
+    // analyser → replayGain → masterGain → destination
+    replayGainNode = ctx.createGain();
+    replayGainNode.gain.value = lastReplayGain;
     masterGain = ctx.createGain();
     masterGain.gain.value = lastVolume;
-    analyser.connect(masterGain);
+    analyser.connect(replayGainNode);
+    replayGainNode.connect(masterGain);
     masterGain.connect(ctx.destination);
 
     if (pendingEq) applyEqInternal(pendingEq);
@@ -142,6 +151,12 @@ export const webDriver = {
   },
   seek(secs: number): void {
     audio().currentTime = secs;
+  },
+  // Apply the current track's ReplayGain (dB; null = none → unity). Held so it
+  // survives a graph (re)build between tracks.
+  setReplayGain(db: number | null): void {
+    lastReplayGain = replayGainMultiplier(db);
+    if (replayGainNode) replayGainNode.gain.value = lastReplayGain;
   },
   setVolume(level: number): void {
     lastVolume = level;

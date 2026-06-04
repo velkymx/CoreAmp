@@ -71,6 +71,8 @@ export const libraryCount = () => call<number>("library_count");
 export const pruneMissingFiles = () => call<number>("prune_missing_files");
 export const listAlbumTracks = (album: string, artist?: string | null) =>
   call<LibraryTrack[]>("list_album_tracks", { album, artist: artist ?? null });
+export const readReplayGain = (path: string) =>
+  call<number | null>("read_replay_gain", { path });
 export const listGenres = () => call<string[]>("list_genres");
 export const listArtists = () => call<ArtistSummary[]>("list_artists");
 export const listAlbums = () => call<AlbumSummary[]>("list_albums");

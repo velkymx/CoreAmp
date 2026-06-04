@@ -353,6 +353,18 @@ export const usePlayerStore = defineStore("player", {
         } else {
           webDriver.load(track.path);
           webDriver.setVolume(this.muted ? 0 : this.volume);
+          // Reset ReplayGain for the new track, then apply its tag once read.
+          // Guarded so a slow read for a track the user skipped past is dropped.
+          webDriver.setReplayGain(null);
+          const rgPath = track.path;
+          void api
+            .readReplayGain(rgPath)
+            .then((db) => {
+              if (this.queue[this.currentIndex]?.path === rgPath) {
+                webDriver.setReplayGain(db);
+              }
+            })
+            .catch(() => {});
           await webDriver.resume();
         }
         this.isPlaying = true;

@@ -207,6 +207,29 @@ pub fn read_track_artwork(path: &Path) -> Option<EmbeddedArtwork> {
     read_directory_artwork(path)
 }
 
+/// Parse a ReplayGain gain value like "-6.48 dB" / "3.21 DB" / "-6.48" into a
+/// dB float. Returns None for blank/garbage values.
+pub fn parse_replay_gain_db(value: &str) -> Option<f32> {
+    let mut s = value.trim();
+    if s.len() >= 2 && s[s.len() - 2..].eq_ignore_ascii_case("db") {
+        s = s[..s.len() - 2].trim();
+    }
+    s.parse::<f32>().ok()
+}
+
+/// Read the track ReplayGain (dB) from a file's tags, if present.
+pub fn read_track_replay_gain(path: &Path) -> Option<f32> {
+    let tagged_file = lofty::read_from_path(path).ok()?;
+    for tag in ordered_tags(&tagged_file) {
+        if let Some(value) = tag.get_string(ItemKey::ReplayGainTrackGain)
+            && let Some(db) = parse_replay_gain_db(value)
+        {
+            return Some(db);
+        }
+    }
+    None
+}
+
 fn is_missing(value: Option<Cow<'_, str>>) -> bool {
     match value {
         None => true,
@@ -371,9 +394,24 @@ pub fn write_tags(path: &Path, metadata: &TrackMetadata) -> Result<bool, String>
 
 #[cfg(test)]
 mod tests {
-    use super::directory_artwork_candidates;
+    use super::{directory_artwork_candidates, parse_replay_gain_db};
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn parse_replay_gain_db_handles_units_and_signs() {
+        assert_eq!(parse_replay_gain_db("-6.48 dB"), Some(-6.48));
+        assert_eq!(parse_replay_gain_db("3.21 DB"), Some(3.21));
+        assert_eq!(parse_replay_gain_db("  +0.00 dB "), Some(0.0));
+        assert_eq!(parse_replay_gain_db("-6.48"), Some(-6.48));
+    }
+
+    #[test]
+    fn parse_replay_gain_db_rejects_garbage() {
+        assert_eq!(parse_replay_gain_db(""), None);
+        assert_eq!(parse_replay_gain_db("loud"), None);
+        assert_eq!(parse_replay_gain_db("dB"), None);
+    }
 
     fn temp_dir() -> std::path::PathBuf {
         let stamp = SystemTime::now()

@@ -770,6 +770,12 @@ fn list_recently_added(limit: usize) -> Result<Vec<LibraryTrack>, String> {
     Ok(rows.into_iter().map(library_track_from_row).collect())
 }
 
+/// Track ReplayGain in dB from the file's tags (None when untagged).
+#[tauri::command]
+fn read_replay_gain(path: String) -> Option<f32> {
+    metadata::read_track_replay_gain(Path::new(&path))
+}
+
 #[tauri::command]
 fn list_album_tracks(album: String, artist: Option<String>) -> Result<Vec<LibraryTrack>, String> {
     let rows = db::list_album_tracks(&album, artist.as_deref())?;
@@ -1890,6 +1896,7 @@ fn main() {
             library_count,
             prune_missing_files,
             list_album_tracks,
+read_replay_gain,
             list_genres,
             list_artists,
             list_albums,

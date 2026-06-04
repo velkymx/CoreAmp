@@ -16,6 +16,7 @@ vi.mock("@/api/tauri", () => ({
   nativeAudioSelectedOutputDevice: vi.fn().mockResolvedValue({ selected_name: null }),
   nativeAudioSetOutputDevice: vi.fn().mockResolvedValue(undefined),
   recordPlay: vi.fn().mockResolvedValue(undefined),
+  readReplayGain: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/playback/webDriver", () => ({
   webDriver: {
@@ -26,6 +27,7 @@ vi.mock("@/playback/webDriver", () => ({
     resume: vi.fn().mockResolvedValue(undefined),
     seek: vi.fn(),
     setVolume: vi.fn(),
+    setReplayGain: vi.fn(),
     position: vi.fn(() => 0),
     duration: vi.fn(() => 0),
     hasEnded: vi.fn(() => false),
@@ -46,7 +48,9 @@ import {
   listNativeOutputDevices,
   nativeAudioSelectedOutputDevice,
   nativeAudioSetOutputDevice,
+  readReplayGain,
 } from "@/api/tauri";
+import { flushPromises } from "@vue/test-utils";
 import { webDriver } from "@/playback/webDriver";
 import { usePlayerStore } from "@/stores/player";
 import { persistQueue } from "@/util/queueStorage";
@@ -826,6 +830,26 @@ describe("player.setSource", () => {
     p.$patch({ source: "web" });
     await p.setSource("web");
     expect(nativeAudioStop).not.toHaveBeenCalled();
+  });
+});
+
+describe("player ReplayGain", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  });
+
+  it("resets then applies the track ReplayGain on web playback", async () => {
+    vi.mocked(readReplayGain).mockResolvedValue(-6.48);
+    const p = usePlayerStore();
+    await p.playTracks(
+      [{ path: "/m/a.mp3", title: "A", artist: null, album: null, liked: false }] as never,
+      0,
+    );
+    await flushPromises();
+    expect(readReplayGain).toHaveBeenCalledWith("/m/a.mp3");
+    expect(webDriver.setReplayGain).toHaveBeenCalledWith(null);
+    expect(webDriver.setReplayGain).toHaveBeenCalledWith(-6.48);
   });
 });
 
