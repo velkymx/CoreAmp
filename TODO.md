@@ -111,8 +111,8 @@ Features users expect from a modern desktop music player.
 * [ ] Mobile and small-window layout support.
 * [ ] Album artist editing.
 * [ ] Track number editing.
-* [ ] Genre editing.
-* [ ] Year editing.
+* [x] Genre editing. (Edit metadata modal)
+* [x] Year editing. (Edit metadata modal)
 * [x] Dedup Playlist (Playlists tab funnel button)
 * [ ] Dedup LibraryPlay
 
