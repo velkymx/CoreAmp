@@ -1,8 +1,42 @@
 # CoreAmp TODO
 
-Forward-looking backlog only.
+Act as a Principal Systems Architect and Maintainer for the CoreAmp project. Your mission is to maintain a high-performance Tauri 2.x application, consisting of a Rust-based workspace (coreamp-common, coreamp-app, coreamp-daemon) and a high-performance Vue 3 + VibeUI 1.0.2 dashboard. You prioritize "The VibePlayer Way" for systems code (zero-cost abstractions, fearless concurrency) and "The VibeUI Way" for the interface (shorthand props, composable slots), ensuring the entire stack remains ultra-fast, memory-safe, and minimalist.
 
-Completed work belongs in `CHANGELOG.md`.
+#### Context Available
+* Project repository: CoreAmp (Tauri 2.11.2, Rust workspace, Vue 3, Vite, VibeUI 1.0.2)
+* Audio/System Logic: Rust (`cpal`, `rodio`, `lofty`), lock-free audio threading
+* Interface: VibeUI 1.0.2, Bootstrap 5.3, Vanilla JS
+* Infrastructure: RTK (https://www.rtk-ai.app/docs/) for intelligent frontend-backend orchestration
+* Standards: VibeUI LLM Rules (https://github.com/velkymx/vibeui/blob/1.0-main/llms.txt)
+
+#### Iterative Workflow
+For each cycle, follow this sequence:
+1. Task Selection: Identify the next incomplete item in `coreamp-app/frontend/TODO.md`. Do not batch tasks.
+2. Architecture Plan: Provide a 1-2 sentence plan citing the specific Rust primitive (e.g., `Arc`, `Atomic`), VibeUI component/pattern, or RTK orchestration logic to be used.
+3. Test-Driven Development (Strictly Native):
+    * Rust: Use `cargo test`. Never use `true == true` assertions.
+    * Frontend: Use `vitest`. Never use `true = true` assertions or mocks to bypass logic.
+    * Confirm the new test fails, then implement production code until it passes.
+4. Production Implementation: Write minimal, production-grade code. Ensure all code is fully functional, complete, and devoid of placeholders.
+5. Framework Leverage:
+    * Rust Workspace: Utilize zero-copy parsing and lock-free thread safety per Tauri 2.11.2 specs.
+    * Frontend: Utilize VibeUI 1.0.2 components via Vite, favoring composable slots for complex layouts.
+    * Orchestration: Use RTK to handle complex data fetching and state synchronization between the Rust backend and Vue frontend.
+
+#### Strict Engineering Rules
+* VibeUI 1.0.2 Integration: All UI components must strictly adhere to VibeUI 1.0.2 standards (buttons should be VibeButtons, Rows should be VibeRows, etc.).
+* Performance-First Design:
+    * Rust: Lock-free audio threads, stack allocation, heap-clone avoidance.
+    * Frontend: Minimal DOM nodes, optimized Vite asset compilation, efficient VibeUI component usage.
+* Minimalist Philosophy: Do not introduce new dependencies or abstractions unless there is an absolute functional necessity. If you believe refactoring is required, you MUST ask for user approval and explain the "why" and "how" (addressing performance impact) first.
+* No Placeholders: Return full, complete files. Never use `// TODO`, `/* logic here */`, or shorthand.
+* Scope Discipline: Strictly modify only files relevant to the current task. Follow existing workspace/namespace conventions.
+
+#### Git and Version Control
+* Verification: Run `cargo test` or `npm run test` (as appropriate) to confirm all tests pass before committing.
+* Atomic Commits: Execute one git commit per item immediately upon passing tests.
+* Completed work belongs in `CHANGELOG.md`. Move completed checked items to the CHANGELOG.md in the format (YYYY-MM-DD To Do Title - Short Description)
+* DO NOT COMMIT THE TODO.md or CHANGELOG.md
 
 ---
 
@@ -48,7 +82,6 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 
 * [x] Fix `cargo tauri build` path issue.
 
-
 ---
 
 # P1 - Core Player Parity
@@ -61,9 +94,12 @@ Features users expect from a modern desktop music player.
 * [x] Add Dark theme.
 * [x] Add in-app theme toggle (System / Light / Dark).
 * [ ] Complete Apple-dark visual polish pass.
+* [ ] Visualizer Full Frame with Mini-Player Controls
 
 ## Library Browsing
-* [ ] Play From Here.
+
+* [x] Play From Here.
+* [ ] Play Track Next (add to queue as next track)
 * [x] Sort by Title. (VibeDataTable column sort)
 * [x] Sort by Artist. (VibeDataTable column sort)
 * [x] Sort by Album. (VibeDataTable column sort)
@@ -71,14 +107,14 @@ Features users expect from a modern desktop music player.
 * [ ] Search sort by genre.
 * [ ] Unknown-title grouping under U.
 * [ ] Recently Added view.
-* [ ] Album-centric browse and play-in-order workflow.
 * [x] Fix duration backfill for tracks added through explicit path import.
 * [ ] Mobile and small-window layout support.
 * [ ] Album artist editing.
 * [ ] Track number editing.
-* [ ] Disc number editing.
-* [ ] Composer editing.
 * [ ] Genre editing.
+* [ ] Year editing.
+* [ ] Dedup Playlist
+* [ ] Dedup LibraryPlay
 
 ## Playlists
 
@@ -113,6 +149,8 @@ Features users expect from a modern desktop music player.
 * [ ] Crossfade controls.
 * [ ] Crossfade tuning.
 
+* [ ] Sleep timer.
+
 ##  Intergration
 
 * [ ] Add update checking UI. (is there an updater package?)
@@ -135,67 +173,15 @@ Features users expect from a modern desktop music player.
 * [ ] Choose files picker.
 * [ ] Explicit path entry.
 * [ ] File and folder drop zone.
+* [ ] Complete MusicBrainz integration.
+* [ ] Complete Cover Art Archive integration.
+* [ ] Cache metadata lookups locally.
+* [ ] Avoid repeated lookups for previously failed matches.
 * [ ] Show a status in the updater UI when importing (with a spinner)
-
-
----
-
-# P3 - Audiophile Features
-
-
-
----
-
-# P4 - Visualizer Expansion
-
-## Reactive Visualizers
-
-* [ ] Vortex.
-* [ ] Nebula.
-* [ ] Storm.
-
-## Interactive Visualizers
-
-* [ ] Shapes dodge game visualizer.
-
-## Future Evaluation
-
-* [ ] 1/8 Octave spectrum.
-* [ ] Graph spectrum.
-* [ ] Discrete spectrum.
-* [ ] Mirror spectrum.
-* [ ] Mirror Split spectrum.
-* [ ] Radial spectrum.
-* [ ] Radial Graph spectrum.
-* [ ] Lumi Bars spectrum.
-* [ ] LED Bars spectrum.
-
----
-
-# P5 - Experimental / Superpowers
-
-## Cast & Catch
-
-* [ ] Fishing game.
-* [ ] Audio-reactive gameplay.
-* [ ] Progression and scoring systems.
-
-## Beat Hero
-
-* [ ] Beat detection.
-* [ ] Onset detection.
-* [ ] Home-row note mapping.
-* [ ] Typing trainer mode.
-* [ ] Score and progression systems.
-
-## Future Listening Features
-
-* [ ] Lyrics view.
-* [ ] Sleep timer.
-
----
-
-# Continuous Engineering
+* [ ] Download missing album artwork from Cover Art Archive.
+* [ ] Cache downloaded artwork locally.
+* [ ] Refresh artwork on demand.
+* [ ] Allow manual artwork replacement.
 
 ## Code Quality
 
@@ -211,77 +197,11 @@ Features users expect from a modern desktop music player.
 * [ ] Better error reporting.
 
 
-# TODO Additions
-
-## P1 - Core Player Parity
-
-### Metadata Enrichment
-
-* [ ] Fill missing metadata from MusicBrainz.
-* [ ] Fill missing release year.
-* [ ] Fill missing album artist.
-* [ ] Fill missing track numbers.
-* [ ] Fill missing disc numbers.
-* [ ] Fill missing genre when confidence is high.
-* [ ] Preview metadata changes before applying.
-* [ ] Bulk metadata enrichment for selected tracks.
-* [ ] Bulk metadata enrichment for albums.
-* [ ] Surface metadata enrichment failures in the UI.
-
-### Artwork
-
-* [ ] Download missing album artwork from Cover Art Archive.
-* [ ] Cache downloaded artwork locally.
-* [ ] Refresh artwork on demand.
-* [ ] Allow manual artwork replacement.
-
----
-
-## P2 - Power User Features
-
-### Metadata Management
-
-* [ ] Album artist editing.
-* [ ] Track number editing.
-* [ ] Disc number editing.
-* [ ] Composer editing.
-* [ ] Genre editing.
-* [ ] Batch metadata editing.
-
-### Lyrics
-
-* [ ] Lyrics view.
-* [ ] Support local `.lrc` lyric files.
-* [ ] Auto-load sidecar `.lrc` files.
-* [ ] Display synchronized lyrics when timestamps exist.
-* [ ] Display plain-text lyrics when timestamps are absent.
-* [ ] Remember lyric display preference per user.
-
----
-
-## P3 - Audiophile Features
-
-### Metadata Providers
-
-* [ ] Complete MusicBrainz integration.
-* [ ] Complete Cover Art Archive integration.
-* [ ] Cache metadata lookups locally.
-* [ ] Avoid repeated lookups for previously failed matches.
-
----
-
 ## P4 - Ship Blockers
 
 ### Networking
 
 * [x] Add MusicBrainz request rate limiting.
-* [ ] Update MusicBrainz user-agent string.
-* [ ] Add contact information to MusicBrainz requests.
-* [ ] Log persistent metadata-enrichment failures.
-
-### Library
-
-
 
 ### DSP Performance
 
@@ -292,9 +212,30 @@ EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 * [x] Debounce EQ updates during slider drag. (N/A — web EQ is cheap AudioParam)
 * [x] Prevent DSP state reallocations during active playback. (N/A — native path disabled)
 
-### Cutover
+## P5 Visualizer
 
-* [ ] Merge `epic/vibeui-migration` into the release branch.
-* [ ] Verify migrated functionality against CHANGELOG.
-* [ ] Confirm `dist` contains build output only.
+#### ThreeJS Visualizers
 
+Review the current implementations that already exist. They will all need to be converted into their own component to easy management. In addition to porting over the Storm, Orb, Vortex we need to review other projects for ideas on how best to do it.
+
+Projects to review:
+
+https://maximevermeeren.medium.com/threejs-objects-reacting-on-audio-1adca87ec71a
+https://speckyboy.com/audio-visualization-code-snippets/
+https://freefrontend.com/javascript-audio-visualizer/
+https://codepen.io/prakhar625/pen/zddKRj
+https://github.com/jhugheswebdev/sound-equalizer-threejs
+
+* [ ] Orb
+* [ ] Vortex
+* [ ] Storm
+
+
+### Games TBD
+
+Do not start. These will have a breakdown of each. 
+
+* [ ] Remove existing games entirely
+
+Chicken Lander - See PRD
+Keyboard Hero - See PRD
