@@ -5,6 +5,11 @@
     <ThreeOrb v-else-if="pluginId === 'orb'" />
     <ThreeSceneHost v-else-if="pluginId === 'vortex'" :key="'vortex'" :create="createVortex" />
     <ThreeSceneHost v-else-if="pluginId === 'storm'" :key="'storm'" :create="createStorm" />
+    <KeyboardHeroGame
+      v-else-if="pluginId === 'keyboard'"
+      :key="'keyboard'"
+      @close="pluginId = 'eq'"
+    />
 
     <!-- Controls overlay: hidden until you hover the visualizer (or in
          fullscreen) so it never covers the visuals during normal playback. -->
@@ -53,6 +58,7 @@ import { usePlayerStore } from "@/stores/player";
 import ThreeOrb from "@/components/ThreeOrb.vue";
 import ThreeSceneHost from "@/components/ThreeSceneHost.vue";
 import AudioMotionViz from "@/components/AudioMotionViz.vue";
+import KeyboardHeroGame from "@/components/KeyboardHeroGame.vue";
 import ProgressBar from "@/components/ProgressBar.vue";
 import TransportControls from "@/components/TransportControls.vue";
 import { createVortex } from "@/visualizer/vortex";
@@ -71,6 +77,7 @@ const pluginOptions = computed<FormSelectOption[]>(() => [
   { value: "orb", text: "Orb (3D)" },
   { value: "vortex", text: "Vortex" },
   { value: "storm", text: "Storm" },
+  { value: "keyboard", text: "Keyboard Hero" },
 ]);
 
 // Pseudo-fullscreen: expand the visualizer to a fixed full-window overlay
