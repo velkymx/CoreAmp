@@ -171,6 +171,7 @@ function emitMenu(
 .track-table {
   height: 100%;
   min-height: 18rem;
+  margin-top: 0.5rem;
   display: flex;
   flex-direction: column;
 }

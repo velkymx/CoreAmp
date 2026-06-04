@@ -36,6 +36,7 @@
       </div>
       <VibeDataTable
         v-else
+        class="mt-2"
         :items="playlists.playlists"
         :columns="columns"
         row-key="path"
