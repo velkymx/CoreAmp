@@ -9,6 +9,7 @@ import { ref, onMounted, onBeforeUnmount } from "vue";
 import { loadThree } from "@/visualizer/loadVendor";
 import { useFrequencyData } from "@/composables/useFrequencyData";
 import { extractBands } from "@/visualizer/bands";
+import { orbRotationSpeed } from "@/visualizer/orb";
 import { errorMessage } from "@/stores/notify";
 
 // Ported from the legacy "Reactive" three.js orb: an icosahedron whose vertices
@@ -67,9 +68,11 @@ const fragmentShader = `
   void main() {
     vec3 viewDir = normalize(cameraPosition - vWorldPosition);
     float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
-    float hueBase = 0.65 + sin(uTime * 0.12) * 0.15;
-    float hueShift = uBass * 0.2 - uTreble * 0.1;
-    float hue = mod(hueBase + hueShift, 1.0);
+    // Keep the orb in the blue band (CSS primary ~0.6 hue); only a small
+    // wobble/shift so it never drifts into purple/magenta.
+    float hueBase = 0.58 + sin(uTime * 0.12) * 0.04;
+    float hueShift = uBass * 0.06 - uTreble * 0.04;
+    float hue = clamp(hueBase + hueShift, 0.55, 0.64);
     vec3 baseColor = hsl2rgb(hue, 0.95, 0.2 + uMid * 0.1);
     float rimHue = mod(hue + 0.35 + uBassVelocity * 0.15, 1.0);
     vec3 rimColor = hsl2rgb(rimHue, 1.0, 0.25 + uTreble * 0.1);
@@ -124,7 +127,7 @@ function init(THREE: any): void {
   const wireGeo = new THREE.IcosahedronGeometry(0.97, 4);
   const wireBasePositions = new Float32Array(wireGeo.attributes.position.array);
   const wireMat = new THREE.MeshBasicMaterial({
-    color: 0x8844ff, wireframe: true, transparent: true, opacity: 0.18,
+    color: 0x0d6efd, wireframe: true, transparent: true, opacity: 0.18,
     blending: THREE.AdditiveBlending, depthWrite: false,
   });
   const wireMesh = new THREE.Mesh(wireGeo, wireMat);
@@ -216,9 +219,12 @@ function tick(time: number): void {
   s.camera.position.y = s.camTilt;
   s.camera.lookAt(0, 0, 0);
 
-  s.mesh.rotation.y += 0.003 + mid * 0.004;
+  // Spin speed tracks the song's energy (bass-weighted) so the orb turns with
+  // the music rather than at a fixed idle rate.
+  const spin = orbRotationSpeed({ bass, mid, treble });
+  s.mesh.rotation.y += spin;
   s.mesh.rotation.x += 0.001 + treble * 0.002;
-  s.mesh.rotation.z += 0.0005;
+  s.mesh.rotation.z += spin * 0.2;
   s.wireMesh.rotation.copy(s.mesh.rotation);
 
   const positions = s.geo.attributes.position.array;
@@ -263,7 +269,7 @@ function tick(time: number): void {
   s.wireMesh.scale.setScalar(bassScale * 1.02);
   s.bloomDecay = Math.max(0, s.bloomDecay - 0.03);
 
-  const hue = (0.7 + Math.sin(t * 0.08) * 0.12) % 1;
+  const hue = (0.6 + Math.sin(t * 0.08) * 0.04) % 1;
   s.wireMat.color.setHSL(hue, 0.95, 0.25 + treble * 0.1 + s.bloomDecay * 0.1);
   s.wireMat.opacity = 0.1 + bass * 0.1 + s.bloomDecay * 0.6;
 
@@ -295,7 +301,7 @@ function tick(time: number): void {
   s.pGeo.attributes.position.needsUpdate = true;
   s.pMat.opacity = 0.3 + bass * 0.3;
   s.pMat.size = 0.018 + treble * 0.015;
-  s.pMat.color.setHSL((hue + 0.15) % 1, 0.6, 0.5 + treble * 0.15);
+  s.pMat.color.setHSL((hue + 0.05) % 1, 0.6, 0.5 + treble * 0.15);
   s.sMat.opacity = 0.2 + Math.sin(t * 0.5) * 0.08 + bass * 0.1;
 
   s.trailMat.opacity = 0.06 + (1.0 - bass) * 0.06;
