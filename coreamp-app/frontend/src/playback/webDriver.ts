@@ -10,6 +10,9 @@ import { EQ_FREQUENCIES } from "@/audio/eqFrequencies";
 interface Deck {
   el: HTMLAudioElement;
   source: MediaElementAudioSourceNode | null;
+  // Per-deck gain so two decks can crossfade independently (source → gain →
+  // preamp). The active deck sits at 1, the idle deck at 0.
+  gain: GainNode | null;
   path: string | null;
 }
 
@@ -40,7 +43,7 @@ function ensureDecks(): void {
     const el = new Audio();
     el.crossOrigin = "anonymous";
     el.preload = "auto";
-    decks.push({ el, source: null, path: null });
+    decks.push({ el, source: null, gain: null, path: null });
   }
 }
 
@@ -70,11 +73,15 @@ function ensureGraph(): void {
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.8;
 
-    // Both decks feed the preamp; the paused deck is silent.
-    for (const deck of decks) {
-      if (!deck.source) deck.source = ctx.createMediaElementSource(deck.el);
-      deck.source.connect(preampNode);
-    }
+    // Both decks feed the preamp through their own gain (source → gain →
+    // preamp). The active deck is at unity; the idle one is silent.
+    decks.forEach((deck, i) => {
+      if (!deck.source) deck.source = ctx!.createMediaElementSource(deck.el);
+      if (!deck.gain) deck.gain = ctx!.createGain();
+      deck.gain.gain.value = i === activeIndex ? 1 : 0;
+      deck.source.connect(deck.gain);
+      deck.gain.connect(preampNode!);
+    });
 
     // preamp → b0 … b4 → analyser
     let node: AudioNode = preampNode;
@@ -153,7 +160,48 @@ export const webDriver = {
     const current = activeDeck();
     current.el.pause();
     current.el.currentTime = 0;
+    // Hand the gain over so the newly-active deck is audible and the old one
+    // silent (relevant once per-deck gains exist for crossfade).
+    if (current.gain) current.gain.gain.value = 0;
+    if (next.gain) next.gain.gain.value = 1;
     activeIndex = 1 - activeIndex;
+    return true;
+  },
+  // Crossfade into the preloaded next track over `durationSecs`: start the idle
+  // deck and ramp its gain 0→1 while the current deck ramps 1→0, then pause the
+  // old deck. Returns false (caller should fall back to a normal advance) when
+  // there's no preloaded track or no audio graph yet.
+  startCrossfade(durationSecs: number): boolean {
+    if (!ctx || decks.length < 2 || durationSecs <= 0) return false;
+    const current = activeDeck();
+    const next = inactiveDeck();
+    if (!next.path || !next.gain || !current.gain) return false;
+
+    const t = ctx.currentTime;
+    next.el.currentTime = 0;
+    void next.el.play().catch(() => {});
+
+    current.gain.gain.cancelScheduledValues(t);
+    current.gain.gain.setValueAtTime(current.gain.gain.value, t);
+    current.gain.gain.linearRampToValueAtTime(0, t + durationSecs);
+
+    next.gain.gain.cancelScheduledValues(t);
+    next.gain.gain.setValueAtTime(0, t);
+    next.gain.gain.linearRampToValueAtTime(1, t + durationSecs);
+
+    const oldEl = current.el;
+    activeIndex = 1 - activeIndex; // controls now reflect the incoming track
+    setTimeout(
+      () => {
+        try {
+          oldEl.pause();
+          oldEl.currentTime = 0;
+        } catch {
+          /* ignore */
+        }
+      },
+      durationSecs * 1000 + 120,
+    );
     return true;
   },
   isLoaded(): boolean {

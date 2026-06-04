@@ -59,6 +59,13 @@ describe("AudioView", () => {
     expect(player.gapless).toBe(true);
   });
 
+  it("choosing a crossfade duration updates the player store", async () => {
+    const w = mount(AudioView, { global: { stubs } });
+    const player = usePlayerStore();
+    await w.get('[data-test="crossfade-secs"]').setValue("6");
+    expect(player.crossfadeSecs).toBe(6);
+  });
+
   it("the boost button cycles the boost level", async () => {
     const w = mount(AudioView, { global: { stubs } });
     const audio = useAudioStore();

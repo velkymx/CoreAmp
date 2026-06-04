@@ -11,6 +11,7 @@ import * as api from "@/api/tauri";
 import { webDriver } from "@/playback/webDriver";
 import { buildShuffleOrder } from "@/util/shuffle";
 import { restoreQueue, persistQueueIfChanged } from "@/util/queueStorage";
+import { shouldStartCrossfade } from "@/util/crossfade";
 import { useNotifyStore, errorMessage } from "@/stores/notify";
 
 export type ToggleResult = "paused" | "resumed" | "played" | "busy" | "noop";
@@ -52,6 +53,23 @@ function persistGapless(on: boolean): void {
   }
 }
 
+const CROSSFADE_KEY = "coreamp.crossfade.secs";
+function loadCrossfade(): number {
+  try {
+    const v = Number.parseFloat(localStorage.getItem(CROSSFADE_KEY) ?? "");
+    return Number.isFinite(v) && v >= 0 ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+function persistCrossfade(secs: number): void {
+  try {
+    localStorage.setItem(CROSSFADE_KEY, String(secs));
+  } catch {
+    /* best-effort */
+  }
+}
+
 interface PlayerState {
   queue: Track[];
   currentIndex: number;
@@ -72,6 +90,9 @@ interface PlayerState {
   replayGainMode: ReplayGainMode;
   // Preload the next track into a second deck and swap on end-of-track.
   gapless: boolean;
+  // Crossfade duration (seconds, 0 = off) + an in-flight guard.
+  crossfadeSecs: number;
+  crossfading: boolean;
   // Wall-clock ms when the sleep timer fires (null = no timer armed).
   sleepEndsAt: number | null;
   artwork: TrackArtwork | null;
@@ -107,6 +128,8 @@ export const usePlayerStore = defineStore("player", {
     stopAfterCurrent: false,
     replayGainMode: "track",
     gapless: false,
+    crossfadeSecs: 0,
+    crossfading: false,
     sleepEndsAt: null,
     artwork: null,
     signal: null,
@@ -131,6 +154,7 @@ export const usePlayerStore = defineStore("player", {
       this.nativeAvailable = false;
       this.replayGainMode = loadReplayGainMode();
       this.gapless = loadGapless();
+      this.crossfadeSecs = loadCrossfade();
 
       // Restore the queue from the previous session (paused — we remember what
       // was queued and where, but don't auto-start audio on launch).
@@ -241,8 +265,11 @@ export const usePlayerStore = defineStore("player", {
         this.positionSecs = webDriver.position();
         const dur = webDriver.duration();
         this.durationSecs = dur > 0 ? dur : null;
-        // The web element signals end-of-track; advance the queue.
-        if (webDriver.hasEnded() && this.isPlaying) {
+        // Begin a crossfade into the next track if we're inside the fade window.
+        this.maybeStartCrossfade();
+        // The web element signals end-of-track; advance the queue (unless a
+        // crossfade already moved us on).
+        if (webDriver.hasEnded() && this.isPlaying && !this.crossfading) {
           void this.nextTrack();
         }
         return;
@@ -430,7 +457,7 @@ export const usePlayerStore = defineStore("player", {
     // end-of-track advance can swap to it without a load gap. Only the linear
     // next track is preloaded (shuffle order is decided at advance time).
     preloadNext(): void {
-      if (!this.gapless) return;
+      if (!this.gapless && this.crossfadeSecs <= 0) return;
       if (this.source === "native" && this.nativeAvailable) return;
       const next = this.queue[this.currentIndex + 1];
       if (next) webDriver.preload?.(next.path);
@@ -441,6 +468,40 @@ export const usePlayerStore = defineStore("player", {
       this.gapless = on;
       persistGapless(on);
       if (on) this.preloadNext();
+    },
+
+    // Set the crossfade duration in seconds (0 = off; persisted). Preloads the
+    // next track so the fade has something buffered to fade into.
+    setCrossfade(secs: number): void {
+      this.crossfadeSecs = Math.max(0, secs);
+      persistCrossfade(this.crossfadeSecs);
+      if (this.crossfadeSecs > 0) this.preloadNext();
+    },
+
+    // Near end-of-track, if crossfade is enabled and the next track is already
+    // buffered, ramp into it. Returns true when a crossfade was started.
+    maybeStartCrossfade(): boolean {
+      if (this.crossfading || this.crossfadeSecs <= 0 || !this.isPlaying) return false;
+      if (this.source === "native" && this.nativeAvailable) return false;
+      const next = this.queue[this.currentIndex + 1];
+      if (!next) return false;
+      if (!shouldStartCrossfade(this.positionSecs, this.durationSecs, this.crossfadeSecs, true)) {
+        return false;
+      }
+      if (webDriver.preloadedPath?.() !== next.path) return false;
+      if (!webDriver.startCrossfade?.(this.crossfadeSecs)) return false;
+
+      this.crossfading = true;
+      this.currentIndex += 1;
+      webDriver.setReplayGain(null);
+      this.applyReplayGainFor(next.path);
+      void this.loadNowPlayingMeta();
+      void api.recordPlay(next.path).catch(() => {});
+      this.preloadNext();
+      setTimeout(() => {
+        this.crossfading = false;
+      }, this.crossfadeSecs * 1000 + 200);
+      return true;
     },
 
     async playCurrent(): Promise<void> {

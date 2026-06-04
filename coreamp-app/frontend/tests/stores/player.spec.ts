@@ -24,6 +24,7 @@ vi.mock("@/playback/webDriver", () => ({
     preload: vi.fn(),
     preloadedPath: vi.fn(() => null),
     swapToPreloaded: vi.fn(() => false),
+    startCrossfade: vi.fn(() => false),
     isLoaded: vi.fn(() => false),
     isPaused: vi.fn(() => true),
     pause: vi.fn(),
@@ -850,6 +851,75 @@ describe("player clearQueue", () => {
     expect(p.currentIndex).toBe(-1);
     expect(p.isPlaying).toBe(false);
     expect(webDriver.pause).toHaveBeenCalled();
+  });
+});
+
+describe("player crossfade", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    (webDriver.isLoaded as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    (webDriver.preloadedPath as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (webDriver.startCrossfade as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  });
+
+  it("starts a crossfade in the fade window when the next track is preloaded", () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "web",
+      queue: mkQueue(),
+      currentIndex: 0,
+      isPlaying: true,
+      positionSecs: 96,
+      durationSecs: 100,
+      crossfadeSecs: 5,
+    });
+    (webDriver.preloadedPath as ReturnType<typeof vi.fn>).mockReturnValue("/m/1.mp3");
+    (webDriver.startCrossfade as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    expect(p.maybeStartCrossfade()).toBe(true);
+    expect(webDriver.startCrossfade).toHaveBeenCalledWith(5);
+    expect(p.currentIndex).toBe(1);
+    expect(p.crossfading).toBe(true);
+  });
+
+  it("does not crossfade outside the fade window", () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "web",
+      queue: mkQueue(),
+      currentIndex: 0,
+      isPlaying: true,
+      positionSecs: 50,
+      durationSecs: 100,
+      crossfadeSecs: 5,
+    });
+    (webDriver.preloadedPath as ReturnType<typeof vi.fn>).mockReturnValue("/m/1.mp3");
+    expect(p.maybeStartCrossfade()).toBe(false);
+    expect(webDriver.startCrossfade).not.toHaveBeenCalled();
+  });
+
+  it("does not crossfade when the next track isn't preloaded", () => {
+    const p = usePlayerStore();
+    p.$patch({
+      source: "web",
+      queue: mkQueue(),
+      currentIndex: 0,
+      isPlaying: true,
+      positionSecs: 96,
+      durationSecs: 100,
+      crossfadeSecs: 5,
+    });
+    (webDriver.preloadedPath as ReturnType<typeof vi.fn>).mockReturnValue("/m/somethingelse.mp3");
+    expect(p.maybeStartCrossfade()).toBe(false);
+  });
+
+  it("setCrossfade persists the value and preloads the next track", () => {
+    const p = usePlayerStore();
+    p.$patch({ queue: mkQueue(), currentIndex: 0 });
+    p.setCrossfade(6);
+    expect(p.crossfadeSecs).toBe(6);
+    expect(localStorage.getItem("coreamp.crossfade.secs")).toBe("6");
+    expect(webDriver.preload).toHaveBeenCalledWith("/m/1.mp3");
   });
 });
 

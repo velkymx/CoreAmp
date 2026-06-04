@@ -23,6 +23,16 @@
         />
       </label>
       <VibeFormSwitch v-model="gaplessModel" label="Gapless" data-test="gapless-toggle" />
+      <label class="d-flex align-items-center gap-2 mb-0">
+        <span class="text-secondary small">Crossfade</span>
+        <VibeFormSelect
+          v-model="crossfadeModel"
+          :options="crossfadeOptions"
+          aria-label="Crossfade duration"
+          data-test="crossfade-secs"
+          style="max-width: 8rem"
+        />
+      </label>
     </div>
 
     <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -131,6 +141,19 @@ const replayGainModel = computed<FormSelectOptionValue>({
 const gaplessModel = computed<boolean>({
   get: () => player.gapless,
   set: (value) => player.setGapless(value),
+});
+
+const crossfadeOptions: FormSelectOption[] = [
+  { value: 0, text: "Off" },
+  { value: 2, text: "2 s" },
+  { value: 4, text: "4 s" },
+  { value: 6, text: "6 s" },
+  { value: 8, text: "8 s" },
+  { value: 12, text: "12 s" },
+];
+const crossfadeModel = computed<FormSelectOptionValue>({
+  get: () => player.crossfadeSecs,
+  set: (value) => player.setCrossfade(Number(value)),
 });
 const { freq } = useFrequencyData();
 
