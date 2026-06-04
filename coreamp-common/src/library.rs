@@ -163,15 +163,9 @@ fn collect_media_path(path: &Path, results: &mut Vec<PreScannedFile>) {
     }
 }
 
-pub fn scan_library_files(roots: &[PathBuf]) -> Vec<PreScannedFile> {
-    let mut files = Vec::new();
-    for root in roots {
-        collect_media_path(root, &mut files);
-    }
-    files
-}
-
-pub fn scan_explicit_paths(paths: &[PathBuf]) -> Vec<PreScannedFile> {
+/// Collect indexable media files under the given paths (each may be a file or a
+/// directory). Shared by the configured-library scan and explicit-path imports.
+pub fn scan_media_paths(paths: &[PathBuf]) -> Vec<PreScannedFile> {
     let mut files = Vec::new();
     for path in paths {
         collect_media_path(path, &mut files);
@@ -212,7 +206,7 @@ fn index_scanned_files(
 }
 
 pub fn index_library_dirs(roots: &[PathBuf]) -> Result<ScanSummary, String> {
-    let files = scan_library_files(roots);
+    let files = scan_media_paths(roots);
     index_scanned_files(&files, roots.len())
 }
 
@@ -222,7 +216,7 @@ pub fn index_configured_library() -> Result<ScanSummary, String> {
 }
 
 pub fn index_explicit_paths(paths: &[PathBuf]) -> Result<ScanSummary, String> {
-    let files = scan_explicit_paths(paths);
+    let files = scan_media_paths(paths);
     index_scanned_files(&files, paths.len())
 }
 
@@ -280,7 +274,7 @@ pub fn enrich_missing_metadata(limit: usize, proxy: Option<&str>) -> Result<usiz
 mod tests {
     use super::{
         combine_asset_roots, format_enrichment_failure, is_supported_media_file,
-        scan_explicit_paths, scan_library_files,
+        scan_media_paths,
     };
 
     #[test]
@@ -321,7 +315,7 @@ mod tests {
         fs::write(nested.join("track2.ogg"), b"fake").expect("write ogg");
         fs::write(nested.join("notes.txt"), b"skip").expect("write txt");
 
-        let files = scan_library_files(std::slice::from_ref(&root));
+        let files = scan_media_paths(std::slice::from_ref(&root));
         let names: Vec<_> = files
             .into_iter()
             .map(|f| f.path.file_name().unwrap().to_string_lossy().to_string())
@@ -351,7 +345,7 @@ mod tests {
         let scan_root = root.clone();
         let (tx, rx) = mpsc::channel();
         let handle = thread::spawn(move || {
-            let files = scan_library_files(std::slice::from_ref(&scan_root));
+            let files = scan_media_paths(std::slice::from_ref(&scan_root));
             let _ = tx.send(files.len());
         });
         let count = rx
@@ -392,7 +386,7 @@ mod tests {
         let file = root.join("single.mp3");
         fs::write(&file, b"fake").expect("write file");
 
-        let files = scan_explicit_paths(std::slice::from_ref(&file));
+        let files = scan_media_paths(std::slice::from_ref(&file));
         assert_eq!(files.len(), 1);
         assert_eq!(
             files[0]
