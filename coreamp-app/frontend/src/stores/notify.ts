@@ -22,8 +22,20 @@ export function errorMessage(err: unknown): string {
 let nextId = 1;
 
 export const useNotifyStore = defineStore("notify", {
-  state: (): { notes: Note[] } => ({ notes: [] }),
+  state: (): { notes: Note[]; pending: number } => ({ notes: [], pending: 0 }),
+  getters: {
+    // True while one or more tracked async operations are in flight.
+    busy: (state): boolean => state.pending > 0,
+  },
   actions: {
+    // Ref-counted so overlapping operations keep the busy state until the last
+    // one settles.
+    beginPending(): void {
+      this.pending += 1;
+    },
+    endPending(): void {
+      if (this.pending > 0) this.pending -= 1;
+    },
     push(kind: NoteKind, text: string): number {
       const id = nextId++;
       this.notes.push({ id, kind, text });

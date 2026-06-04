@@ -10,6 +10,7 @@ export function useNotify() {
     fn: () => Promise<T>,
     opts: { errorPrefix?: string; success?: string } = {},
   ): Promise<T | undefined> {
+    notify.beginPending();
     try {
       const result = await fn();
       if (opts.success) notify.success(opts.success);
@@ -18,6 +19,8 @@ export function useNotify() {
       const prefix = opts.errorPrefix ? `${opts.errorPrefix}: ` : "";
       notify.error(`${prefix}${errorMessage(err)}`);
       return undefined;
+    } finally {
+      notify.endPending();
     }
   }
 

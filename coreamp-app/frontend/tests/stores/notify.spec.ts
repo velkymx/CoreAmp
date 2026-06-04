@@ -29,6 +29,26 @@ describe("notify store", () => {
     n.clear();
     expect(n.notes).toHaveLength(0);
   });
+
+  it("busy is ref-counted across overlapping pending operations", () => {
+    const n = useNotifyStore();
+    expect(n.busy).toBe(false);
+    n.beginPending();
+    n.beginPending();
+    expect(n.busy).toBe(true);
+    n.endPending();
+    expect(n.busy).toBe(true); // one still in flight
+    n.endPending();
+    expect(n.busy).toBe(false);
+  });
+
+  it("endPending never drives the count negative", () => {
+    const n = useNotifyStore();
+    n.endPending();
+    n.endPending();
+    expect(n.pending).toBe(0);
+    expect(n.busy).toBe(false);
+  });
 });
 
 describe("errorMessage", () => {

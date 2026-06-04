@@ -1,5 +1,8 @@
 <template>
   <div class="app-shell p-3">
+    <div v-if="notify.busy" class="global-busy" data-test="global-busy" aria-hidden="true">
+      <span class="global-busy-bar"></span>
+    </div>
     <!-- Player-first top region: player card on the left, queue on the right. -->
     <section class="top-region">
       <PlayerCard class="player-pane" />
@@ -47,11 +50,13 @@ import AddToPlaylistModal from "@/components/AddToPlaylistModal.vue";
 import TrackDetailsModal from "@/components/TrackDetailsModal.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useUiStore, type TabName } from "@/stores/ui";
+import { useNotifyStore } from "@/stores/notify";
 import { applyShortcut, shouldIgnoreTarget } from "@/composables/useShortcuts";
 import { useColorMode } from "@velkymx/vibeui";
 
 const player = usePlayerStore();
 const ui = useUiStore();
+const notify = useNotifyStore();
 const { initColorMode } = useColorMode();
 
 // Global transport keyboard shortcuts: Space play/pause, ←/→ seek, ↑/↓ volume,
@@ -82,6 +87,33 @@ onBeforeUnmount(() => {
 <style scoped>
 .app-shell {
   min-height: 100vh;
+}
+/* Slim indeterminate top bar shown while any tracked async op is in flight. */
+.global-busy {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 2000;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+}
+.global-busy-bar {
+  display: block;
+  height: 100%;
+  width: 40%;
+  background: var(--bs-primary, #0d6efd);
+  animation: global-busy-slide 1s ease-in-out infinite;
+}
+@keyframes global-busy-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
 }
 .top-region {
   display: grid;
