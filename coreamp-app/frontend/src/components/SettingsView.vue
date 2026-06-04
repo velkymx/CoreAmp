@@ -67,6 +67,13 @@
           Import path
         </VibeButton>
       </div>
+      <div
+        class="import-dropzone border rounded p-3 text-center text-secondary mt-2"
+        :class="{ dragging }"
+        data-test="import-dropzone"
+      >
+        Drop audio files or folders here to import
+      </div>
     </section>
 
     <p v-if="status" class="text-secondary small" data-test="settings-status">{{ status }}</p>
@@ -75,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onBeforeUnmount } from "vue";
 import * as api from "@/api/tauri";
 import { useNotify } from "@/composables/useNotify";
 
@@ -86,6 +93,45 @@ const apiProxy = ref("");
 const importPath = ref("");
 const version = ref("");
 const status = ref("");
+const dragging = ref(false);
+
+// Scan whatever paths were dropped onto the window. The scanner ignores
+// non-audio files (e.g. a stray .m3u), so dropping a mixed selection is safe.
+async function importDropped(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  status.value = "Importing dropped items…";
+  const result = await run(() => api.scanPaths(paths), {
+    errorPrefix: "Import failed",
+  });
+  if (result) {
+    status.value = `Imported ${result.files_upserted} file(s) from ${paths.length} dropped item(s).`;
+  }
+}
+defineExpose({ importDropped });
+
+// OS-level file drops arrive through Tauri's webview drag-drop event (HTML5
+// drag events don't expose real paths in the webview). Guarded so it's a no-op
+// outside a Tauri webview (tests, plain browser dev).
+let unlistenDrop: (() => void) | undefined;
+onMounted(async () => {
+  try {
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    unlistenDrop = await getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload;
+      if (payload.type === "over" || payload.type === "enter") {
+        dragging.value = true;
+      } else if (payload.type === "drop") {
+        dragging.value = false;
+        void importDropped(payload.paths);
+      } else {
+        dragging.value = false;
+      }
+    });
+  } catch {
+    // Not inside a Tauri webview; drag-drop import unavailable.
+  }
+});
+onBeforeUnmount(() => unlistenDrop?.());
 
 onMounted(() =>
   run(
@@ -187,3 +233,15 @@ async function onClearHistory(): Promise<void> {
   status.value = "Play history cleared.";
 }
 </script>
+
+<style scoped>
+.import-dropzone {
+  border-style: dashed !important;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.import-dropzone.dragging {
+  background: rgba(13, 110, 253, 0.12);
+  border-color: var(--bs-primary, #0d6efd) !important;
+  color: var(--bs-primary, #0d6efd);
+}
+</style>

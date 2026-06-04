@@ -97,6 +97,26 @@ describe("SettingsView", () => {
     expect((w.get('[data-test="import-path"]').element as HTMLInputElement).value).toBe("");
   });
 
+  it("dropping files/folders imports the dropped paths", async () => {
+    const w = mount(SettingsView, { global: { stubs } });
+    await flushPromises();
+    await (
+      w.vm as unknown as { importDropped: (p: string[]) => Promise<void> }
+    ).importDropped(["/music/a.mp3", "/music/folder"]);
+    await flushPromises();
+    expect(api.scanPaths).toHaveBeenCalledWith(["/music/a.mp3", "/music/folder"]);
+    expect(w.get('[data-test="settings-status"]').text()).toContain("2 dropped item");
+  });
+
+  it("dropping nothing is a no-op", async () => {
+    const w = mount(SettingsView, { global: { stubs } });
+    await flushPromises();
+    await (
+      w.vm as unknown as { importDropped: (p: string[]) => Promise<void> }
+    ).importDropped([]);
+    expect(api.scanPaths).not.toHaveBeenCalled();
+  });
+
   it("clearing history calls the backend", async () => {
     const w = mount(SettingsView, { global: { stubs } });
     await flushPromises();
