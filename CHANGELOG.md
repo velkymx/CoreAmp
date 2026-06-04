@@ -1,5 +1,35 @@
 # Changelog
 
+## [Unreleased] - Backend hardening & P1 parity
+
+- 2026-06-03 Remove database lock bottlenecks during scanning/metadata - WAL + busy_timeout; duration backfill parses files off-lock.
+- 2026-06-03 Eliminate full-library metadata hash loading during scans - chunked IN query for the scanned paths only.
+- 2026-06-03 Stop re-reading audio files during library browsing - serve scan-time DB values (no per-row file open).
+- 2026-06-03 Move library scanning off UI and IPC threads - async commands via spawn_blocking; tray scan on its own thread.
+- 2026-06-03 Prevent symlink recursion during scans - canonicalized visited-dir set.
+- 2026-06-03 Improve large-library responsiveness - covered by the scan/browse perf fixes above.
+- 2026-06-03 DSP coefficient recompute / EQ debounce / DSP realloc - N/A under web-only output (native DSP path bypassed).
+- 2026-06-03 Restrict asset protocol access to approved locations - scoped to the music library + runtime allow_directory.
+- 2026-06-03 Harden production CSP - add object-src 'none', base-uri 'self', frame-ancestors 'none', form-action 'self'.
+- 2026-06-03 Add MusicBrainz request rate limiting - process-global gate, <=1 request / 1.1s.
+- 2026-06-03 Update MusicBrainz user-agent string - version + project URL.
+- 2026-06-03 Add contact information to MusicBrainz requests - project URL as contact per MB guidelines.
+- 2026-06-03 Log persistent metadata-enrichment failures - per-failure log + per-pass count (no longer swallowed).
+- 2026-06-03 Verify multi-process database access behavior - concurrent-writer test under WAL (no SQLITE_BUSY).
+- 2026-06-03 Fix cargo tauri build path issue - before-commands run `npm run build`/`dev` (no doubled prefix).
+- 2026-06-03 Add Light/Dark theme + in-app theme toggle - VibeUI useColorMode (System/Light/Dark), persisted.
+- 2026-06-03 Play From Here - row context-menu action queues the list from the clicked track.
+- 2026-06-03 Play Track Next - row context-menu inserts the track after the current one.
+- 2026-06-03 Sort by Title/Artist/Album + A-Z toggle - VibeDataTable column sort (asc/desc).
+- 2026-06-03 Search sort by genre - sortable/searchable Genre column.
+- 2026-06-03 Unknown-title grouping under U - N/A (flat datatable has no alpha sections).
+- 2026-06-03 Recently Added view - Home dashboard list ordered by updated_at DESC.
+- 2026-06-03 Fix duration backfill for explicit path import - shared index core now backfills both scan paths.
+- 2026-06-03 Genre editing / Year editing - Edit metadata modal fields.
+- 2026-06-03 Dedup Playlist - Playlists tab funnel button (dedup_playlist).
+- 2026-06-03 Save/Delete user EQ presets - named presets persisted to localStorage.
+- 2026-06-03 Add Hip-Hop and Dance EQ presets - new built-in preset curves.
+
 ## [Unreleased] - Vue/VibeUI frontend migration
 
 Replaced the legacy monolithic `dist/index.html` UI with a Vue 3 + Pinia +

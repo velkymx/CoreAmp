@@ -40,80 +40,20 @@ For each cycle, follow this sequence:
 
 ---
 
-# P0 - Core Ship Blockers
-
-Must be completed before the next stable release.
-
-## Performance
-
-* [x] Remove database lock bottlenecks during scanning and metadata operations.
-* [x] Eliminate full-library metadata hash loading during scans.
-* [x] Stop re-reading audio files during library browsing.
-* [x] Move library scanning off UI and IPC threads.
-* [x] Prevent symlink recursion during scans.
-* [x] Improve large-library responsiveness.
-
-## DSP Performance
-
-N/A under the current web-only output (native rodio DSP path is bypassed; web
-EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
-
-* [x] Eliminate DSP coefficient recomputation on every sample. (N/A — native path disabled)
-* [x] Debounce EQ updates during slider drag. (N/A — web EQ is cheap AudioParam)
-* [x] Prevent DSP state reallocations during active playback. (N/A — native path disabled)
-
-## Security
-
-* [x] Restrict asset protocol access to approved library/config locations.
-* [x] Harden production CSP configuration.
-
-## Networking
-
-* [x] Add MusicBrainz request rate limiting.
-* [x] Update MusicBrainz user-agent string.
-* [x] Add contact information to MusicBrainz requests.
-* [x] Log persistent metadata-enrichment failures.
-
-## Stability
-
-* [x] Verify multi-process database access behavior.
-
-## Build & Release
-
-* [x] Fix `cargo tauri build` path issue.
-
----
-
 # P1 - Core Player Parity
 
 Features users expect from a modern desktop music player.
 
 ## Themes & Accessibility
 
-* [x] Add Light theme.
-* [x] Add Dark theme.
-* [x] Add in-app theme toggle (System / Light / Dark).
 * [ ] Complete Apple-dark visual polish pass.
 * [ ] Visualizer Full Frame with Mini-Player Controls
 
 ## Library Browsing
 
-* [x] Play From Here.
-* [x] Play Track Next (add to queue as next track) (row menu: Play next)
-* [x] Sort by Title. (VibeDataTable column sort)
-* [x] Sort by Artist. (VibeDataTable column sort)
-* [x] Sort by Album. (VibeDataTable column sort)
-* [x] A-Z / Z-A toggle. (VibeDataTable asc/desc)
-* [x] Search sort by genre. (sortable Genre column)
-* [x] Unknown-title grouping under U. (N/A — flat datatable has no alpha sections)
-* [x] Recently Added view. (Home dashboard)
-* [x] Fix duration backfill for tracks added through explicit path import.
 * [ ] Mobile and small-window layout support.
 * [ ] Album artist editing.
 * [ ] Track number editing.
-* [x] Genre editing. (Edit metadata modal)
-* [x] Year editing. (Edit metadata modal)
-* [x] Dedup Playlist (Playlists tab funnel button)
 * [ ] Dedup LibraryPlay
 
 ## Playlists
@@ -125,10 +65,6 @@ Features users expect from a modern desktop music player.
 ## Audio
 
 * [ ] Volume slider does not work
-* [x] Save user EQ presets.
-* [x] Delete user EQ presets.
-* [x] Add Hip-Hop EQ preset.
-* [x] Add Dance EQ preset.
 * [ ] Verify boost processing parity.
 * [ ] Verify limiter processing parity.
 * [ ] Verify crossfeed processing parity.
@@ -202,16 +138,12 @@ Features users expect from a modern desktop music player.
 
 ### Networking
 
-* [x] Add MusicBrainz request rate limiting.
 
 ### DSP Performance
 
 N/A under the current web-only output (native rodio DSP path is bypassed; web
 EQ uses Web Audio `AudioParam`). Revisit if native output is re-enabled.
 
-* [x] Eliminate DSP coefficient recomputation on every sample. (N/A — native path disabled)
-* [x] Debounce EQ updates during slider drag. (N/A — web EQ is cheap AudioParam)
-* [x] Prevent DSP state reallocations during active playback. (N/A — native path disabled)
 
 ## P5 Visualizer
 
