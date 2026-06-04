@@ -10,6 +10,7 @@
         <span v-if="multiplier > 1" class="kh-mult" :class="`m${multiplier}`" data-test="kh-mult">
           ×{{ multiplier }}
         </span>
+        <span v-if="multiplier >= 4" class="kh-fever" data-test="kh-fever">FEVER</span>
         <span v-if="combo > 1" class="kh-combo" data-test="kh-combo">{{ combo }} combo</span>
       </div>
       <span v-if="message" class="kh-message" data-test="kh-message">{{ message }}</span>
@@ -111,6 +112,7 @@ interface ActiveNote {
   arrival: number;
   mesh: any;
   glow: any;
+  trail: any;
   judged: boolean;
 }
 let notes: ActiveNote[] = [];
@@ -157,6 +159,7 @@ function resetState(): void {
   for (const n of notes) {
     n.mesh.parent?.remove(n.mesh);
     n.glow?.parent?.remove(n.glow);
+    n.trail?.parent?.remove(n.trail);
   }
   notes = [];
 }
@@ -296,7 +299,68 @@ function init(THREE: any): void {
     ),
   );
 
-  three = { THREE, scene, camera, renderer, flashMeshes, laneStrips, hitBar, hitBarMat, camBaseY: 8 };
+  // Reactive spectrum wall behind the highway (EQ bars, hue-cycling).
+  const specBars: any[] = [];
+  const SPEC_N = 28;
+  for (let i = 0; i < SPEC_N; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const bar = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1), mat);
+    bar.position.set((i - SPEC_N / 2) * 1.5, 6, -52);
+    scene.add(bar);
+    specBars.push(bar);
+  }
+
+  // Shockwave ring pool (expanding additive rings on perfect hits).
+  const rings: any[] = [];
+  for (let i = 0; i < 10; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.0, 32), mat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.visible = false;
+    scene.add(ring);
+    rings.push({ mesh: ring, life: 0 });
+  }
+
+  three = {
+    THREE,
+    scene,
+    camera,
+    renderer,
+    flashMeshes,
+    laneStrips,
+    hitBar,
+    hitBarMat,
+    specBars,
+    rings,
+    ringCursor: 0,
+    camBaseY: 8,
+    punch: 0,
+  };
+}
+
+function spawnRing(x: number, z: number, color: number): void {
+  if (!three) return;
+  const r = three.rings[three.ringCursor % three.rings.length];
+  three.ringCursor++;
+  r.mesh.position.set(x, 0.06, z);
+  r.mesh.material.color.setHex(color);
+  r.mesh.material.opacity = 0.9;
+  r.mesh.scale.setScalar(0.5);
+  r.mesh.visible = true;
+  r.life = 1;
 }
 
 function spawnNote(lane: number): void {
@@ -323,7 +387,18 @@ function spawnNote(lane: number): void {
   glow.position.copy(mesh.position);
   glow.rotation.x = -Math.PI / 2;
   scene.add(glow);
-  notes.push({ lane, arrival: nowSecs() + TRAVEL, mesh, glow, judged: false });
+  // Vertical comet trail behind the note.
+  const trailMat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.5,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const trail = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 6), trailMat);
+  trail.position.set(laneX(lane), 0.3, SPAWN_Z - 3);
+  scene.add(trail);
+  notes.push({ lane, arrival: nowSecs() + TRAVEL, mesh, glow, trail, judged: false });
 }
 
 function registerJudgement(j: Judgement, lane: number): void {
@@ -340,21 +415,25 @@ function registerJudgement(j: Judgement, lane: number): void {
   if (m) {
     setMessage(m);
     flash.value = 1;
+    if (three) three.punch = 1; // camera kick on milestone
   } else if (j === "miss") {
     setMessage("Miss");
   }
 
   if (j !== "miss" && three) {
     const big = j === "perfect";
+    const fever = multiplier.value >= 4;
+    const color = fever ? 0xffd700 : LANE_COLORS[lane];
     spawnBurst(
       laneX(lane),
       0.5,
       HIT_Z,
-      LANE_COLORS[lane],
-      big ? 60 : 28,
-      big ? 11 : 7,
+      color,
+      (big ? 60 : 28) * (fever ? 1.8 : 1),
+      (big ? 11 : 7) * (fever ? 1.3 : 1),
     );
-    laneFlash[lane] = big ? 1.4 : 1;
+    laneFlash[lane] = big ? 1.5 : 1;
+    if (big) spawnRing(laneX(lane), HIT_Z, color);
   }
 }
 
@@ -380,6 +459,7 @@ function onKey(e: KeyboardEvent): void {
     registerJudgement(judge(best.arrival - t), lane);
     best.mesh.parent?.remove(best.mesh);
     best.glow?.parent?.remove(best.glow);
+    best.trail?.parent?.remove(best.trail);
     notes = notes.filter((n) => n !== best);
   }
 }
@@ -387,21 +467,55 @@ function onKey(e: KeyboardEvent): void {
 function tick(): void {
   raf = requestAnimationFrame(tick);
   if (!three) return;
-  const { THREE, renderer, scene, camera, flashMeshes, laneStrips, hitBarMat, camBaseY } = three;
+  const { THREE, renderer, scene, camera, flashMeshes, laneStrips, hitBarMat, specBars, rings, camBaseY } =
+    three;
   const t = nowSecs();
   const bands = extractBands(freq.value);
   const energy = bands.bass * 0.7 + bands.mid * 0.3;
+  const fever = multiplier.value >= 4;
 
   if (player.isPlaying) everPlayed = true;
 
-  // Onset → spawn note.
+  // Onset → spawn note (+ a chord on strong beats).
   runningAvg = runningAvg * 0.92 + energy * 0.08;
   if (player.isPlaying && isOnset(energy, runningAvg) && t - lastSpawn > 0.16) {
     spawnCounter++;
     const bandIndex = bands.treble > bands.bass ? 2 : bands.mid > bands.bass ? 1 : 0;
-    spawnNote(laneForSpawn(bandIndex, spawnCounter));
+    const lane = laneForSpawn(bandIndex, spawnCounter);
+    spawnNote(lane);
+    // Chord: a second lane on a hard hit or every 5th note.
+    if (energy > runningAvg * 2.1 || spawnCounter % 5 === 0) {
+      const second = laneForSpawn(bandIndex + 2, spawnCounter + 3);
+      if (second !== lane) spawnNote(second);
+    }
     lastSpawn = t;
   }
+
+  // Reactive spectrum wall.
+  const data = freq.value;
+  for (let i = 0; i < specBars.length; i++) {
+    const v = data && data.length ? data[(i * 7) % data.length] / 255 : 0;
+    const bar = specBars[i];
+    bar.scale.y = 0.5 + v * 16;
+    bar.position.y = 1 + (bar.scale.y * 1) / 2;
+    const hue = ((i / specBars.length) * 300 + t * 30 + (fever ? 0 : 0)) % 360;
+    bar.material.color.setHSL((fever ? 45 : hue) / 360, 1, 0.5);
+    bar.material.opacity = 0.18 + v * 0.4;
+  }
+
+  // Shockwave rings expand + fade.
+  for (const r of rings) {
+    if (r.life <= 0) {
+      r.mesh.visible = false;
+      continue;
+    }
+    r.life -= 0.045;
+    r.mesh.scale.setScalar(0.5 + (1 - r.life) * 6);
+    r.mesh.material.opacity = Math.max(0, r.life) * 0.8;
+  }
+
+  // Camera punch on milestones (decays).
+  three.punch = Math.max(0, three.punch - 0.06);
 
   // Advance notes; a missed (un-pressed) note just resets the combo — the game
   // keeps going until the song ends.
@@ -409,8 +523,10 @@ function tick(): void {
     const progress = 1 - (n.arrival - t) / TRAVEL;
     const z = SPAWN_Z + progress * (HIT_Z - SPAWN_Z);
     n.mesh.position.z = z;
-    n.mesh.rotation.x += 0.06;
+    n.mesh.rotation.x += fever ? 0.12 : 0.06;
+    n.mesh.scale.setScalar(1 + bands.bass * 0.25);
     if (n.glow) n.glow.position.z = z;
+    if (n.trail) n.trail.position.z = z - 3;
     if (!n.judged && t - n.arrival > HIT_WINDOW) {
       n.judged = true;
       registerJudgement("miss", n.lane);
@@ -420,6 +536,7 @@ function tick(): void {
     if (n.judged && t - n.arrival > 0.2) {
       n.mesh.parent?.remove(n.mesh);
       n.glow?.parent?.remove(n.glow);
+      n.trail?.parent?.remove(n.trail);
       return false;
     }
     return true;
@@ -454,12 +571,22 @@ function tick(): void {
   }
   hitBarMat.opacity = 0.6 + bands.bass * 0.4;
 
-  // Beat camera bob + shake; screen-flash decay.
-  camera.position.y = camBaseY + Math.sin(t * 4) * 0.1 + bands.bass * 0.6;
-  camera.position.x = (Math.random() - 0.5) * bands.bass * 0.5;
+  // Beat camera bob + shake + milestone punch + FOV kick.
+  const shake = bands.bass * 0.5 + three.punch * 1.2;
+  camera.position.y = camBaseY + Math.sin(t * 4) * 0.1 + bands.bass * 0.6 + three.punch * 1.5;
+  camera.position.x = (Math.random() - 0.5) * shake;
+  camera.position.z = 15 - three.punch * 2;
+  camera.fov = 64 - three.punch * 8;
+  camera.updateProjectionMatrix();
   camera.lookAt(0, 0, -10);
   flash.value = Math.max(0, flash.value - 0.05);
-  renderer.setClearColor(new THREE.Color(0x04060f).offsetHSL(0, 0, bands.bass * 0.05), 1);
+  // Fever tints the whole scene hot gold; otherwise a subtle bass glow.
+  renderer.setClearColor(
+    fever
+      ? new THREE.Color(0x1a1206).offsetHSL(0, 0, bands.bass * 0.12)
+      : new THREE.Color(0x04060f).offsetHSL(0, 0, bands.bass * 0.05),
+    1,
+  );
 
   // End only when the song actually ends (never on a miss or a pause).
   if (!finished.value && everPlayed) {
@@ -559,6 +686,23 @@ onBeforeUnmount(() => {
 .kh-mult.m4 {
   color: #ff2d55;
   text-shadow: 0 0 10px #ff2d55;
+}
+.kh-fever {
+  font-weight: 900;
+  color: #ffd700;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 14px #ffae00, 0 0 28px #ff7b00;
+  animation: kh-fever-pulse 0.4s ease-in-out infinite alternate;
+}
+@keyframes kh-fever-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  to {
+    transform: scale(1.18);
+    opacity: 1;
+  }
 }
 .kh-combo {
   color: #8fd0ff;
