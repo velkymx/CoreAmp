@@ -15,6 +15,8 @@ interface UiState {
   editTarget: LibraryTrack | null;
   // Track currently open in the add-to-playlist modal (null = closed).
   playlistTarget: LibraryTrack | null;
+  // Track currently open in the details panel (null = closed).
+  detailsTarget: LibraryTrack | null;
   // Bumped whenever a track's metadata/like changes so views can refresh.
   dataVersion: number;
 }
@@ -26,6 +28,7 @@ export const useUiStore = defineStore("ui", {
     activeTab: "home",
     editTarget: null,
     playlistTarget: null,
+    detailsTarget: null,
     dataVersion: 0,
   }),
   actions: {
@@ -43,6 +46,12 @@ export const useUiStore = defineStore("ui", {
     },
     closeAddToPlaylist(): void {
       this.playlistTarget = null;
+    },
+    openDetails(track: LibraryTrack): void {
+      this.detailsTarget = track;
+    },
+    closeDetails(): void {
+      this.detailsTarget = null;
     },
     // Signal that library data changed; views watch this to reload.
     bumpData(): void {

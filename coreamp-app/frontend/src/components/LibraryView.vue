@@ -40,6 +40,7 @@
         @enqueue="(t) => player.enqueue(toQueueTrack(t))"
         @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
         @edit="(t) => ui.openEdit(t)"
+        @details="(t) => ui.openDetails(t)"
         @browse="(v) => library.setSearch(v)"
         @play-from-here="onPlayFromHere"
       />

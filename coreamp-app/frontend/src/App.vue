@@ -27,6 +27,7 @@
     <NotificationHost />
     <EditMetadataModal />
     <AddToPlaylistModal />
+    <TrackDetailsModal />
   </div>
 </template>
 
@@ -43,6 +44,7 @@ import AudioView from "@/components/AudioView.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
 import EditMetadataModal from "@/components/EditMetadataModal.vue";
 import AddToPlaylistModal from "@/components/AddToPlaylistModal.vue";
+import TrackDetailsModal from "@/components/TrackDetailsModal.vue";
 import { usePlayerStore } from "@/stores/player";
 import { useUiStore, type TabName } from "@/stores/ui";
 import { applyShortcut, shouldIgnoreTarget } from "@/composables/useShortcuts";

@@ -283,6 +283,62 @@ pub fn list_library_files(
     Ok(out)
 }
 
+fn library_row_from_row(row: &rusqlite::Row) -> rusqlite::Result<LibraryRow> {
+    Ok(LibraryRow {
+        path: row.get(0)?,
+        filename: row.get(1)?,
+        artist: row.get(2)?,
+        album: row.get(3)?,
+        title: row.get(4)?,
+        year: row.get(5)?,
+        genre: row.get(6)?,
+        liked: row.get::<_, i32>(7)? != 0,
+        duration_secs: row.get(8)?,
+    })
+}
+
+/// All tracks belonging to an album, ordered by filename (which is usually
+/// track-number-prefixed) then title. When `artist` is given, only that
+/// artist's tracks on the album are returned (disambiguates same-named albums).
+pub(crate) fn rows_for_album(
+    conn: &Connection,
+    album: &str,
+    artist: Option<&str>,
+) -> Result<Vec<LibraryRow>, String> {
+    let mut query = String::from(
+        r#"
+        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs
+        FROM files
+        WHERE album = ?1
+        "#,
+    );
+    if artist.is_some() {
+        query.push_str(" AND artist = ?2");
+    }
+    query.push_str(" ORDER BY filename, COALESCE(title, '')");
+
+    let mut stmt = conn.prepare(&query).map_err(|err| err.to_string())?;
+    let mapped = if let Some(artist) = artist {
+        stmt.query_map(params![album, artist], library_row_from_row)
+    } else {
+        stmt.query_map(params![album], library_row_from_row)
+    }
+    .map_err(|err| err.to_string())?;
+
+    let mut out = Vec::new();
+    for row in mapped {
+        out.push(row.map_err(|err| err.to_string())?);
+    }
+    Ok(out)
+}
+
+/// Public wrapper over [`rows_for_album`] using the shared DB connection.
+pub fn list_album_tracks(album: &str, artist: Option<&str>) -> Result<Vec<LibraryRow>, String> {
+    let mutex = get_db()?;
+    let connection = mutex.lock().map_err(|err| err.to_string())?;
+    rows_for_album(&connection, album, artist)
+}
+
 pub fn toggle_liked(path: &str) -> Result<bool, String> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|err| err.to_string())?;
@@ -948,6 +1004,38 @@ mod tests {
         assert_eq!(
             super::rows_recently_added(&conn, 2).expect("query").len(),
             2
+        );
+    }
+
+    #[test]
+    fn rows_for_album_returns_album_tracks_ordered_and_artist_scoped() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("schema");
+        let rows = [
+            ("/m/02.mp3", "Aurora", "Track Two", "02 - b.mp3"),
+            ("/m/01.mp3", "Aurora", "Track One", "01 - a.mp3"),
+            ("/m/other.mp3", "Other Artist", "Other Song", "song.mp3"),
+        ];
+        for (path, artist, title, filename) in rows {
+            conn.execute(
+                "INSERT INTO files(path, filename, artist, album, title) VALUES (?1, ?2, ?3, 'Skyline', ?4)",
+                rusqlite::params![path, filename, artist, title],
+            )
+            .expect("insert");
+        }
+
+        // Whole album, ordered by filename.
+        let all = super::rows_for_album(&conn, "Skyline", None).expect("album");
+        assert_eq!(
+            all.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(),
+            vec!["/m/01.mp3", "/m/02.mp3", "/m/other.mp3"]
+        );
+
+        // Scoped to one artist.
+        let scoped = super::rows_for_album(&conn, "Skyline", Some("Aurora")).expect("scoped");
+        assert_eq!(
+            scoped.iter().map(|r| r.title.as_deref()).collect::<Vec<_>>(),
+            vec![Some("Track One"), Some("Track Two")]
         );
     }
 

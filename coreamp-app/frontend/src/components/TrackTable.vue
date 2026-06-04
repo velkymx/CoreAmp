@@ -84,6 +84,9 @@
             <VibeButton variant="link" class="track-menu-item" data-test="menu-add-playlist" @click.stop="emitMenu('add-to-playlist', item)">
               Add to playlist…
             </VibeButton>
+            <VibeButton variant="link" class="track-menu-item" data-test="menu-details" @click.stop="emitMenu('details', item)">
+              Track details…
+            </VibeButton>
             <VibeButton variant="link" class="track-menu-item" data-test="menu-edit" @click.stop="emitMenu('edit', item)">
               Edit metadata…
             </VibeButton>
@@ -118,6 +121,7 @@ const emit = defineEmits<{
   (e: "enqueue", track: LibraryTrack): void;
   (e: "add-to-playlist", track: LibraryTrack): void;
   (e: "edit", track: LibraryTrack): void;
+  (e: "details", track: LibraryTrack): void;
   (e: "play-from-here", track: LibraryTrack): void;
   (e: "browse", value: string): void;
 }>();
@@ -161,13 +165,14 @@ function toggleMenu(path: string): void {
 }
 
 function emitMenu(
-  event: "play-from-here" | "play-next" | "enqueue" | "add-to-playlist" | "edit",
+  event: "play-from-here" | "play-next" | "enqueue" | "add-to-playlist" | "edit" | "details",
   track: LibraryTrack,
 ): void {
   if (event === "play-from-here") emit("play-from-here", track);
   else if (event === "play-next") emit("play-next", track);
   else if (event === "enqueue") emit("enqueue", track);
   else if (event === "add-to-playlist") emit("add-to-playlist", track);
+  else if (event === "details") emit("details", track);
   else emit("edit", track);
   openPath.value = null;
 }
