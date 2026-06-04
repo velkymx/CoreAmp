@@ -334,6 +334,62 @@ function init(THREE: any): void {
     rings.push({ mesh: ring, life: 0 });
   }
 
+  // ── EDC main-stage rig ────────────────────────────────────────────────────
+  // Sweeping spotlight beams (cones whose apex sits at a high pivot so they
+  // sweep like searchlights).
+  const spotlights: any[] = [];
+  const SPOT_N = 6;
+  for (let i = 0; i < SPOT_N; i++) {
+    const geo = new THREE.ConeGeometry(4.5, 80, 20, 1, true);
+    geo.translate(0, -40, 0); // apex at the origin → rotates from the top
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.08,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      fog: false,
+    });
+    const beam = new THREE.Mesh(geo, mat);
+    beam.position.set((i - (SPOT_N - 1) / 2) * 7, 30, -34);
+    scene.add(beam);
+    spotlights.push({ mesh: beam, phase: i * 1.15, hue: i / SPOT_N });
+  }
+
+  // Laser fan from a single rig point.
+  const lasers: any[] = [];
+  for (let i = 0; i < 7; i++) {
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x39ff14,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+    });
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 24, -40),
+      new THREE.Vector3((i - 3) * 9, 0, -8),
+    ]);
+    const line = new THREE.Line(g, mat);
+    scene.add(line);
+    lasers.push({ mesh: line });
+  }
+
+  // Lightning bolt (jagged line, flashed on big hits).
+  const ltMat = new THREE.LineBasicMaterial({
+    color: 0xcfe6ff,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+  });
+  const ltGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 30, -38),
+    new THREE.Vector3(0, -2, -38),
+  ]);
+  const lightning = new THREE.Line(ltGeo, ltMat);
+  lightning.visible = false;
+  scene.add(lightning);
+
   three = {
     THREE,
     scene,
@@ -345,10 +401,30 @@ function init(THREE: any): void {
     hitBarMat,
     specBars,
     rings,
+    spotlights,
+    lasers,
+    lightning,
+    ltLife: 0,
+    ltCooldown: 0,
     ringCursor: 0,
     camBaseY: 8,
     punch: 0,
   };
+}
+
+function strikeLightning(): void {
+  if (!three) return;
+  const { THREE, lightning } = three;
+  const pts = [];
+  let x = (Math.random() - 0.5) * 30;
+  for (let y = 30; y >= -2; y -= 4) {
+    x += (Math.random() - 0.5) * 6;
+    pts.push(new THREE.Vector3(x, y, -38));
+  }
+  lightning.geometry.setFromPoints(pts);
+  lightning.visible = true;
+  lightning.material.opacity = 1;
+  three.ltLife = 1;
 }
 
 function spawnRing(x: number, z: number, color: number): void {
@@ -467,8 +543,20 @@ function onKey(e: KeyboardEvent): void {
 function tick(): void {
   raf = requestAnimationFrame(tick);
   if (!three) return;
-  const { THREE, renderer, scene, camera, flashMeshes, laneStrips, hitBarMat, specBars, rings, camBaseY } =
-    three;
+  const {
+    THREE,
+    renderer,
+    scene,
+    camera,
+    flashMeshes,
+    laneStrips,
+    hitBarMat,
+    specBars,
+    rings,
+    spotlights,
+    lasers,
+    camBaseY,
+  } = three;
   const t = nowSecs();
   const bands = extractBands(freq.value);
   const energy = bands.bass * 0.7 + bands.mid * 0.3;
@@ -488,6 +576,9 @@ function tick(): void {
       const second = laneForSpawn(bandIndex + 2, spawnCounter + 3);
       if (second !== lane) spawnNote(second);
     }
+    // Confetti "pop" up in the sky behind the stage on the beat.
+    const popColor = LANE_COLORS[spawnCounter % LANE_COLORS.length];
+    spawnBurst((Math.random() - 0.5) * 36, 20 + Math.random() * 8, -34, popColor, 24, 9);
     lastSpawn = t;
   }
 
@@ -514,8 +605,37 @@ function tick(): void {
     r.mesh.material.opacity = Math.max(0, r.life) * 0.8;
   }
 
-  // Camera punch on milestones (decays).
+  // Camera punch on milestones (decays; no longer moves the camera).
   three.punch = Math.max(0, three.punch - 0.06);
+
+  // ── EDC rig animation ─────────────────────────────────────────────────────
+  // Sweeping, color-cycling spotlight beams.
+  for (let i = 0; i < spotlights.length; i++) {
+    const s = spotlights[i];
+    s.mesh.rotation.z = Math.sin(t * 0.7 + s.phase) * 0.85;
+    s.mesh.rotation.x = -0.22 + Math.cos(t * 0.43 + s.phase) * 0.2;
+    const hue = (s.hue + t * 0.05) % 1;
+    s.mesh.material.color.setHSL(fever ? 0.12 : hue, 1, 0.55);
+    s.mesh.material.opacity = 0.05 + bands.mid * 0.2 + bands.treble * 0.12;
+  }
+  // Laser fan flicker (treble-driven), hue cycling.
+  for (let i = 0; i < lasers.length; i++) {
+    const m = lasers[i].mesh.material;
+    m.opacity = 0.04 + bands.treble * 0.6;
+    m.color.setHSL((0.33 + t * 0.06 + i * 0.04) % 1, 1, 0.55);
+  }
+  // Lightning strikes on hard bass (rate-limited) + its flash.
+  three.ltCooldown -= 1 / 60;
+  if (bands.bass > 0.5 && three.ltCooldown <= 0 && Math.random() < 0.35) {
+    strikeLightning();
+    three.ltCooldown = 0.5;
+  }
+  if (three.ltLife > 0) {
+    three.ltLife -= 0.14;
+    three.lightning.material.opacity = Math.max(0, three.ltLife);
+    if (three.ltLife <= 0) three.lightning.visible = false;
+    flash.value = Math.max(flash.value, three.ltLife * 0.55);
+  }
 
   // Advance notes; a missed (un-pressed) note just resets the combo — the game
   // keeps going until the song ends.
@@ -571,14 +691,8 @@ function tick(): void {
   }
   hitBarMat.opacity = 0.6 + bands.bass * 0.4;
 
-  // Beat camera bob + shake + milestone punch + FOV kick.
-  const shake = bands.bass * 0.5 + three.punch * 1.2;
-  camera.position.y = camBaseY + Math.sin(t * 4) * 0.1 + bands.bass * 0.6 + three.punch * 1.5;
-  camera.position.x = (Math.random() - 0.5) * shake;
-  camera.position.z = 15 - three.punch * 2;
-  camera.fov = 64 - three.punch * 8;
-  camera.updateProjectionMatrix();
-  camera.lookAt(0, 0, -10);
+  // Camera stays locked (no bob/shake/punch) — the highway never jitters.
+  void camBaseY;
   flash.value = Math.max(0, flash.value - 0.05);
   // Fever tints the whole scene hot gold; otherwise a subtle bass glow.
   renderer.setClearColor(
