@@ -87,14 +87,14 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 22rem;
   gap: 1rem;
-  align-items: start;
+  /* Stretch the queue column to the player card's full height. */
+  align-items: stretch;
 }
 .queue-pane {
   background: var(--bs-body-bg);
   border: 1px solid var(--bs-border-color, rgba(127, 127, 127, 0.25));
   height: 100%;
   min-height: 22rem;
-  max-height: 32rem;
   overflow: hidden;
 }
 .library-region {
