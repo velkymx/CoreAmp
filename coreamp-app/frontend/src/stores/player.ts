@@ -127,6 +127,9 @@ const ARTWORK_THUMB_PX = 256;
 // The sleep-timer handle lives outside reactive state: it's an opaque token we
 // only ever clear, never render.
 let sleepHandle: ReturnType<typeof setTimeout> | null = null;
+// Clears `crossfading` once a fade completes; tracked so rapid track changes
+// don't stack timers.
+let crossfadeHandle: ReturnType<typeof setTimeout> | null = null;
 
 export const usePlayerStore = defineStore("player", {
   state: (): PlayerState => ({
@@ -537,8 +540,10 @@ export const usePlayerStore = defineStore("player", {
       void this.loadNowPlayingMeta();
       void api.recordPlay(next.path).catch(() => {});
       this.preloadNext();
-      setTimeout(() => {
+      if (crossfadeHandle) clearTimeout(crossfadeHandle);
+      crossfadeHandle = setTimeout(() => {
         this.crossfading = false;
+        crossfadeHandle = null;
       }, this.crossfadeSecs * 1000 + 200);
       return true;
     },
