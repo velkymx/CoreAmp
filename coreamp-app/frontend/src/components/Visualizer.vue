@@ -1,0 +1,191 @@
+<template>
+  <div class="viz-wrap" :class="{ 'is-fullscreen': fullscreen }">
+    <div class="visualizer" data-test="visualizer">
+    <AudioMotionViz v-if="pluginId === 'eq'" :key="'eq'" />
+    <ThreeOrb v-else-if="pluginId === 'orb'" />
+    <ThreeSceneHost v-else-if="pluginId === 'vortex'" :key="'vortex'" :create="createVortex" />
+    <ThreeSceneHost v-else-if="pluginId === 'storm'" :key="'storm'" :create="createStorm" />
+    <KeyboardHeroGame
+      v-else-if="pluginId === 'keyboard'"
+      :key="'keyboard'"
+      @close="pluginId = 'eq'"
+    />
+    <ChickenLanderGame
+      v-else-if="pluginId === 'chicken'"
+      :key="'chicken'"
+      @close="pluginId = 'eq'"
+    />
+
+    <!-- Controls overlay: hidden until you hover the visualizer (or in
+         fullscreen) so it never covers the visuals during normal playback. -->
+    <div class="viz-controls d-flex align-items-center gap-2">
+      <VibeFormSelect
+        v-model="pluginId"
+        :options="pluginOptions"
+        aria-label="Visualizer mode"
+        data-test="viz-plugin"
+        class="viz-select"
+      />
+      <button
+        type="button"
+        class="viz-icon-btn"
+        :aria-label="fullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+        data-test="viz-fullscreen"
+        @click="toggleFullscreen"
+      >
+        {{ fullscreen ? "✕" : "⛶" }}
+      </button>
+    </div>
+
+    <span v-if="!active" class="viz-hint small text-light">Press play to see it move</span>
+
+    <!-- Full-frame mini-player: track + progress + transport, shown in
+         fullscreen (where the main player card is hidden). -->
+    <div v-if="fullscreen" class="viz-miniplayer p-2" data-test="viz-miniplayer">
+      <div class="viz-mp-track text-truncate small text-light mb-1">
+        {{ player.currentTrack?.title || "—" }}
+        <span v-if="player.currentTrack?.artist" class="text-secondary">
+          · {{ player.currentTrack?.artist }}
+        </span>
+      </div>
+      <ProgressBar class="mb-1" />
+      <TransportControls />
+    </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import type { FormSelectOption, FormSelectOptionValue } from "@velkymx/vibeui";
+import { useFrequencyData } from "@/composables/useFrequencyData";
+import { usePlayerStore } from "@/stores/player";
+import ThreeOrb from "@/components/ThreeOrb.vue";
+import ThreeSceneHost from "@/components/ThreeSceneHost.vue";
+import AudioMotionViz from "@/components/AudioMotionViz.vue";
+import KeyboardHeroGame from "@/components/KeyboardHeroGame.vue";
+import ChickenLanderGame from "@/components/ChickenLanderGame.vue";
+import ProgressBar from "@/components/ProgressBar.vue";
+import TransportControls from "@/components/TransportControls.vue";
+import { createVortex } from "@/visualizer/vortex";
+import { createStorm } from "@/visualizer/storm";
+
+const player = usePlayerStore();
+const pluginId = ref<FormSelectOptionValue>("eq");
+
+// Drives the "press play" hint until audio analysis is live.
+const { active } = useFrequencyData();
+
+// The EQ (AudioMotion-Analyzer) replaces the old hand-rolled bars/spectrum/
+// oscilloscope canvas modes; the three.js scenes remain as extra visuals.
+const pluginOptions = computed<FormSelectOption[]>(() => [
+  { value: "eq", text: "EQ" },
+  { value: "orb", text: "Orb (3D)" },
+  { value: "vortex", text: "Vortex" },
+  { value: "storm", text: "Storm" },
+  { value: "keyboard", text: "Keyboard Hero" },
+  { value: "chicken", text: "Chicken Lander" },
+]);
+
+// Pseudo-fullscreen: expand the visualizer to a fixed full-window overlay
+// (matches the legacy behavior; reliable inside the webview). Esc exits.
+const fullscreen = ref(false);
+function toggleFullscreen(): void {
+  fullscreen.value = !fullscreen.value;
+}
+function onKey(e: KeyboardEvent): void {
+  if (e.key === "Escape" && fullscreen.value) fullscreen.value = false;
+}
+onMounted(() => window.addEventListener("keydown", onKey));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
+</script>
+
+<style scoped>
+.viz-wrap {
+  width: 100%;
+}
+.visualizer {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #0b0f14;
+}
+/* Fullscreen: black letterbox backdrop with a centered 16:9 stage. */
+.viz-wrap.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.viz-wrap.is-fullscreen .visualizer {
+  width: min(100vw, 177.78vh); /* 16/9 of the viewport height */
+  border-radius: 0;
+}
+.viz-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.viz-controls {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.visualizer:hover .viz-controls,
+.viz-wrap.is-fullscreen .viz-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+.viz-select {
+  max-width: 11rem;
+}
+.viz-icon-btn {
+  border: 0;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  border-radius: 0.25rem;
+  line-height: 1;
+  padding: 0.25rem 0.45rem;
+  cursor: pointer;
+}
+.viz-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+.viz-hint {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.6rem;
+  z-index: 4;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.visualizer:hover .viz-hint {
+  opacity: 1;
+}
+.viz-miniplayer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+}
+.viz-link {
+  border: 0;
+  background: transparent;
+  color: var(--bs-info, #6edff6);
+  text-decoration: underline;
+  padding: 0;
+  cursor: pointer;
+}
+</style>

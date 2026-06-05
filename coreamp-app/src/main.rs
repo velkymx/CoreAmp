@@ -20,9 +20,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, mpsc};
 use std::thread;
 use std::time::Duration;
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::menu::{MenuBuilder, MenuItem, MenuItemBuilder};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
+
+// Live tray handles so the now-playing label + tooltip can be updated from the
+// frontend as the track changes.
+struct TrayHandles {
+    now_playing: MenuItem<tauri::Wry>,
+    tray: TrayIcon<tauri::Wry>,
+}
 
 #[derive(Debug, Clone, Serialize)]
 struct ScanResult {
@@ -38,19 +45,25 @@ struct LibraryTrack {
     pub filename: String,
     pub artist: Option<String>,
     pub album: Option<String>,
+    pub album_artist: Option<String>,
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
+    pub track_number: Option<i64>,
     pub liked: bool,
+    pub rating: i64,
+    pub duration: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
 struct TrackMetadataInput {
     pub artist: Option<String>,
     pub album: Option<String>,
+    pub album_artist: Option<String>,
     pub title: Option<String>,
     pub year: Option<String>,
     pub genre: Option<String>,
+    pub track_number: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -96,6 +109,8 @@ struct NativeAudioStatus {
     finished: bool,
     current_path: Option<String>,
     detail: Option<String>,
+    position_secs: Option<f64>,
+    duration_secs: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -129,6 +144,8 @@ struct NativeAudioRuntimeStatus {
     finished: bool,
     current_path: Option<String>,
     detail: Option<String>,
+    position_secs: Option<f64>,
+    duration_secs: Option<f64>,
 }
 
 impl Default for NativeAudioRuntimeStatus {
@@ -140,6 +157,8 @@ impl Default for NativeAudioRuntimeStatus {
             finished: false,
             current_path: None,
             detail: None,
+            position_secs: None,
+            duration_secs: None,
         }
     }
 }
@@ -538,6 +557,10 @@ enum NativeAudioCommand {
     Stop {
         response: mpsc::Sender<Result<(), String>>,
     },
+    Seek {
+        secs: f64,
+        response: mpsc::Sender<Result<(), String>>,
+    },
     SetVolume {
         volume: f32,
         response: mpsc::Sender<Result<(), String>>,
@@ -601,42 +624,116 @@ fn parse_cli_mode() -> Result<CliMode, String> {
     Ok(mode)
 }
 
-#[tauri::command]
-fn scan_library() -> Result<ScanResult, String> {
-    let roots = library::configured_library_dirs();
-    let summary = library::index_library_dirs(&roots)?;
-    Ok(ScanResult {
+// Build the IPC result from the scanned roots + summary (pure).
+fn scan_result(roots: &[PathBuf], summary: &library::ScanSummary) -> ScanResult {
+    ScanResult {
         roots: roots
             .iter()
             .map(|path| path.display().to_string())
-            .collect::<Vec<_>>(),
+            .collect(),
         roots_scanned: summary.roots_scanned,
         files_discovered: summary.files_discovered,
         files_upserted: summary.files_upserted,
-    })
+    }
 }
 
-#[tauri::command]
-fn scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
+// Synchronous scan cores. Used directly by the CLI + tray (in their own
+// threads); the Tauri commands wrap these on a blocking worker so the IPC
+// thread is never blocked by a scan.
+fn run_scan() -> Result<ScanResult, String> {
+    let roots = library::configured_library_dirs();
+    let summary = library::index_library_dirs(&roots)?;
+    Ok(scan_result(&roots, &summary))
+}
+
+fn run_scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
     let explicit_paths = paths
         .into_iter()
         .map(PathBuf::from)
         .collect::<Vec<PathBuf>>();
     let summary = library::index_explicit_paths(&explicit_paths)?;
-    Ok(ScanResult {
-        roots: explicit_paths
-            .iter()
-            .map(|path| path.display().to_string())
-            .collect::<Vec<_>>(),
-        roots_scanned: summary.roots_scanned,
-        files_discovered: summary.files_discovered,
-        files_upserted: summary.files_upserted,
-    })
+    Ok(scan_result(&explicit_paths, &summary))
+}
+
+#[tauri::command]
+async fn scan_library() -> Result<ScanResult, String> {
+    tauri::async_runtime::spawn_blocking(run_scan)
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
+async fn scan_paths(paths: Vec<String>) -> Result<ScanResult, String> {
+    tauri::async_runtime::spawn_blocking(move || run_scan_paths(paths))
+        .await
+        .map_err(|err| err.to_string())?
 }
 
 #[tauri::command]
 fn app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Set a track's 0–5 star rating; returns the clamped stored value.
+#[tauri::command]
+fn set_rating(path: String, rating: i64) -> Result<i64, String> {
+    db::set_rating(&path, rating).map_err(String::from)
+}
+
+/// Replace a track's embedded cover art with the image at `image_path`.
+#[tauri::command]
+fn set_track_artwork(track_path: String, image_path: String) -> Result<bool, String> {
+    const MAX_ARTWORK_BYTES: u64 = 32 * 1024 * 1024;
+    let image = Path::new(&image_path);
+    let mime = metadata::supported_image_mime(image)
+        .ok_or_else(|| String::from("Unsupported image type"))?;
+    // Must be a regular file within a sane size before we read it.
+    let meta = std::fs::metadata(image).map_err(|err| err.to_string())?;
+    if !meta.is_file() {
+        return Err(String::from("Image path is not a regular file"));
+    }
+    if meta.len() > MAX_ARTWORK_BYTES {
+        return Err(String::from("Image is too large"));
+    }
+    let bytes = std::fs::read(image).map_err(|err| err.to_string())?;
+    // The bytes must actually be the image type the extension claims — blocks
+    // pointing the command at an arbitrary non-image file.
+    if !image_bytes_match_mime(&bytes, mime) {
+        return Err(String::from("File contents are not a valid image"));
+    }
+    metadata::write_artwork(Path::new(&track_path), &bytes, mime)?;
+    Ok(true)
+}
+
+/// True if `bytes` start with the magic signature for the given image MIME.
+fn image_bytes_match_mime(bytes: &[u8], mime: &str) -> bool {
+    match mime {
+        "image/jpeg" => bytes.starts_with(&[0xFF, 0xD8, 0xFF]),
+        "image/png" => bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]),
+        "image/gif" => bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a"),
+        "image/webp" => bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP",
+        _ => false,
+    }
+}
+
+/// Relaunch the app (used after an update is downloaded + installed).
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
+/// Update the tray's now-playing label + tooltip. `None` resets to "Not playing".
+#[tauri::command]
+fn set_tray_now_playing(app: tauri::AppHandle, label: Option<String>) -> Result<(), String> {
+    if let Some(handles) = app.try_state::<TrayHandles>() {
+        let text = label.clone().unwrap_or_else(|| String::from("Not playing"));
+        handles
+            .now_playing
+            .set_text(text)
+            .map_err(|err| err.to_string())?;
+        let _ = handles.tray.set_tooltip(label.as_deref());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -663,12 +760,12 @@ fn list_library(
 
 #[tauri::command]
 fn toggle_liked(path: String) -> Result<bool, String> {
-    db::toggle_liked(&path)
+    db::toggle_liked(&path).map_err(String::from)
 }
 
 #[tauri::command]
 fn list_genres() -> Result<Vec<String>, String> {
-    db::list_all_genres()
+    db::list_all_genres().map_err(String::from)
 }
 
 #[tauri::command]
@@ -713,7 +810,7 @@ fn list_genre_summaries() -> Result<Vec<GenreSummary>, String> {
 
 #[tauri::command]
 fn record_play(path: String) -> Result<(), String> {
-    db::record_play(&path)
+    db::record_play(&path).map_err(String::from)
 }
 
 #[tauri::command]
@@ -726,12 +823,44 @@ fn list_recently_played(limit: usize) -> Result<Vec<LibraryTrack>, String> {
             filename: r.filename,
             artist: r.artist,
             album: r.album,
+            album_artist: r.album_artist,
             title: r.title,
             year: r.year,
             genre: r.genre,
+            track_number: r.track_number,
             liked: r.liked,
+            rating: r.rating,
+            duration: r.duration_secs,
         })
         .collect())
+}
+
+#[tauri::command]
+fn list_recently_added(limit: usize) -> Result<Vec<LibraryTrack>, String> {
+    let rows = db::list_recently_added(limit)?;
+    Ok(rows.into_iter().map(library_track_from_row).collect())
+}
+
+#[derive(Debug, Serialize)]
+struct ReplayGainInfo {
+    track: Option<f32>,
+    album: Option<f32>,
+}
+
+/// Track + album ReplayGain (dB) from the file's tags (None when untagged).
+#[tauri::command]
+fn read_replay_gain(path: String) -> ReplayGainInfo {
+    let p = Path::new(&path);
+    ReplayGainInfo {
+        track: metadata::read_track_replay_gain(p),
+        album: metadata::read_album_replay_gain(p),
+    }
+}
+
+#[tauri::command]
+fn list_album_tracks(album: String, artist: Option<String>) -> Result<Vec<LibraryTrack>, String> {
+    let rows = db::list_album_tracks(&album, artist.as_deref())?;
+    Ok(rows.into_iter().map(library_track_from_row).collect())
 }
 
 #[tauri::command]
@@ -749,26 +878,21 @@ fn list_top_artists(limit: usize) -> Result<Vec<ArtistSummary>, String> {
 
 #[tauri::command]
 fn clear_history() -> Result<(), String> {
-    db::clear_history()
+    db::clear_history().map_err(String::from)
 }
 
 #[tauri::command]
 fn library_count() -> Result<u64, String> {
-    db::library_count()
+    db::library_count().map_err(String::from)
 }
 
-fn merge_missing(existing: &mut Option<String>, incoming: Option<String>) {
-    if existing
-        .as_ref()
-        .is_some_and(|value| !value.trim().is_empty())
-    {
-        return;
-    }
-    if let Some(value) = incoming
-        && !value.trim().is_empty()
-    {
-        *existing = Some(value);
-    }
+/// Remove library entries whose files no longer exist on disk. Returns the
+/// number of pruned tracks.
+#[tauri::command]
+fn prune_missing_files() -> Result<usize, String> {
+    db::prune_missing_files()
+        .map(|removed| removed.len())
+        .map_err(String::from)
 }
 
 fn is_placeholder_title(title: &Option<String>, filename: &str) -> bool {
@@ -790,30 +914,26 @@ fn is_placeholder_title(title: &Option<String>, filename: &str) -> bool {
     normalized_title == filename_stem
 }
 
-fn hydrate_track_from_file(track: &mut LibraryTrack) {
-    let file_metadata = metadata::read_track_metadata(Path::new(&track.path));
-    merge_missing(&mut track.artist, file_metadata.artist);
-    merge_missing(&mut track.album, file_metadata.album);
-    if is_placeholder_title(&track.title, &track.filename) {
-        track.title = None;
-    }
-    merge_missing(&mut track.title, file_metadata.title);
-    merge_missing(&mut track.year, file_metadata.year);
-    merge_missing(&mut track.genre, file_metadata.genre);
-}
-
 fn library_track_from_row(row: db::LibraryRow) -> LibraryTrack {
     let mut track = LibraryTrack {
         path: row.path,
         filename: row.filename.clone(),
         artist: row.artist,
         album: row.album,
+        album_artist: row.album_artist,
         title: row.title,
         year: row.year,
         genre: row.genre,
+        track_number: row.track_number,
         liked: row.liked,
+        rating: row.rating,
+        duration: row.duration_secs,
     };
-    hydrate_track_from_file(&mut track);
+    // Serve scan-time DB values directly. Browsing must not re-open every file
+    // (300 rows = 300 file opens per render); tags are stored at scan time.
+    if is_placeholder_title(&track.title, &track.filename) {
+        track.title = None;
+    }
     track
 }
 
@@ -833,10 +953,14 @@ fn track_from_path(path: &Path) -> LibraryTrack {
         filename: filename.clone(),
         artist: metadata.artist,
         album: metadata.album,
+        album_artist: metadata.album_artist,
         title: metadata.title,
         year: metadata.year,
         genre: metadata.genre,
+        track_number: metadata.track_number.map(i64::from),
         liked: false,
+        rating: 0,
+        duration: metadata.duration_secs,
     }
 }
 
@@ -884,6 +1008,10 @@ repeat with pickedItem in pickedItems
   set output to output & POSIX path of pickedItem & linefeed
 end repeat
 return output"#
+            }
+            "image" => {
+                r#"set pickedItem to choose file with prompt "Select cover image" of type {"public.image"}
+return POSIX path of pickedItem"#
             }
             other => return Err(format!("Unsupported picker kind: {other}")),
         };
@@ -1051,9 +1179,12 @@ fn write_missing_tags_for_path(path: String) -> Result<bool, String> {
     let metadata = metadata::TrackMetadata {
         artist: row.artist,
         album: row.album,
+        album_artist: row.album_artist,
         title: row.title,
         year: row.year,
         genre: row.genre,
+        track_number: row.track_number.and_then(|n| u32::try_from(n).ok()),
+        duration_secs: row.duration_secs,
     };
     metadata::write_missing_tags(Path::new(&path), &metadata)
 }
@@ -1073,9 +1204,12 @@ fn normalize_metadata_input(input: TrackMetadataInput) -> metadata::TrackMetadat
     metadata::TrackMetadata {
         artist: clean(input.artist),
         album: clean(input.album),
+        album_artist: clean(input.album_artist),
         title: clean(input.title),
         year: clean(input.year),
         genre: clean(input.genre),
+        track_number: input.track_number,
+        duration_secs: None,
     }
 }
 
@@ -1173,14 +1307,12 @@ fn infer_bit_depth(path: &Path) -> Option<u16> {
 #[tauri::command]
 fn read_track_signal_details(path: String) -> Result<TrackSignalDetails, String> {
     let file_path = PathBuf::from(&path);
-    let file = File::open(&file_path).map_err(|err| err.to_string())?;
-    let decoder = Decoder::new(BufReader::new(file)).map_err(|err| err.to_string())?;
-    let duration = decoder.total_duration();
-    let file_size_bytes = std::fs::metadata(&file_path)
-        .map(|meta| meta.len())
-        .unwrap_or(0);
-    let bitrate_kbps = duration.and_then(|duration| {
-        let seconds = duration.as_secs_f64();
+    // Read the header via lofty (no full decode). Fall back to a file-size /
+    // duration estimate only when the container exposes no bitrate.
+    let props = metadata::read_audio_signal_properties(&file_path);
+    let bitrate_kbps = props.bitrate_kbps.or_else(|| {
+        let seconds = props.duration_secs?;
+        let file_size_bytes = std::fs::metadata(&file_path).map(|meta| meta.len()).ok()?;
         if seconds <= 0.0 || file_size_bytes == 0 {
             return None;
         }
@@ -1189,9 +1321,9 @@ fn read_track_signal_details(path: String) -> Result<TrackSignalDetails, String>
 
     Ok(TrackSignalDetails {
         format: path_format_label(&file_path),
-        sample_rate_hz: Some(decoder.sample_rate().get()),
-        bit_depth: infer_bit_depth(&file_path),
-        channels: Some(decoder.channels().get()),
+        sample_rate_hz: props.sample_rate_hz,
+        bit_depth: props.bit_depth.or_else(|| infer_bit_depth(&file_path)),
+        channels: props.channels,
         bitrate_kbps,
     })
 }
@@ -1281,15 +1413,16 @@ fn load_track_into_sink(
     path: &str,
     current_volume: f32,
     dsp_settings: Arc<SharedNativeDspSettings>,
-) -> Result<(), String> {
+) -> Result<Option<Duration>, String> {
     let file = File::open(path).map_err(|err| err.to_string())?;
     let source = Decoder::new(BufReader::new(file)).map_err(|err| err.to_string())?;
+    let duration = source.total_duration();
     let source = NativeDspSource::new(source, dsp_settings);
     player.stop();
     player.clear();
     player.set_volume(current_volume);
     player.append(source);
-    Ok(())
+    Ok(duration)
 }
 
 fn run_native_audio_thread(
@@ -1301,6 +1434,7 @@ fn run_native_audio_thread(
     let mut stream: Option<MixerDeviceSink> = None;
     let mut player: Option<Player> = None;
     let mut current_path: Option<String> = None;
+    let mut current_duration: Option<Duration> = None;
     let mut current_volume: f32 = 0.8;
     let mut selected_output_device_name = selected_output_device
         .lock()
@@ -1320,7 +1454,7 @@ fn run_native_audio_thread(
                         let active_player = player
                             .as_ref()
                             .ok_or_else(|| String::from("Missing native audio player"))?;
-                        load_track_into_sink(
+                        let track_duration = load_track_into_sink(
                             active_player,
                             &path,
                             current_volume,
@@ -1328,6 +1462,7 @@ fn run_native_audio_thread(
                         )?;
                         active_player.play();
                         current_path = Some(path.clone());
+                        current_duration = track_duration;
                         with_runtime_status(&status, |runtime| {
                             runtime.available = true;
                             runtime.active = true;
@@ -1335,12 +1470,15 @@ fn run_native_audio_thread(
                             runtime.finished = false;
                             runtime.current_path = Some(path.clone());
                             runtime.detail = None;
+                            runtime.position_secs = Some(0.0);
+                            runtime.duration_secs = track_duration.map(|d| d.as_secs_f64());
                         });
                         Ok(())
                     })();
 
                     if let Err(err) = &result {
                         let detail = err.clone();
+                        current_duration = None;
                         with_runtime_status(&status, |runtime| {
                             runtime.available = false;
                             runtime.active = false;
@@ -1348,6 +1486,8 @@ fn run_native_audio_thread(
                             runtime.finished = false;
                             runtime.current_path = None;
                             runtime.detail = Some(detail);
+                            runtime.position_secs = None;
+                            runtime.duration_secs = None;
                         });
                     }
                     let _ = response.send(result);
@@ -1390,13 +1530,33 @@ fn run_native_audio_thread(
                         player = Some(created_player);
                     }
                     current_path = None;
+                    current_duration = None;
                     with_runtime_status(&status, |runtime| {
                         runtime.active = false;
                         runtime.paused = false;
                         runtime.finished = false;
                         runtime.current_path = None;
+                        runtime.position_secs = None;
+                        runtime.duration_secs = None;
                     });
                     let _ = response.send(Ok(()));
+                }
+                NativeAudioCommand::Seek { secs, response } => {
+                    let result = if let Some(active_player) = player.as_ref() {
+                        let target =
+                            clamp_seek_target(secs, current_duration.map(|d| d.as_secs_f64()));
+                        active_player
+                            .try_seek(Duration::from_secs_f64(target))
+                            .map_err(|err| err.to_string())
+                            .inspect(|()| {
+                                with_runtime_status(&status, |runtime| {
+                                    runtime.position_secs = Some(target);
+                                });
+                            })
+                    } else {
+                        Err(String::from("No native track loaded"))
+                    };
+                    let _ = response.send(result);
                 }
                 NativeAudioCommand::SetVolume { volume, response } => {
                     current_volume = volume.clamp(0.0, 1.0);
@@ -1489,15 +1649,24 @@ fn run_native_audio_thread(
 
         if let Some(active_player) = player.as_ref()
             && current_path.is_some()
-            && active_player.empty()
         {
-            current_path = None;
-            with_runtime_status(&status, |runtime| {
-                runtime.active = false;
-                runtime.paused = false;
-                runtime.finished = true;
-                runtime.current_path = None;
-            });
+            if active_player.empty() {
+                current_path = None;
+                current_duration = None;
+                with_runtime_status(&status, |runtime| {
+                    runtime.active = false;
+                    runtime.paused = false;
+                    runtime.finished = true;
+                    runtime.current_path = None;
+                    runtime.position_secs = None;
+                    runtime.duration_secs = None;
+                });
+            } else {
+                let position_secs = active_player.get_pos().as_secs_f64();
+                with_runtime_status(&status, |runtime| {
+                    runtime.position_secs = Some(position_secs);
+                });
+            }
         }
     }
 }
@@ -1562,6 +1731,11 @@ fn native_audio_stop() -> Result<(), String> {
 }
 
 #[tauri::command]
+fn native_audio_seek(secs: f64) -> Result<(), String> {
+    dispatch_native_audio_command(|response| NativeAudioCommand::Seek { secs, response })
+}
+
+#[tauri::command]
 fn native_audio_set_volume(volume: f32) -> Result<(), String> {
     dispatch_native_audio_command(|response| NativeAudioCommand::SetVolume { volume, response })
 }
@@ -1596,6 +1770,16 @@ fn native_audio_set_output_device(name: Option<String>) -> Result<(), String> {
     dispatch_native_audio_command(|response| NativeAudioCommand::SetOutputDevice { name, response })
 }
 
+/// Clamp a requested seek position to a valid range: never below zero, and
+/// never past the track's total duration when it is known.
+fn clamp_seek_target(target_secs: f64, total_secs: Option<f64>) -> f64 {
+    let floored = target_secs.max(0.0);
+    match total_secs {
+        Some(total) if total >= 0.0 => floored.min(total),
+        _ => floored,
+    }
+}
+
 #[tauri::command]
 fn native_audio_status() -> NativeAudioStatus {
     let controller = native_audio_controller();
@@ -1609,6 +1793,8 @@ fn native_audio_status() -> NativeAudioStatus {
                 finished: false,
                 current_path: None,
                 detail: Some(String::from("Native audio status lock poisoned")),
+                position_secs: None,
+                duration_secs: None,
             };
         }
     };
@@ -1620,6 +1806,8 @@ fn native_audio_status() -> NativeAudioStatus {
         finished: status.finished,
         current_path: status.current_path.clone(),
         detail: status.detail.clone(),
+        position_secs: status.position_secs,
+        duration_secs: status.duration_secs,
     };
     status.finished = false;
     snapshot
@@ -1642,7 +1830,7 @@ fn main() {
 
     match cli_mode {
         CliMode::Scan => {
-            match scan_library() {
+            match run_scan() {
                 Ok(summary) => {
                     println!(
                         "scan complete roots={} discovered={} upserted={}",
@@ -1696,6 +1884,13 @@ fn main() {
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
+
+            // Restrict the asset: protocol to the user's library and playlist
+            // directories rather than the whole filesystem (code-review C6).
+            let asset_scope = app.asset_protocol_scope();
+            for dir in library::asset_scope_roots() {
+                let _ = asset_scope.allow_directory(&dir, true);
+            }
             #[cfg(feature = "devtools")]
             if let Some(window) = app.get_webview_window("main") {
                 window.open_devtools();
@@ -1718,6 +1913,11 @@ fn main() {
                 }
             });
 
+            // Disabled header line that mirrors the current track (updated from
+            // the frontend via set_tray_now_playing).
+            let now_playing_item = MenuItemBuilder::with_id("now_playing", "Not playing")
+                .enabled(false)
+                .build(app)?;
             let previous_item =
                 MenuItemBuilder::with_id("previous_track", "Previous").build(app)?;
             let toggle_item =
@@ -1727,6 +1927,7 @@ fn main() {
             let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
             let tray_menu = MenuBuilder::new(app)
                 .items(&[
+                    &now_playing_item,
                     &previous_item,
                     &toggle_item,
                     &next_item,
@@ -1735,7 +1936,7 @@ fn main() {
                 ])
                 .build()?;
 
-            TrayIconBuilder::new()
+            let tray = TrayIconBuilder::new()
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -1750,24 +1951,16 @@ fn main() {
                         let _ = app.emit("tray://control", "next");
                     }
                     "scan_library" => {
-                        let roots = library::configured_library_dirs();
-                        match library::index_library_dirs(&roots) {
-                            Ok(summary) => {
-                                let payload = ScanResult {
-                                    roots: roots
-                                        .iter()
-                                        .map(|path| path.display().to_string())
-                                        .collect::<Vec<_>>(),
-                                    roots_scanned: summary.roots_scanned,
-                                    files_discovered: summary.files_discovered,
-                                    files_upserted: summary.files_upserted,
-                                };
+                        // Run off the tray event thread so the menu never freezes.
+                        let app = app.clone();
+                        thread::spawn(move || match run_scan() {
+                            Ok(payload) => {
                                 let _ = app.emit("tray://scan-complete", payload);
                             }
                             Err(err) => {
                                 let _ = app.emit("tray://scan-failed", err);
                             }
-                        }
+                        });
                     }
                     _ => {}
                 })
@@ -1785,22 +1978,36 @@ fn main() {
                 })
                 .build(app)?;
 
+            // Keep handles so the now-playing label/tooltip can be updated live.
+            app.manage(TrayHandles {
+                now_playing: now_playing_item,
+                tray,
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             app_version,
+            restart_app,
+            set_tray_now_playing,
             scan_library,
             scan_paths,
             pick_scan_paths,
             list_library,
             library_count,
+            prune_missing_files,
+            list_album_tracks,
+            read_replay_gain,
             list_genres,
             list_artists,
             list_albums,
             list_genre_summaries,
             toggle_liked,
+            set_rating,
+            set_track_artwork,
             record_play,
             list_recently_played,
+            list_recently_added,
             list_top_artists,
             clear_history,
             list_playlists,
@@ -1820,6 +2027,7 @@ fn main() {
             native_audio_play,
             native_audio_pause,
             native_audio_resume,
+            native_audio_seek,
             native_audio_stop,
             native_audio_set_volume,
             native_audio_set_dsp_settings,
@@ -1833,4 +2041,88 @@ fn main() {
             eprintln!("CoreAmp app failed to start: {err}");
             process::exit(1);
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clamp_seek_target;
+    use super::library_track_from_row;
+    use super::scan_result;
+    use coreamp_common::db::LibraryRow;
+    use coreamp_common::library::ScanSummary;
+    use std::path::PathBuf;
+
+    #[test]
+    fn scan_result_maps_roots_and_summary() {
+        let roots = vec![PathBuf::from("/m/a"), PathBuf::from("/m/b")];
+        let summary = ScanSummary {
+            roots_scanned: 2,
+            files_discovered: 10,
+            files_upserted: 3,
+        };
+        let result = scan_result(&roots, &summary);
+        assert_eq!(result.roots, vec!["/m/a".to_string(), "/m/b".to_string()]);
+        assert_eq!(result.roots_scanned, 2);
+        assert_eq!(result.files_discovered, 10);
+        assert_eq!(result.files_upserted, 3);
+    }
+
+    fn sample_row() -> LibraryRow {
+        LibraryRow {
+            path: "/nonexistent/does-not-exist.mp3".to_string(),
+            filename: "does-not-exist.mp3".to_string(),
+            artist: Some("Artist".to_string()),
+            album: Some("Album".to_string()),
+            album_artist: Some("Album Artist".to_string()),
+            title: Some("Real Title".to_string()),
+            year: Some("2020".to_string()),
+            genre: Some("Rock".to_string()),
+            track_number: Some(7),
+            liked: true,
+            duration_secs: Some(200),
+            rating: 4,
+        }
+    }
+
+    #[test]
+    fn library_track_from_row_maps_db_values_without_disk_access() {
+        // Path does not exist; browsing must rely only on the stored DB row.
+        let track = library_track_from_row(sample_row());
+        assert_eq!(track.title.as_deref(), Some("Real Title"));
+        assert_eq!(track.artist.as_deref(), Some("Artist"));
+        assert_eq!(track.album.as_deref(), Some("Album"));
+        assert_eq!(track.genre.as_deref(), Some("Rock"));
+        assert_eq!(track.year.as_deref(), Some("2020"));
+        assert_eq!(track.duration, Some(200));
+        assert!(track.liked);
+    }
+
+    #[test]
+    fn library_track_from_row_clears_placeholder_title() {
+        let mut row = sample_row();
+        row.title = Some("does-not-exist.mp3".to_string()); // title == filename
+        let track = library_track_from_row(row);
+        assert!(track.title.is_none());
+    }
+
+    #[test]
+    fn clamp_seek_target_floors_negative_to_zero() {
+        assert_eq!(clamp_seek_target(-5.0, Some(120.0)), 0.0);
+    }
+
+    #[test]
+    fn clamp_seek_target_passes_through_in_range() {
+        assert_eq!(clamp_seek_target(42.5, Some(120.0)), 42.5);
+    }
+
+    #[test]
+    fn clamp_seek_target_caps_at_total_duration() {
+        assert_eq!(clamp_seek_target(200.0, Some(120.0)), 120.0);
+    }
+
+    #[test]
+    fn clamp_seek_target_without_total_only_floors() {
+        assert_eq!(clamp_seek_target(200.0, None), 200.0);
+        assert_eq!(clamp_seek_target(-1.0, None), 0.0);
+    }
 }

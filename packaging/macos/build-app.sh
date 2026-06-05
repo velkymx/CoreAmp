@@ -44,6 +44,19 @@ lipo -create "${ARM_BIN}" "${X86_BIN}" -output "${UNIVERSAL_BIN}"
 echo "Universal binary architectures:"
 lipo -info "${UNIVERSAL_BIN}"
 
+# Code sign the app bundle with entitlements
+ENTITLEMENTS="${ROOT_DIR}/packaging/macos/entitlements.plist"
+SIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+
+echo "Signing with identity: ${SIGN_IDENTITY}"
+codesign --deep --force --options runtime \
+  --entitlements "${ENTITLEMENTS}" \
+  --sign "${SIGN_IDENTITY}" \
+  "${UNIVERSAL_APP}"
+
+echo "Verifying signature:"
+codesign --verify --verbose=2 "${UNIVERSAL_APP}"
+
 rm -f "${OUTPUT_DIR}/CoreAmp.app.zip"
 (cd "${OUTPUT_DIR}" && zip -r -y "CoreAmp.app.zip" CoreAmp.app)
 rm -rf "${UNIVERSAL_APP}"

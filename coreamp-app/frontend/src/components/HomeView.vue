@@ -1,0 +1,124 @@
+<template>
+  <div class="home-view p-3 overflow-auto h-100">
+    <h1 class="h4 mb-3">CoreAmp</h1>
+
+    <section class="mb-4">
+      <h2 class="h6 text-secondary text-uppercase">Top artists</h2>
+      <SummaryGrid :items="topArtistItems" icon="person" @select="onArtist" />
+    </section>
+
+    <section class="mb-4">
+      <h2 class="h6 text-secondary text-uppercase">Recently added</h2>
+      <TrackTable
+        :tracks="recentlyAdded"
+        :active-path="player.currentTrack?.path ?? null"
+        @play="onPlayAdded"
+        @like="onLike"
+        @play-next="(t) => player.playNext(toQueueTrack(t))"
+        @enqueue="(t) => player.enqueue(toQueueTrack(t))"
+        @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
+        @edit="(t) => ui.openEdit(t)"
+        @details="(t) => ui.openDetails(t)"
+        @browse="onArtist"
+        @play-from-here="onPlayAddedFromHere"
+      />
+    </section>
+
+    <section>
+      <h2 class="h6 text-secondary text-uppercase">Recently played</h2>
+      <TrackTable
+        :tracks="recent"
+        :active-path="player.currentTrack?.path ?? null"
+        @play="onPlayRecent"
+        @like="onLike"
+        @play-next="(t) => player.playNext(toQueueTrack(t))"
+        @enqueue="(t) => player.enqueue(toQueueTrack(t))"
+        @add-to-playlist="(t) => ui.openAddToPlaylist(t)"
+        @edit="(t) => ui.openEdit(t)"
+        @details="(t) => ui.openDetails(t)"
+        @browse="onArtist"
+        @play-from-here="onPlayFromHere"
+      />
+    </section>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from "vue";
+import type { ArtistSummary, LibraryTrack } from "@/types";
+import * as api from "@/api/tauri";
+import SummaryGrid, { type SummaryItem } from "@/components/SummaryGrid.vue";
+import TrackTable from "@/components/TrackTable.vue";
+import { usePlayerStore } from "@/stores/player";
+import { useLibraryStore } from "@/stores/library";
+import { useUiStore } from "@/stores/ui";
+import { toQueueTrack } from "@/util/track";
+import { useNotify } from "@/composables/useNotify";
+
+const player = usePlayerStore();
+const library = useLibraryStore();
+const ui = useUiStore();
+const { run } = useNotify();
+
+const topArtists = ref<ArtistSummary[]>([]);
+const recent = ref<LibraryTrack[]>([]);
+const recentlyAdded = ref<LibraryTrack[]>([]);
+
+async function load(): Promise<void> {
+  const data = await run(
+    async () =>
+      Promise.all([
+        api.listTopArtists(12),
+        api.listRecentlyPlayed(25),
+        api.listRecentlyAdded(25),
+      ]),
+    { errorPrefix: "Couldn't load dashboard" },
+  );
+  if (data) [topArtists.value, recent.value, recentlyAdded.value] = data;
+}
+onMounted(load);
+watch(() => ui.dataVersion, load);
+
+const topArtistItems = computed<SummaryItem[]>(() =>
+  topArtists.value.map((a) => ({
+    key: a.name,
+    title: a.name,
+    subtitle: `${a.track_count} tracks`,
+  })),
+);
+
+function onPlayRecent(track: LibraryTrack): void {
+  void player.playTracks([toQueueTrack(track)], 0);
+}
+
+function onPlayFromHere(track: LibraryTrack): void {
+  const index = recent.value.findIndex((t) => t.path === track.path);
+  void player.playTracks(recent.value.map(toQueueTrack), Math.max(index, 0));
+}
+
+function onPlayAdded(track: LibraryTrack): void {
+  void player.playTracks([toQueueTrack(track)], 0);
+}
+
+function onPlayAddedFromHere(track: LibraryTrack): void {
+  const index = recentlyAdded.value.findIndex((t) => t.path === track.path);
+  void player.playTracks(recentlyAdded.value.map(toQueueTrack), Math.max(index, 0));
+}
+
+async function onLike(path: string): Promise<void> {
+  const liked = await api.toggleLiked(path);
+  const track = recent.value.find((t) => t.path === path);
+  if (track) track.liked = liked;
+}
+
+// Drill into a Library search for the chosen artist.
+async function onArtist(name: string): Promise<void> {
+  library.search = name;
+  library.genreFilter = null;
+  library.view = "tracks";
+  await library.loadTracks();
+  ui.setTab("library");
+}
+
+defineExpose({ load });
+</script>

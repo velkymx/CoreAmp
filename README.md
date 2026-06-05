@@ -57,6 +57,33 @@ cargo build --release
 ```
 The binaries will be located in `target/release/`.
 
+### Building macOS App Bundles
+
+To build a signed universal (ARM + Intel) `.app` bundle:
+
+```bash
+bash packaging/macos/build-app.sh
+```
+
+This produces `target/packages/macos/CoreAmp.app.zip`.
+
+By default the app is **ad-hoc signed** (`-`), which is sufficient for local use and direct distribution. To sign with an Apple Developer ID instead, set the `CODESIGN_IDENTITY` environment variable:
+
+```bash
+export CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+bash packaging/macos/build-app.sh
+```
+
+### macOS Gatekeeper Notes
+
+If you download a pre-built CoreAmp release and macOS blocks it from opening, remove the quarantine flag:
+
+```bash
+xattr -d com.apple.quarantine /Applications/CoreAmp.app
+```
+
+Ad-hoc signed builds will not pass Gatekeeper automatically — this is expected for apps distributed outside the Mac App Store without Apple Developer ID signing and notarization.
+
 ## 🤝 Contributing & Dependencies
 
 CoreAmp is built on the shoulders of giants. See [CONTRIBUTORS.md](CONTRIBUTORS.md) for a full list of the open-source libraries we use.
