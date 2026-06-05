@@ -1282,14 +1282,12 @@ fn infer_bit_depth(path: &Path) -> Option<u16> {
 #[tauri::command]
 fn read_track_signal_details(path: String) -> Result<TrackSignalDetails, String> {
     let file_path = PathBuf::from(&path);
-    let file = File::open(&file_path).map_err(|err| err.to_string())?;
-    let decoder = Decoder::new(BufReader::new(file)).map_err(|err| err.to_string())?;
-    let duration = decoder.total_duration();
-    let file_size_bytes = std::fs::metadata(&file_path)
-        .map(|meta| meta.len())
-        .unwrap_or(0);
-    let bitrate_kbps = duration.and_then(|duration| {
-        let seconds = duration.as_secs_f64();
+    // Read the header via lofty (no full decode). Fall back to a file-size /
+    // duration estimate only when the container exposes no bitrate.
+    let props = metadata::read_audio_signal_properties(&file_path);
+    let bitrate_kbps = props.bitrate_kbps.or_else(|| {
+        let seconds = props.duration_secs?;
+        let file_size_bytes = std::fs::metadata(&file_path).map(|meta| meta.len()).ok()?;
         if seconds <= 0.0 || file_size_bytes == 0 {
             return None;
         }
@@ -1298,9 +1296,9 @@ fn read_track_signal_details(path: String) -> Result<TrackSignalDetails, String>
 
     Ok(TrackSignalDetails {
         format: path_format_label(&file_path),
-        sample_rate_hz: Some(decoder.sample_rate().get()),
-        bit_depth: infer_bit_depth(&file_path),
-        channels: Some(decoder.channels().get()),
+        sample_rate_hz: props.sample_rate_hz,
+        bit_depth: props.bit_depth.or_else(|| infer_bit_depth(&file_path)),
+        channels: props.channels,
         bitrate_kbps,
     })
 }

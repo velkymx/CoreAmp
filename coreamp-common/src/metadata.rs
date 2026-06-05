@@ -27,6 +27,34 @@ pub struct EmbeddedArtwork {
     pub data: Vec<u8>,
 }
 
+/// Audio signal characteristics read from a file's header (no full decode).
+#[derive(Debug, Clone, Default)]
+pub struct AudioSignalProperties {
+    pub sample_rate_hz: Option<u32>,
+    pub bit_depth: Option<u16>,
+    pub channels: Option<u16>,
+    pub bitrate_kbps: Option<u32>,
+    pub duration_secs: Option<f64>,
+}
+
+/// Read sample rate / bit depth / channels / bitrate from the container header
+/// via `lofty` — cheap, no rodio decode of the whole file.
+pub fn read_audio_signal_properties(path: &Path) -> AudioSignalProperties {
+    let tagged_file = match lofty::read_from_path(path) {
+        Ok(file) => file,
+        Err(_) => return AudioSignalProperties::default(),
+    };
+    let props = tagged_file.properties();
+    let duration = props.duration().as_secs_f64();
+    AudioSignalProperties {
+        sample_rate_hz: props.sample_rate(),
+        bit_depth: props.bit_depth().map(u16::from),
+        channels: props.channels().map(u16::from),
+        bitrate_kbps: props.audio_bitrate().or_else(|| props.overall_bitrate()),
+        duration_secs: (duration > 0.0).then_some(duration),
+    }
+}
+
 fn image_mime_type(path: &Path) -> Option<&'static str> {
     let extension = path.extension()?.to_string_lossy().to_ascii_lowercase();
     match extension.as_str() {
