@@ -230,7 +230,7 @@ function init(THREE: any): void {
   grid.position.z = -14;
   grid.renderOrder = -5;
   (grid.material as any).transparent = true;
-  (grid.material as any).opacity = 0.5;
+  (grid.material as any).opacity = 0.32;
   scene.add(grid);
 
   // Lane glow strips + dividers.
@@ -239,13 +239,15 @@ function init(THREE: any): void {
     const mat = new THREE.MeshBasicMaterial({
       color: LANE_COLORS[i],
       transparent: true,
-      opacity: 0.06,
+      opacity: 0.12,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      depthTest: false, // highway always paints over the EDC backdrop
     });
     const strip = new THREE.Mesh(new THREE.PlaneGeometry(2.2, SPAWN_Z * -1 + HIT_Z + 4), mat);
     strip.rotation.x = -Math.PI / 2;
     strip.position.set(laneX(i), -0.02, (SPAWN_Z + HIT_Z) / 2);
+    strip.renderOrder = 8;
     scene.add(strip);
     laneStrips.push(strip);
   }
@@ -259,10 +261,11 @@ function init(THREE: any): void {
       opacity: 0,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      depthTest: false,
     });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 5), mat);
     mesh.position.set(laneX(i), 1.4, HIT_Z);
-    mesh.renderOrder = 2;
+    mesh.renderOrder = 9;
     scene.add(mesh);
     flashMeshes.push(mesh);
   }
@@ -274,6 +277,7 @@ function init(THREE: any): void {
     opacity: 0.85,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    depthTest: false,
   });
   const hitBar = new THREE.Mesh(
     new THREE.PlaneGeometry(laneX(LANE_COUNT - 1) - laneX(0) + 3, 0.5),
@@ -281,7 +285,7 @@ function init(THREE: any): void {
   );
   hitBar.rotation.x = -Math.PI / 2;
   hitBar.position.set(0, 0.05, HIT_Z);
-  hitBar.renderOrder = 2;
+  hitBar.renderOrder = 10;
   scene.add(hitBar);
 
   // Particle system.
@@ -334,7 +338,7 @@ function init(THREE: any): void {
       depthWrite: false,
     });
     const bar = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1), mat);
-    bar.position.set((i - SPEC_N / 2) * 1.5, 6, -52);
+    bar.position.set((i - SPEC_N / 2) * 1.5, 7, -62);
     bar.renderOrder = -4;
     scene.add(bar);
     specBars.push(bar);
@@ -485,14 +489,16 @@ function spawnNote(lane: number, arrival: number): void {
   if (!three) return;
   const { THREE, scene } = three;
   const color = LANE_COLORS[lane];
+  // depthTest off + high renderOrder → notes always paint over the EDC backdrop.
   const mat = new THREE.MeshBasicMaterial({
     color,
     blending: THREE.AdditiveBlending,
     transparent: true,
+    depthTest: false,
   });
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 1.1), mat);
   mesh.position.set(laneX(lane), 0.35, SPAWN_Z);
-  mesh.renderOrder = 5;
+  mesh.renderOrder = 14;
   scene.add(mesh);
   // Trailing glow.
   const glowMat = new THREE.MeshBasicMaterial({
@@ -501,11 +507,12 @@ function spawnNote(lane: number, arrival: number): void {
     opacity: 0.35,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    depthTest: false,
   });
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), glowMat);
   glow.position.copy(mesh.position);
   glow.rotation.x = -Math.PI / 2;
-  glow.renderOrder = 4;
+  glow.renderOrder = 13;
   scene.add(glow);
   // Vertical comet trail behind the note.
   const trailMat = new THREE.MeshBasicMaterial({
@@ -514,10 +521,11 @@ function spawnNote(lane: number, arrival: number): void {
     opacity: 0.5,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    depthTest: false,
   });
   const trail = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 6), trailMat);
   trail.position.set(laneX(lane), 0.3, SPAWN_Z - 3);
-  trail.renderOrder = 4;
+  trail.renderOrder = 13;
   scene.add(trail);
   notes.push({ lane, arrival, mesh, glow, trail, judged: false });
 }
@@ -643,11 +651,11 @@ function tick(): void {
   for (let i = 0; i < specBars.length; i++) {
     const v = data && data.length ? data[(i * 7) % data.length] / 255 : 0;
     const bar = specBars[i];
-    bar.scale.y = 0.5 + v * 16;
-    bar.position.y = 1 + (bar.scale.y * 1) / 2;
+    bar.scale.y = 0.5 + v * 9;
+    bar.position.y = 2 + (bar.scale.y * 1) / 2;
     const hue = ((i / specBars.length) * 300 + t * 30 + (fever ? 0 : 0)) % 360;
     bar.material.color.setHSL((fever ? 45 : hue) / 360, 1, 0.5);
-    bar.material.opacity = 0.18 + v * 0.4;
+    bar.material.opacity = 0.08 + v * 0.18;
   }
 
   // Shockwave rings expand + fade.
@@ -677,12 +685,13 @@ function tick(): void {
     s.mesh.position.x = s.baseX + Math.sin(t * 0.6 + s.phase) * bands.bass * 5;
     const hue = (s.hue + t * 0.05 + bands.treble * 0.3) % 1;
     s.mesh.material.color.setHSL(fever ? 0.12 : hue, 1, 0.55);
-    s.mesh.material.opacity = 0.05 + bands.mid * 0.22 + bands.treble * 0.16 + bands.bass * 0.06;
+    // Dimmer than before so the beams set mood without washing out the highway.
+    s.mesh.material.opacity = 0.03 + bands.mid * 0.12 + bands.treble * 0.08 + bands.bass * 0.04;
   }
   // Laser fan flicker (treble-driven), hue cycling.
   for (let i = 0; i < lasers.length; i++) {
     const m = lasers[i].mesh.material;
-    m.opacity = 0.04 + bands.treble * 0.6;
+    m.opacity = 0.02 + bands.treble * 0.3;
     m.color.setHSL((0.33 + t * 0.06 + i * 0.04) % 1, 1, 0.55);
   }
   // Lightning strikes on hard bass (rate-limited) + its flash.
