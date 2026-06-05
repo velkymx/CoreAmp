@@ -3,6 +3,10 @@
     <!-- Full-frame flash on big hits / milestones. -->
     <div class="kh-flash" :style="{ opacity: flash * 0.5 }" aria-hidden="true"></div>
 
+    <!-- Cinematic overlays: subtle film grain + edge vignette for depth/polish. -->
+    <div class="kh-grain" aria-hidden="true"></div>
+    <div class="kh-vignette" aria-hidden="true"></div>
+
     <!-- HUD -->
     <div class="kh-hud">
       <span class="kh-score" data-test="kh-score">{{ score.toLocaleString() }}</span>
@@ -11,9 +15,9 @@
           ×{{ multiplier }}
         </span>
         <span v-if="multiplier >= 4" class="kh-fever" data-test="kh-fever">FEVER</span>
-        <span v-if="combo > 1" class="kh-combo" data-test="kh-combo">{{ combo }} combo</span>
+        <span v-if="combo > 1" :key="combo" class="kh-combo" data-test="kh-combo">{{ combo }} combo</span>
       </div>
-      <span v-if="message" class="kh-message" data-test="kh-message">{{ message }}</span>
+      <span v-if="message" :key="message" class="kh-message" data-test="kh-message">{{ message }}</span>
     </div>
 
     <!-- Lane labels (always visible) -->
@@ -225,6 +229,10 @@ function init(THREE: any): void {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x1c0f1a, 1); // deep warm dusk, not cold black
   renderer.autoClearColor = true;
+  // Filmic roll-off: the additive neon glows now bloom toward warm white instead
+  // of clipping to a flat blown-out white — the single biggest "polish" lever.
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -258,6 +266,29 @@ function init(THREE: any): void {
     strip.renderOrder = 8;
     scene.add(strip);
     laneStrips.push(strip);
+  }
+
+  // Scrolling beat lines — thin glowing rungs that march up the highway at the
+  // tempo (classic Guitar Hero cue). Gives the lane rhythmic structure even
+  // between notes. Spacing/scroll is driven from the BPM tracker in animate.
+  const beatLines: any[] = [];
+  const BEAT_LINE_N = 12;
+  const laneSpan = laneX(LANE_COUNT - 1) - laneX(0) + 2.6;
+  for (let i = 0; i < BEAT_LINE_N; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffd9a8,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+    });
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(laneSpan, 0.12), mat);
+    line.rotation.x = -Math.PI / 2;
+    line.position.set(0, -0.01, SPAWN_Z + (i / BEAT_LINE_N) * (HIT_Z - SPAWN_Z));
+    line.renderOrder = 6;
+    scene.add(line);
+    beatLines.push(line);
   }
 
   // Per-lane hit-flash columns.
@@ -461,6 +492,27 @@ function init(THREE: any): void {
   sunGlow.renderOrder = -7;
   scene.add(sunGlow);
 
+  // Soft glow halo laid over the hit line (fake bloom — the radial sun texture
+  // stretched thin across the strike zone). Pulses with the bass in animate.
+  const hitGlowMat = new THREE.MeshBasicMaterial({
+    map: sunTex,
+    color: 0xffe0b0,
+    transparent: true,
+    opacity: 0.5,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: false,
+    fog: false,
+  });
+  const hitGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(laneX(LANE_COUNT - 1) - laneX(0) + 10, 9),
+    hitGlowMat,
+  );
+  hitGlow.rotation.x = -Math.PI / 2;
+  hitGlow.position.set(0, 0.04, HIT_Z);
+  hitGlow.renderOrder = 7;
+  scene.add(hitGlow);
+
   // ── Drifting warm bokeh ("fireflies") ─────────────────────────────────────
   // Slow, soft motes of light rising through the scene — calm, alive, friendly.
   const BOKEH_N = 70;
@@ -572,6 +624,7 @@ function init(THREE: any): void {
     renderer,
     flashMeshes,
     laneStrips,
+    beatLines,
     hitBar,
     hitBarMat,
     specBars,
@@ -584,6 +637,8 @@ function init(THREE: any): void {
     discoDotMat,
     bokeh,
     sunGlow,
+    glowTex: sunTex, // soft radial used for note light-pools + fake bloom
+    hitGlowMat,
     resizeObs,
     ltLife: 0,
     ltCooldown: 0,
@@ -634,20 +689,24 @@ function spawnNote(lane: number, arrival: number): void {
     transparent: true,
     depthTest: false,
   });
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 1.1), mat);
-  mesh.position.set(laneX(lane), 0.35, SPAWN_Z);
+  // Classic gem: a faceted diamond that catches the tone-mapped glow.
+  const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.95, 0), mat);
+  mesh.scale.set(1.15, 1.35, 1.15); // slightly tall, jewel-like
+  mesh.position.set(laneX(lane), 0.55, SPAWN_Z);
   mesh.renderOrder = 14;
   scene.add(mesh);
-  // Trailing glow.
+  // Soft light pool cast under the note (radial texture = fake bloom, not a
+  // hard square).
   const glowMat = new THREE.MeshBasicMaterial({
     color,
+    map: three.glowTex,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.5,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     depthTest: false,
   });
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), glowMat);
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6), glowMat);
   glow.position.copy(mesh.position);
   glow.rotation.x = -Math.PI / 2;
   glow.renderOrder = 13;
@@ -897,9 +956,16 @@ function tick(): void {
     const progress = 1 - (n.arrival - songT) / TRAVEL;
     const z = SPAWN_Z + progress * (HIT_Z - SPAWN_Z);
     n.mesh.position.z = z;
-    n.mesh.rotation.x += fever ? 0.12 : 0.06;
-    n.mesh.scale.setScalar(1 + bands.bass * 0.25);
-    if (n.glow) n.glow.position.z = z;
+    n.mesh.rotation.y += fever ? 0.1 : 0.05; // gem spins on its axis
+    // Soft ease-in over the first stretch of travel (no hard pop at spawn).
+    const appear = Math.min(1, Math.max(0, progress * 6));
+    const ease = appear * appear * (3 - 2 * appear); // smoothstep
+    const s = ease * (1 + bands.bass * 0.22);
+    n.mesh.scale.set(1.15 * s, 1.35 * s, 1.15 * s);
+    if (n.glow) {
+      n.glow.position.z = z;
+      n.glow.scale.setScalar(ease);
+    }
     if (n.trail) n.trail.position.z = z - 3;
     if (!n.judged && songT - n.arrival > HIT_WINDOW) {
       n.judged = true;
@@ -942,6 +1008,21 @@ function tick(): void {
     laneStrips[i].material.opacity = 0.05 + bands.bass * 0.12 + laneFlash[i] * 0.1;
   }
   hitBarMat.opacity = 0.6 + bands.bass * 0.4;
+  if (three.hitGlowMat) three.hitGlowMat.opacity = 0.35 + bands.bass * 0.35;
+
+  // Beat lines march up the highway at the tempo (spacing = one beat in z).
+  if (three.beatLines) {
+    const noteSpeed = (HIT_Z - SPAWN_Z) / TRAVEL; // units/sec the notes travel
+    const spacing = noteSpeed * Math.max(0.3, Math.min(1.2, beatInterval));
+    const span = three.beatLines.length * spacing;
+    const step = player.isPlaying ? noteSpeed / 60 : 0;
+    for (const line of three.beatLines) {
+      line.position.z += step;
+      if (line.position.z > HIT_Z + 3) line.position.z -= span;
+      const prog = (line.position.z - SPAWN_Z) / (HIT_Z - SPAWN_Z);
+      line.material.opacity = Math.max(0, 0.05 + Math.min(1, prog) * 0.2 - Math.max(0, prog - 1) * 0.6);
+    }
+  }
 
   // Camera stays locked (no bob/shake/punch) — the highway never jitters.
   void camBaseY;
@@ -1035,6 +1116,32 @@ onBeforeUnmount(() => {
   pointer-events: none;
   transition: opacity 0.1s ease;
 }
+/* Edge vignette — pulls focus to the highway, adds cinematic depth. */
+.kh-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 50% 42%, transparent 55%, rgba(20, 8, 16, 0.55) 100%);
+}
+/* Faint animated film grain over everything. */
+.kh-grain {
+  position: absolute;
+  inset: -50%;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: kh-grain-shift 0.5s steps(2) infinite;
+}
+@keyframes kh-grain-shift {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(-3%, 2%); }
+  100% { transform: translate(2%, -3%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kh-grain { animation: none; }
+}
 .kh-hud {
   position: absolute;
   top: 0.5rem;
@@ -1051,6 +1158,8 @@ onBeforeUnmount(() => {
   font-size: 1.7rem;
   font-weight: 800;
   letter-spacing: 0.02em;
+  display: inline-block;
+  transition: transform 0.08s ease;
 }
 .kh-streak {
   display: flex;
@@ -1064,14 +1173,14 @@ onBeforeUnmount(() => {
   border-radius: 0.25rem;
 }
 .kh-mult.m2 {
-  color: #39ff14;
+  color: #ffd27f;
 }
 .kh-mult.m3 {
-  color: #ffe600;
+  color: #ffb054;
 }
 .kh-mult.m4 {
-  color: #ff2d55;
-  text-shadow: 0 0 10px #ff2d55;
+  color: #ff7e6b;
+  text-shadow: 0 0 10px #ff7e6b;
 }
 .kh-fever {
   font-weight: 900;
@@ -1091,14 +1200,26 @@ onBeforeUnmount(() => {
   }
 }
 .kh-combo {
-  color: #8fd0ff;
-  font-weight: 600;
+  color: #ffcaa0;
+  font-weight: 700;
+  display: inline-block;
+  animation: kh-combo-pop 0.22s ease-out;
+}
+@keyframes kh-combo-pop {
+  0% { transform: scale(1.45); color: #fff; }
+  100% { transform: scale(1); }
 }
 .kh-message {
   color: #ffd86e;
   font-weight: 800;
   font-size: 1.1rem;
   text-shadow: 0 0 12px rgba(255, 216, 110, 0.6);
+  display: inline-block;
+  animation: kh-msg-in 0.3s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes kh-msg-in {
+  0% { transform: translateY(8px) scale(0.7); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
 }
 .kh-lanes {
   position: absolute;
@@ -1124,9 +1245,14 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(4, 6, 15, 0.88);
+  background: radial-gradient(ellipse at 50% 38%, rgba(58, 28, 36, 0.92), rgba(20, 8, 16, 0.94));
   color: #fff;
   text-align: center;
+  animation: kh-results-in 0.45s ease-out;
+}
+@keyframes kh-results-in {
+  0% { opacity: 0; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
 }
 .kh-result-grid {
   display: grid;
@@ -1136,7 +1262,7 @@ onBeforeUnmount(() => {
   font-size: 1.1rem;
 }
 .kh-result-grid dt {
-  color: #9fb3d8;
+  color: #e0b48a;
   text-align: right;
 }
 .kh-result-grid dd {
