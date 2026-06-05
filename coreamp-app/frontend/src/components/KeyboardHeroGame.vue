@@ -72,7 +72,10 @@ import {
 defineEmits<{ (e: "close"): void }>();
 
 // Neon per-lane colors (Guitar-Hero-ish).
-const LANE_COLORS = [0x39ff14, 0xff2d55, 0xffe600, 0x2d7bff, 0xff8a00, 0xb14dff];
+// Warm, cohesive "golden-hour" palette — amber, coral, sunlit yellow, peach,
+// gold, soft lavender. Still six readable lanes, but the whole set leans warm so
+// the scene feels like a sunset hangout rather than a cold club.
+const LANE_COLORS = [0xffb347, 0xff6f91, 0xffe066, 0xff9e7d, 0xffd27f, 0xc9a0ff];
 function laneCss(i: number): string {
   return `#${LANE_COLORS[i].toString(16).padStart(6, "0")}`;
 }
@@ -139,6 +142,7 @@ let pBase: Float32Array; // base rgb
 let pGeo: any = null;
 let pColorAttr: any = null;
 let pCursor = 0;
+let bokehVel: Float32Array; // per-mote rise speed for the warm drifting bokeh
 
 function laneX(lane: number): number {
   return (lane - (LANE_COUNT - 1) / 2) * 2.6;
@@ -219,18 +223,18 @@ function init(THREE: any): void {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x04060f, 1);
+  renderer.setClearColor(0x1c0f1a, 1); // deep warm dusk, not cold black
   renderer.autoClearColor = true;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x04060f, 16, 46);
+  scene.fog = new THREE.Fog(0x2a1622, 18, 52); // warm haze that softens the distance
   const camera = new THREE.PerspectiveCamera(64, w / h, 0.1, 140);
   camera.position.set(0, 8, 15);
   camera.lookAt(0, 0, -10);
 
   // Floor grid (neon, additive).
-  const grid = new THREE.GridHelper(120, 60, 0x16306a, 0x0c1c44);
+  const grid = new THREE.GridHelper(120, 60, 0x6a3a4a, 0x3a2030);
   grid.position.z = -14;
   grid.renderOrder = -5;
   (grid.material as any).transparent = true;
@@ -276,7 +280,7 @@ function init(THREE: any): void {
 
   // Hit line glow bar.
   const hitBarMat = new THREE.MeshBasicMaterial({
-    color: 0x9fd0ff,
+    color: 0xffe0b0,
     transparent: true,
     opacity: 0.85,
     blending: THREE.AdditiveBlending,
@@ -325,7 +329,7 @@ function init(THREE: any): void {
   sGeo.setAttribute("position", new THREE.BufferAttribute(sPos, 3));
   const stars = new THREE.Points(
     sGeo,
-    new THREE.PointsMaterial({ color: 0x35508f, size: 0.25, transparent: true, opacity: 0.6 }),
+    new THREE.PointsMaterial({ color: 0xc98a6a, size: 0.25, transparent: true, opacity: 0.55 }),
   );
   stars.renderOrder = -6;
   scene.add(stars);
@@ -395,7 +399,7 @@ function init(THREE: any): void {
   const lasers: any[] = [];
   for (let i = 0; i < 7; i++) {
     const mat = new THREE.LineBasicMaterial({
-      color: 0x39ff14,
+      color: 0xffb060,
       transparent: true,
       opacity: 0.0,
       blending: THREE.AdditiveBlending,
@@ -412,7 +416,7 @@ function init(THREE: any): void {
 
   // Lightning bolt (jagged line, flashed on big hits).
   const ltMat = new THREE.LineBasicMaterial({
-    color: 0xcfe6ff,
+    color: 0xffd9a8,
     transparent: true,
     opacity: 0,
     blending: THREE.AdditiveBlending,
@@ -425,6 +429,70 @@ function init(THREE: any): void {
   lightning.visible = false;
   lightning.renderOrder = -2;
   scene.add(lightning);
+
+  // ── Warm horizon sun glow ─────────────────────────────────────────────────
+  // A big soft radial wash low on the horizon — the golden-hour light source
+  // that makes the whole space feel warm and safe.
+  const sunCanvas = document.createElement("canvas");
+  sunCanvas.width = sunCanvas.height = 256;
+  const sctx = sunCanvas.getContext("2d");
+  if (sctx) {
+    const g = sctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    g.addColorStop(0, "rgba(255, 224, 170, 0.95)");
+    g.addColorStop(0.35, "rgba(255, 150, 110, 0.55)");
+    g.addColorStop(0.7, "rgba(190, 90, 130, 0.18)");
+    g.addColorStop(1, "rgba(190, 90, 130, 0)");
+    sctx.fillStyle = g;
+    sctx.fillRect(0, 0, 256, 256);
+  }
+  const sunTex = new THREE.CanvasTexture(sunCanvas);
+  const sunGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(120, 120),
+    new THREE.MeshBasicMaterial({
+      map: sunTex,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+      fog: false,
+    }),
+  );
+  sunGlow.position.set(0, 4, -66);
+  sunGlow.renderOrder = -7;
+  scene.add(sunGlow);
+
+  // ── Drifting warm bokeh ("fireflies") ─────────────────────────────────────
+  // Slow, soft motes of light rising through the scene — calm, alive, friendly.
+  const BOKEH_N = 70;
+  const bGeo = new THREE.BufferGeometry();
+  const bPos = new Float32Array(BOKEH_N * 3);
+  const bCol = new Float32Array(BOKEH_N * 3);
+  bokehVel = new Float32Array(BOKEH_N);
+  const bc = new THREE.Color();
+  for (let i = 0; i < BOKEH_N; i++) {
+    bPos[i * 3] = (Math.random() - 0.5) * 64;
+    bPos[i * 3 + 1] = Math.random() * 30;
+    bPos[i * 3 + 2] = -6 - Math.random() * 44;
+    bc.setHSL(0.05 + Math.random() * 0.08, 0.85, 0.62 + Math.random() * 0.2); // warm gold→peach
+    bCol[i * 3] = bc.r;
+    bCol[i * 3 + 1] = bc.g;
+    bCol[i * 3 + 2] = bc.b;
+    bokehVel[i] = 0.6 + Math.random() * 1.2;
+  }
+  bGeo.setAttribute("position", new THREE.BufferAttribute(bPos, 3));
+  bGeo.setAttribute("color", new THREE.BufferAttribute(bCol, 3));
+  const bokehMat = new THREE.PointsMaterial({
+    size: 0.6,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.5,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    map: sunTex, // soft round falloff
+  });
+  const bokeh = new THREE.Points(bGeo, bokehMat);
+  bokeh.renderOrder = -3;
+  scene.add(bokeh);
 
   // ── Disco ball ────────────────────────────────────────────────────────────
   // Faceted sphere with random per-facet brightness; a global color multiply
@@ -514,6 +582,8 @@ function init(THREE: any): void {
     discoBall,
     discoDots,
     discoDotMat,
+    bokeh,
+    sunGlow,
     resizeObs,
     ltLife: 0,
     ltCooldown: 0,
@@ -725,8 +795,9 @@ function tick(): void {
     const bar = specBars[i];
     bar.scale.y = 0.5 + v * 9;
     bar.position.y = 2 + (bar.scale.y * 1) / 2;
-    const hue = ((i / specBars.length) * 300 + t * 30 + (fever ? 0 : 0)) % 360;
-    bar.material.color.setHSL((fever ? 45 : hue) / 360, 1, 0.5);
+    // Warm band only (magenta → red → orange → gold), drifting gently.
+    const hue = (330 + (i / specBars.length) * 120 + t * 12) % 360;
+    bar.material.color.setHSL((fever ? 45 : hue) / 360, 0.9, 0.55);
     bar.material.opacity = 0.08 + v * 0.18;
   }
 
@@ -747,16 +818,19 @@ function tick(): void {
   // ── EDC rig animation ─────────────────────────────────────────────────────
   // Spotlight beams sweep TO the music: treble drives sweep speed, mid the
   // sweep width, bass kicks the tilt + sways the rig side to side.
-  const sweepSpeed = 0.5 + bands.treble * 3.5;
-  const sweepWidth = 0.35 + bands.mid * 1.1;
+  // Calmer, slower sweep — gentle searchlights, not a strobe.
+  const sweepSpeed = 0.28 + bands.treble * 1.5;
+  const sweepWidth = 0.32 + bands.mid * 0.85;
   for (let i = 0; i < spotlights.length; i++) {
     const s = spotlights[i];
     const dir = i % 2 === 0 ? 1 : -1;
     s.mesh.rotation.z = Math.sin(t * sweepSpeed + s.phase) * sweepWidth * dir;
-    s.mesh.rotation.x = -0.22 + Math.cos(t * (0.4 + bands.mid) + s.phase) * 0.2 - bands.bass * 0.25;
-    s.mesh.position.x = s.baseX + Math.sin(t * 0.6 + s.phase) * bands.bass * 5;
-    const hue = (s.hue + t * 0.05 + bands.treble * 0.3) % 1;
-    s.mesh.material.color.setHSL(fever ? 0.12 : hue, 1, 0.55);
+    s.mesh.rotation.x = -0.22 + Math.cos(t * (0.3 + bands.mid) + s.phase) * 0.16 - bands.bass * 0.18;
+    s.mesh.position.x = s.baseX + Math.sin(t * 0.45 + s.phase) * bands.bass * 4;
+    // Fold the hue into a warm band (pink → red → orange → gold) so beams stay cozy.
+    const raw = (s.hue + t * 0.04 + bands.treble * 0.2) % 1;
+    const hue = (0.95 + raw * 0.17) % 1;
+    s.mesh.material.color.setHSL(fever ? 0.1 : hue, 0.95, 0.6);
     // Dimmer than before so the beams set mood without washing out the highway.
     s.mesh.material.opacity = 0.03 + bands.mid * 0.12 + bands.treble * 0.08 + bands.bass * 0.04;
   }
@@ -764,19 +838,19 @@ function tick(): void {
   for (let i = 0; i < lasers.length; i++) {
     const m = lasers[i].mesh.material;
     m.opacity = 0.02 + bands.treble * 0.3;
-    m.color.setHSL((0.33 + t * 0.06 + i * 0.04) % 1, 1, 0.55);
+    m.color.setHSL((0.05 + ((t * 0.05 + i * 0.03) % 0.12)) % 1, 0.95, 0.6); // warm gold band
   }
   // Lightning strikes on hard bass (rate-limited) + its flash.
   three.ltCooldown -= 1 / 60;
-  if (bands.bass > 0.5 && three.ltCooldown <= 0 && Math.random() < 0.35) {
+  if (bands.bass > 0.62 && three.ltCooldown <= 0 && Math.random() < 0.18) {
     strikeLightning();
-    three.ltCooldown = 0.5;
+    three.ltCooldown = 1.1; // rare, so it reads as a warm shimmer not a storm
   }
   if (three.ltLife > 0) {
     three.ltLife -= 0.14;
-    three.lightning.material.opacity = Math.max(0, three.ltLife);
+    three.lightning.material.opacity = Math.max(0, three.ltLife) * 0.6;
     if (three.ltLife <= 0) three.lightning.visible = false;
-    flash.value = Math.max(flash.value, three.ltLife * 0.55);
+    flash.value = Math.max(flash.value, three.ltLife * 0.25);
   }
 
   // Disco ball: spin to the tempo (BPM), tint + pulse the facets, and twinkle
@@ -792,6 +866,28 @@ function tick(): void {
     three.discoDots.rotation.y += discoSpin * 1.6 + bands.mid * 0.01;
     three.discoDotMat.opacity = 0.22 + bands.treble * 0.55 + bands.bass * 0.12;
     three.discoDotMat.size = 0.42 + bands.bass * 0.5;
+  }
+
+  // Sun glow breathes slowly with the music — a calm, warm heartbeat.
+  if (three.sunGlow) {
+    const pulse = 1 + Math.sin(t * 0.6) * 0.03 + bands.bass * 0.05;
+    three.sunGlow.scale.setScalar(pulse);
+    three.sunGlow.material.opacity = 0.85 + bands.bass * 0.15;
+  }
+
+  // Warm bokeh motes drift slowly upward and wrap — gentle, alive ambience.
+  if (three.bokeh) {
+    const pos = three.bokeh.geometry.attributes.position.array as Float32Array;
+    for (let i = 0; i < bokehVel.length; i++) {
+      pos[i * 3 + 1] += bokehVel[i] * (1 / 60) * (1 + bands.mid * 0.6);
+      pos[i * 3] += Math.sin(t * 0.5 + i) * 0.004; // soft sway
+      if (pos[i * 3 + 1] > 32) {
+        pos[i * 3 + 1] = -1;
+        pos[i * 3] = (Math.random() - 0.5) * 64;
+      }
+    }
+    three.bokeh.geometry.attributes.position.needsUpdate = true;
+    three.bokeh.material.opacity = 0.4 + bands.treble * 0.3;
   }
 
   // Advance notes; a missed (un-pressed) note just resets the combo — the game
@@ -850,11 +946,11 @@ function tick(): void {
   // Camera stays locked (no bob/shake/punch) — the highway never jitters.
   void camBaseY;
   flash.value = Math.max(0, flash.value - 0.05);
-  // Fever tints the whole scene hot gold; otherwise a subtle bass glow.
+  // Warm dusk that breathes a little with the bass — never goes cold.
   renderer.setClearColor(
     fever
-      ? new THREE.Color(0x1a1206).offsetHSL(0, 0, bands.bass * 0.12)
-      : new THREE.Color(0x04060f).offsetHSL(0, 0, bands.bass * 0.05),
+      ? new THREE.Color(0x2a1408).offsetHSL(0, 0, bands.bass * 0.12)
+      : new THREE.Color(0x1c0f1a).offsetHSL(0, 0, bands.bass * 0.06),
     1,
   );
 
@@ -908,7 +1004,11 @@ onBeforeUnmount(() => {
       three.scene.traverse((o: any) => {
         o.geometry?.dispose?.();
         const mat = o.material;
-        if (mat) (Array.isArray(mat) ? mat : [mat]).forEach((m: any) => m?.dispose?.());
+        if (mat)
+          (Array.isArray(mat) ? mat : [mat]).forEach((m: any) => {
+            m?.map?.dispose?.();
+            m?.dispose?.();
+          });
       });
       three.renderer.dispose();
       three.renderer.domElement.parentNode?.removeChild(three.renderer.domElement);
@@ -924,14 +1024,14 @@ onBeforeUnmount(() => {
 .kh-game {
   position: absolute;
   inset: 0;
-  background: #04060f;
+  background: #1c0f1a;
   overflow: hidden;
 }
 .kh-flash {
   position: absolute;
   inset: 0;
   z-index: 5;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.6), rgba(120, 180, 255, 0.2) 60%, transparent 75%);
+  background: radial-gradient(circle, rgba(255, 240, 210, 0.55), rgba(255, 170, 120, 0.2) 60%, transparent 75%);
   pointer-events: none;
   transition: opacity 0.1s ease;
 }
