@@ -137,6 +137,11 @@ let lastSpawn = 0;
 let beatInterval = 0.5; // ~120 BPM until we measure
 let lastBeatT = 0;
 let discoSpin = 0; // smoothed angular velocity (rad/frame)
+// Smoothed visual song clock: advanced by real frame time every frame and
+// gently re-synced to player.positionSecs (which only ticks a few times/sec).
+// Drives note motion so they slide buttery-smooth instead of stepping.
+let smoothSongT = 0;
+let lastFrameMs = 0;
 let messageTimer: ReturnType<typeof setTimeout> | undefined;
 
 // Per-song chart: a deterministic, repeatable note stream for the whole track.
@@ -148,7 +153,6 @@ interface ActiveNote {
   lane: number;
   arrival: number;
   mesh: any;
-  core: any; // bright inner gem
   glow: any;
   trail: any;
   refl: any; // mirrored copy under the glossy floor
@@ -194,10 +198,74 @@ function disposeMesh(m: any): void {
 }
 function disposeNote(n: ActiveNote): void {
   disposeMesh(n.mesh);
-  disposeMesh(n.core);
   disposeMesh(n.glow);
   disposeMesh(n.trail);
   disposeMesh(n.refl);
+}
+
+// Build a gemstone "pad" texture for a lane colour: rounded rect, vertical
+// gradient fill (light → colour → dark) with a top shine and a bright gradient
+// border. Drawn once per lane and reused by every note in that lane.
+function makePadTexture(THREE: any, hex: number): any {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 128;
+  const x = c.getContext("2d");
+  const base = new THREE.Color(hex);
+  const light = base.clone().lerp(new THREE.Color(0xffffff), 0.6);
+  const rim = base.clone().lerp(new THREE.Color(0xffffff), 0.3);
+  const dark = base.clone().multiplyScalar(0.32);
+  const css = (cc: any) =>
+    `rgb(${Math.round(cc.r * 255)},${Math.round(cc.g * 255)},${Math.round(cc.b * 255)})`;
+  const W = 256;
+  const H = 128;
+  const pad = 12;
+  const r = 30;
+  const rr = () => {
+    const x0 = pad;
+    const y0 = pad;
+    const x1 = W - pad;
+    const y1 = H - pad;
+    if (!x) return;
+    x.beginPath();
+    x.moveTo(x0 + r, y0);
+    x.lineTo(x1 - r, y0);
+    x.arcTo(x1, y0, x1, y0 + r, r);
+    x.lineTo(x1, y1 - r);
+    x.arcTo(x1, y1, x1 - r, y1, r);
+    x.lineTo(x0 + r, y1);
+    x.arcTo(x0, y1, x0, y1 - r, r);
+    x.lineTo(x0, y0 + r);
+    x.arcTo(x0, y0, x0 + r, y0, r);
+    x.closePath();
+  };
+  if (x) {
+    const g = x.createLinearGradient(0, pad, 0, H - pad);
+    g.addColorStop(0, css(light));
+    g.addColorStop(0.5, css(base));
+    g.addColorStop(1, css(dark));
+    rr();
+    x.fillStyle = g;
+    x.fill();
+    // Top shine (gemstone highlight).
+    const sh = x.createLinearGradient(0, pad, 0, H * 0.55);
+    sh.addColorStop(0, "rgba(255,255,255,0.55)");
+    sh.addColorStop(1, "rgba(255,255,255,0)");
+    rr();
+    x.fillStyle = sh;
+    x.fill();
+    // Bright gradient border.
+    const bg = x.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, css(light));
+    bg.addColorStop(1, css(rim));
+    rr();
+    x.lineWidth = 7;
+    x.strokeStyle = bg;
+    x.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  if ("colorSpace" in tex) (tex as any).colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 function resetState(): void {
@@ -213,6 +281,8 @@ function resetState(): void {
   runningAvg = 0;
   spawnCounter = 0;
   lastSpawn = 0;
+  smoothSongT = player.positionSecs;
+  lastFrameMs = 0;
   for (const n of notes) disposeNote(n);
   notes = [];
 }
@@ -285,6 +355,9 @@ function init(THREE: any): void {
   const camera = new THREE.PerspectiveCamera(64, w / h, 0.1, 140);
   camera.position.set(0, 8, 15);
   camera.lookAt(0, 0, -10);
+
+  // Per-lane gemstone pad textures (built once, reused by every note).
+  const padTextures = LANE_COLORS.map((c) => makePadTexture(THREE, c));
 
   // Floor grid (neon, additive).
   const grid = new THREE.GridHelper(120, 60, 0x6a3a4a, 0x3a2030);
@@ -733,6 +806,7 @@ function init(THREE: any): void {
     sunGlow,
     godRays,
     glowTex: sunTex, // soft radial used for note light-pools + fake bloom
+    padTextures,
     hitGlowMat,
     resizeObs,
     ltLife: 0,
@@ -777,51 +851,37 @@ function spawnNote(lane: number, arrival: number): void {
   if (!three) return;
   const { THREE, scene } = three;
   const color = LANE_COLORS[lane];
-  // depthTest off + high renderOrder → notes always paint over the EDC backdrop.
+  const padTex = three.padTextures[lane];
+  // Rectangular gemstone pad (wider than tall), lying on the lane so it slides
+  // toward the hit line like a classic note. Normal-blended so the gradient
+  // fill + border read as a real gem (the additive glow pool below adds bloom).
   const mat = new THREE.MeshBasicMaterial({
-    color,
-    blending: THREE.AdditiveBlending,
+    map: padTex,
     transparent: true,
+    depthWrite: false,
     depthTest: false,
   });
-  // Classic gem: a faceted diamond that catches the tone-mapped glow.
-  const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.95, 0), mat);
-  mesh.scale.set(1.15, 1.35, 1.15); // slightly tall, jewel-like
-  mesh.position.set(laneX(lane), 0.55, SPAWN_Z);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 1.1), mat);
+  mesh.rotation.x = -Math.PI / 2; // lie flat on the lane
+  mesh.position.set(laneX(lane), 0.18, SPAWN_Z);
   mesh.renderOrder = 14;
   scene.add(mesh);
-  // Bright white-hot inner core for a jewel-like read (sits inside the gem).
-  const core = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.95, 0),
-    new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      opacity: 0.55,
-      depthTest: false,
-    }),
-  );
-  core.scale.set(0.6, 0.72, 0.6);
-  core.position.copy(mesh.position);
-  core.renderOrder = 15;
-  scene.add(core);
-  // Glossy-floor reflection: a dim, vertically-mirrored gem under the deck.
+  // Glossy-floor reflection: a dim, mirrored pad under the deck.
   const refl = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.95, 0),
+    new THREE.PlaneGeometry(2.1, 1.1),
     new THREE.MeshBasicMaterial({
-      color,
-      blending: THREE.AdditiveBlending,
+      map: padTex,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.22,
+      depthWrite: false,
       depthTest: false,
     }),
   );
-  refl.scale.set(1.15, -1.35, 1.15); // flipped
-  refl.position.set(laneX(lane), -0.55, SPAWN_Z);
+  refl.rotation.x = -Math.PI / 2;
+  refl.position.set(laneX(lane), -0.18, SPAWN_Z);
   refl.renderOrder = 12;
   scene.add(refl);
-  // Soft light pool cast under the note (radial texture = fake bloom, not a
-  // hard square).
+  // Soft additive light pool under the pad (radial texture = fake bloom).
   const glowMat = new THREE.MeshBasicMaterial({
     color,
     map: three.glowTex,
@@ -831,25 +891,26 @@ function spawnNote(lane: number, arrival: number): void {
     depthWrite: false,
     depthTest: false,
   });
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6), glowMat);
-  glow.position.copy(mesh.position);
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 3.8), glowMat);
+  glow.position.set(laneX(lane), 0.06, SPAWN_Z);
   glow.rotation.x = -Math.PI / 2;
   glow.renderOrder = 13;
   scene.add(glow);
-  // Vertical comet trail behind the note.
+  // Soft comet trail behind the pad (additive streak in the lane colour).
   const trailMat = new THREE.MeshBasicMaterial({
     color,
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.4,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     depthTest: false,
   });
-  const trail = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 6), trailMat);
-  trail.position.set(laneX(lane), 0.3, SPAWN_Z - 3);
+  const trail = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 6), trailMat);
+  trail.rotation.x = -Math.PI / 2;
+  trail.position.set(laneX(lane), 0.04, SPAWN_Z - 3.5);
   trail.renderOrder = 13;
   scene.add(trail);
-  notes.push({ lane, arrival, mesh, core, glow, trail, refl, judged: false });
+  notes.push({ lane, arrival, mesh, glow, trail, refl, judged: false });
 }
 
 function registerJudgement(j: Judgement, lane: number): void {
@@ -896,7 +957,7 @@ function onKey(e: KeyboardEvent): void {
   laneFlash[lane] = Math.max(laneFlash[lane], 0.6);
   let best: ActiveNote | null = null;
   let bestDelta = Infinity;
-  const t = player.positionSecs; // judge on the song clock, same as the highway
+  const t = smoothSongT; // judge on the same smoothed clock that drives the highway
   for (const n of notes) {
     if (n.judged || n.lane !== lane) continue;
     const delta = Math.abs(n.arrival - t);
@@ -933,6 +994,21 @@ function tick(): void {
   const t = nowSecs();
   const bands = extractBands(freq.value);
   const energy = bands.bass * 0.7 + bands.mid * 0.3;
+
+  // Advance the smoothed visual clock by real frame time, then ease it toward
+  // the authoritative position so notes glide every frame (not in coarse steps).
+  const nowMs = performance.now();
+  const frameDt = lastFrameMs ? Math.min(0.1, (nowMs - lastFrameMs) / 1000) : 1 / 60;
+  lastFrameMs = nowMs;
+  const realPos = player.positionSecs;
+  if (player.isPlaying) {
+    smoothSongT += frameDt;
+    const drift = realPos - smoothSongT;
+    if (Math.abs(drift) > 0.2) smoothSongT = realPos; // seek / big correction → snap
+    else smoothSongT += drift * 0.08; // otherwise gently re-sync
+  } else {
+    smoothSongT = realPos;
+  }
   const fever = multiplier.value >= 4;
 
   if (player.isPlaying) everPlayed = true;
@@ -952,7 +1028,7 @@ function tick(): void {
   // Steady stream: spawn chart notes as the song position reaches their lead
   // time. Position-driven (not RAF-driven), so it stays in sync and a miss
   // never interrupts the flow.
-  const songT = player.positionSecs;
+  const songT = smoothSongT;
   while (chartIndex < chart.length && songT >= chart[chartIndex].time - TRAVEL) {
     const cn = chart[chartIndex];
     if (cn.time - songT > -0.3) spawnNote(cn.lane, cn.time);
@@ -1089,30 +1165,22 @@ function tick(): void {
     const progress = 1 - (n.arrival - songT) / TRAVEL;
     const z = SPAWN_Z + progress * (HIT_Z - SPAWN_Z);
     n.mesh.position.z = z;
-    n.mesh.rotation.y += fever ? 0.1 : 0.05; // gem spins on its axis
     // Soft ease-in over the first stretch of travel (no hard pop at spawn).
     const appear = Math.min(1, Math.max(0, progress * 6));
     const ease = appear * appear * (3 - 2 * appear); // smoothstep
-    const s = ease * (1 + bands.bass * 0.22);
-    n.mesh.scale.set(1.15 * s, 1.35 * s, 1.15 * s);
-    if (n.core) {
-      n.core.position.set(n.mesh.position.x, n.mesh.position.y, z);
-      n.core.rotation.y = n.mesh.rotation.y;
-      n.core.scale.set(0.6 * s, 0.72 * s, 0.6 * s);
-      n.core.material.opacity = 0.4 + bands.treble * 0.4;
-    }
+    const s = ease * (1 + bands.bass * 0.12);
+    n.mesh.scale.set(s, s, s);
     if (n.refl) {
       n.refl.position.z = z;
-      n.refl.rotation.y = n.mesh.rotation.y;
-      n.refl.scale.set(1.15 * s, -1.35 * s, 1.15 * s);
-      // Reflection fades as the note nears the camera (off the glossy deck).
-      n.refl.material.opacity = Math.max(0, 0.18 * ease * (1 - progress * 0.7));
+      n.refl.scale.set(s, s, s);
+      // Reflection fades as the pad nears the camera (off the glossy deck).
+      n.refl.material.opacity = Math.max(0, 0.24 * ease * (1 - progress * 0.7));
     }
     if (n.glow) {
       n.glow.position.z = z;
       n.glow.scale.setScalar(ease);
     }
-    if (n.trail) n.trail.position.z = z - 3;
+    if (n.trail) n.trail.position.z = z - 3.5;
     if (!n.judged && songT - n.arrival > HIT_WINDOW) {
       n.judged = true;
       registerJudgement("miss", n.lane);
@@ -1240,6 +1308,8 @@ onBeforeUnmount(() => {
             m?.dispose?.();
           });
       });
+      // Shared lane pad textures aren't owned by a single mesh — dispose once.
+      for (const tex of three.padTextures ?? []) tex?.dispose?.();
       three.renderer.dispose();
       three.renderer.domElement.parentNode?.removeChild(three.renderer.domElement);
     } catch {
