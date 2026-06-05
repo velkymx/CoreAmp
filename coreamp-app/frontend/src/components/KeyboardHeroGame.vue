@@ -7,6 +7,12 @@
     <div class="kh-grain" aria-hidden="true"></div>
     <div class="kh-vignette" aria-hidden="true"></div>
 
+    <!-- Song progress bar + now-playing label. -->
+    <div class="kh-progress" aria-hidden="true">
+      <div class="kh-progress-fill" :style="{ width: progressPct + '%' }"></div>
+    </div>
+    <div v-if="nowPlaying" class="kh-nowplaying" data-test="kh-nowplaying">{{ nowPlaying }}</div>
+
     <!-- HUD -->
     <div class="kh-hud">
       <span class="kh-score" data-test="kh-score">{{ score.toLocaleString() }}</span>
@@ -50,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { loadThree } from "@/visualizer/loadVendor";
 import { useFrequencyData } from "@/composables/useFrequencyData";
 import { extractBands } from "@/visualizer/bands";
@@ -99,6 +105,19 @@ const flash = ref(0);
 const finished = ref(false);
 const finalAccuracy = ref(0);
 
+// Song-position progress (0–100) + a subtle now-playing label for the HUD.
+const progressPct = computed(() => {
+  const d = player.durationSecs;
+  if (!d || d <= 0) return 0;
+  return Math.max(0, Math.min(100, (player.positionSecs / d) * 100));
+});
+const nowPlaying = computed(() => {
+  const tr = player.currentTrack;
+  if (!tr) return "";
+  const title = tr.title || tr.path.split("/").pop() || "";
+  return tr.artist ? `${tr.artist} — ${title}` : title;
+});
+
 let perfect = 0;
 let good = 0;
 let miss = 0;
@@ -129,8 +148,10 @@ interface ActiveNote {
   lane: number;
   arrival: number;
   mesh: any;
+  core: any; // bright inner gem
   glow: any;
   trail: any;
+  refl: any; // mirrored copy under the glossy floor
   judged: boolean;
 }
 let notes: ActiveNote[] = [];
@@ -173,8 +194,10 @@ function disposeMesh(m: any): void {
 }
 function disposeNote(n: ActiveNote): void {
   disposeMesh(n.mesh);
+  disposeMesh(n.core);
   disposeMesh(n.glow);
   disposeMesh(n.trail);
+  disposeMesh(n.refl);
 }
 
 function resetState(): void {
@@ -237,6 +260,28 @@ function init(THREE: any): void {
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x2a1622, 18, 52); // warm haze that softens the distance
+
+  // Painted dusk-gradient sky (deep plum aloft → warm peach at the horizon) as
+  // the scene background — a real graded backdrop reads far richer than a flat
+  // clear color.
+  const skyCanvas = document.createElement("canvas");
+  skyCanvas.width = 4;
+  skyCanvas.height = 256;
+  const skctx = skyCanvas.getContext("2d");
+  if (skctx) {
+    const sg = skctx.createLinearGradient(0, 0, 0, 256);
+    sg.addColorStop(0.0, "#150a16"); // top, deep plum night
+    sg.addColorStop(0.45, "#3a1828"); // warm mauve
+    sg.addColorStop(0.72, "#7a3346"); // dusk rose
+    sg.addColorStop(0.88, "#c96a4a"); // horizon ember
+    sg.addColorStop(1.0, "#f0a86a"); // warm glow at the deck
+    skctx.fillStyle = sg;
+    skctx.fillRect(0, 0, 4, 256);
+  }
+  const skyTex = new THREE.CanvasTexture(skyCanvas);
+  if ("colorSpace" in skyTex) (skyTex as any).colorSpace = THREE.SRGBColorSpace;
+  scene.background = skyTex;
+
   const camera = new THREE.PerspectiveCamera(64, w / h, 0.1, 140);
   camera.position.set(0, 8, 15);
   camera.lookAt(0, 0, -10);
@@ -291,7 +336,9 @@ function init(THREE: any): void {
     beatLines.push(line);
   }
 
-  // Per-lane hit-flash columns.
+  // Per-lane hit beams — a tall column of light that shoots up from the deck on
+  // a hit (scale + opacity punch in animate). Bigger, more cinematic than a flat
+  // flash.
   const flashMeshes: any[] = [];
   for (let i = 0; i < LANE_COUNT; i++) {
     const mat = new THREE.MeshBasicMaterial({
@@ -302,8 +349,8 @@ function init(THREE: any): void {
       depthWrite: false,
       depthTest: false,
     });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 5), mat);
-    mesh.position.set(laneX(i), 1.4, HIT_Z);
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 18), mat);
+    mesh.position.set(laneX(i), 8, HIT_Z); // bottom near the deck, rising up
     mesh.renderOrder = 9;
     scene.add(mesh);
     flashMeshes.push(mesh);
@@ -492,6 +539,53 @@ function init(THREE: any): void {
   sunGlow.renderOrder = -7;
   scene.add(sunGlow);
 
+  // ── Volumetric god-rays ───────────────────────────────────────────────────
+  // Soft light shafts fanning up from the sun. A vertical beam texture (bright,
+  // narrow, fading toward the top) on a few angled planes = cheap god-rays that
+  // sell depth + drama. They sway + shimmer with the music in animate.
+  const rayCanvas = document.createElement("canvas");
+  rayCanvas.width = 64;
+  rayCanvas.height = 256;
+  const rctx = rayCanvas.getContext("2d");
+  if (rctx) {
+    const rg = rctx.createLinearGradient(0, 256, 0, 0);
+    rg.addColorStop(0, "rgba(255, 220, 170, 0.9)");
+    rg.addColorStop(0.5, "rgba(255, 170, 120, 0.28)");
+    rg.addColorStop(1, "rgba(255, 170, 120, 0)");
+    rctx.fillStyle = rg;
+    rctx.fillRect(0, 0, 64, 256);
+    // Narrow the beam horizontally (feather the sides) with a destination mask.
+    const hg = rctx.createLinearGradient(0, 0, 64, 0);
+    hg.addColorStop(0, "rgba(0,0,0,0)");
+    hg.addColorStop(0.5, "rgba(0,0,0,1)");
+    hg.addColorStop(1, "rgba(0,0,0,0)");
+    rctx.globalCompositeOperation = "destination-in";
+    rctx.fillStyle = hg;
+    rctx.fillRect(0, 0, 64, 256);
+    rctx.globalCompositeOperation = "source-over";
+  }
+  const rayTex = new THREE.CanvasTexture(rayCanvas);
+  const godRays: any[] = [];
+  const RAY_N = 7;
+  for (let i = 0; i < RAY_N; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      map: rayTex,
+      color: 0xffce9a,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+      fog: false,
+    });
+    const ray = new THREE.Mesh(new THREE.PlaneGeometry(13, 90), mat);
+    ray.position.set(0, 30, -64);
+    ray.rotation.z = (i - (RAY_N - 1) / 2) * 0.16; // fan
+    ray.renderOrder = -6;
+    scene.add(ray);
+    godRays.push({ mesh: ray, baseRot: ray.rotation.z, phase: i * 0.9 });
+  }
+
   // Soft glow halo laid over the hit line (fake bloom — the radial sun texture
   // stretched thin across the strike zone). Pulses with the bass in animate.
   const hitGlowMat = new THREE.MeshBasicMaterial({
@@ -637,6 +731,7 @@ function init(THREE: any): void {
     discoDotMat,
     bokeh,
     sunGlow,
+    godRays,
     glowTex: sunTex, // soft radial used for note light-pools + fake bloom
     hitGlowMat,
     resizeObs,
@@ -695,6 +790,36 @@ function spawnNote(lane: number, arrival: number): void {
   mesh.position.set(laneX(lane), 0.55, SPAWN_Z);
   mesh.renderOrder = 14;
   scene.add(mesh);
+  // Bright white-hot inner core for a jewel-like read (sits inside the gem).
+  const core = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.95, 0),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      opacity: 0.55,
+      depthTest: false,
+    }),
+  );
+  core.scale.set(0.6, 0.72, 0.6);
+  core.position.copy(mesh.position);
+  core.renderOrder = 15;
+  scene.add(core);
+  // Glossy-floor reflection: a dim, vertically-mirrored gem under the deck.
+  const refl = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.95, 0),
+    new THREE.MeshBasicMaterial({
+      color,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      opacity: 0.16,
+      depthTest: false,
+    }),
+  );
+  refl.scale.set(1.15, -1.35, 1.15); // flipped
+  refl.position.set(laneX(lane), -0.55, SPAWN_Z);
+  refl.renderOrder = 12;
+  scene.add(refl);
   // Soft light pool cast under the note (radial texture = fake bloom, not a
   // hard square).
   const glowMat = new THREE.MeshBasicMaterial({
@@ -724,7 +849,7 @@ function spawnNote(lane: number, arrival: number): void {
   trail.position.set(laneX(lane), 0.3, SPAWN_Z - 3);
   trail.renderOrder = 13;
   scene.add(trail);
-  notes.push({ lane, arrival, mesh, glow, trail, judged: false });
+  notes.push({ lane, arrival, mesh, core, glow, trail, refl, judged: false });
 }
 
 function registerJudgement(j: Judgement, lane: number): void {
@@ -934,6 +1059,14 @@ function tick(): void {
     three.sunGlow.material.opacity = 0.85 + bands.bass * 0.15;
   }
 
+  // God-rays: gentle sway + a soft shimmer that rises with mid/treble energy.
+  if (three.godRays) {
+    for (const r of three.godRays) {
+      r.mesh.rotation.z = r.baseRot + Math.sin(t * 0.25 + r.phase) * 0.05;
+      r.mesh.material.opacity = 0.05 + bands.mid * 0.12 + bands.treble * 0.1 + Math.sin(t * 0.8 + r.phase) * 0.02;
+    }
+  }
+
   // Warm bokeh motes drift slowly upward and wrap — gentle, alive ambience.
   if (three.bokeh) {
     const pos = three.bokeh.geometry.attributes.position.array as Float32Array;
@@ -962,6 +1095,19 @@ function tick(): void {
     const ease = appear * appear * (3 - 2 * appear); // smoothstep
     const s = ease * (1 + bands.bass * 0.22);
     n.mesh.scale.set(1.15 * s, 1.35 * s, 1.15 * s);
+    if (n.core) {
+      n.core.position.set(n.mesh.position.x, n.mesh.position.y, z);
+      n.core.rotation.y = n.mesh.rotation.y;
+      n.core.scale.set(0.6 * s, 0.72 * s, 0.6 * s);
+      n.core.material.opacity = 0.4 + bands.treble * 0.4;
+    }
+    if (n.refl) {
+      n.refl.position.z = z;
+      n.refl.rotation.y = n.mesh.rotation.y;
+      n.refl.scale.set(1.15 * s, -1.35 * s, 1.15 * s);
+      // Reflection fades as the note nears the camera (off the glossy deck).
+      n.refl.material.opacity = Math.max(0, 0.18 * ease * (1 - progress * 0.7));
+    }
     if (n.glow) {
       n.glow.position.z = z;
       n.glow.scale.setScalar(ease);
@@ -1001,10 +1147,13 @@ function tick(): void {
   pGeo.attributes.position.needsUpdate = true;
   pColorAttr.needsUpdate = true;
 
-  // Lane flashes + beat-reactive strips.
+  // Lane beams + beat-reactive strips. The beam stretches taller + brighter the
+  // harder the lane was just hit, then settles.
   for (let i = 0; i < LANE_COUNT; i++) {
     laneFlash[i] = Math.max(0, laneFlash[i] - 0.07);
-    flashMeshes[i].material.opacity = laneFlash[i] * 0.7;
+    const fm = flashMeshes[i];
+    fm.material.opacity = laneFlash[i] * 0.6;
+    fm.scale.y = 0.6 + laneFlash[i] * 1.1; // shoots up on a hit
     laneStrips[i].material.opacity = 0.05 + bands.bass * 0.12 + laneFlash[i] * 0.1;
   }
   hitBarMat.opacity = 0.6 + bands.bass * 0.4;
@@ -1141,6 +1290,39 @@ onBeforeUnmount(() => {
 }
 @media (prefers-reduced-motion: reduce) {
   .kh-grain { animation: none; }
+}
+/* Slim song-progress bar across the very top. */
+.kh-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 6;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+.kh-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffce9a, #ff9e7d, #ffd27f);
+  box-shadow: 0 0 10px rgba(255, 180, 120, 0.8);
+  transition: width 0.2s linear;
+}
+.kh-nowplaying {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.85rem;
+  z-index: 6;
+  max-width: 45%;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 233, 210, 0.85);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
 }
 .kh-hud {
   position: absolute;
