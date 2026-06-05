@@ -359,6 +359,50 @@ function init(THREE: any): void {
   // Per-lane gemstone pad textures (built once, reused by every note).
   const padTextures = LANE_COLORS.map((c) => makePadTexture(THREE, c));
 
+  // Soft warm lighting so the structural geometry (deck, rails, pylons, disco
+  // ball) reads with real form — the additive glow FX ignore lights and keep
+  // their bloom look.
+  const hemi = new THREE.HemisphereLight(0xffd9b0, 0x140a12, 1.0);
+  scene.add(hemi);
+  const keyLight = new THREE.DirectionalLight(0xffe6c0, 0.8);
+  keyLight.position.set(7, 20, 8);
+  scene.add(keyLight);
+
+  // Glossy stage deck under the highway — a real surface that grounds the lane
+  // and catches the warm light (dimension + a base for the note reflections).
+  const deck = new THREE.Mesh(
+    new THREE.PlaneGeometry(38, 96),
+    new THREE.MeshStandardMaterial({
+      color: 0x241019,
+      roughness: 0.35,
+      metalness: 0.55,
+      transparent: true,
+      opacity: 0.85,
+    }),
+  );
+  deck.rotation.x = -Math.PI / 2;
+  deck.position.set(0, -0.02, (SPAWN_Z + HIT_Z) / 2);
+  deck.renderOrder = -3;
+  scene.add(deck);
+
+  // Raised side rails — give the highway a real 3D channel.
+  const railEdge = laneX(LANE_COUNT - 1) + 1.9;
+  const railLen = HIT_Z - SPAWN_Z + 10;
+  for (const side of [-1, 1]) {
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(0.55, 0.55, railLen),
+      new THREE.MeshStandardMaterial({
+        color: 0x7a3346,
+        roughness: 0.4,
+        metalness: 0.6,
+        emissive: 0x3a1320,
+        emissiveIntensity: 0.6,
+      }),
+    );
+    rail.position.set(side * railEdge, 0.2, (SPAWN_Z + HIT_Z) / 2);
+    scene.add(rail);
+  }
+
   // Floor grid (neon, additive).
   const grid = new THREE.GridHelper(120, 60, 0x6a3a4a, 0x3a2030);
   grid.position.z = -14;
@@ -366,6 +410,30 @@ function init(THREE: any): void {
   (grid.material as any).transparent = true;
   (grid.material as any).opacity = 0.32;
   scene.add(grid);
+
+  // Streaming roadside pylons — small lit posts lining both rails that flow
+  // toward the camera at the note speed. Parallax groove + real 3D form, calm
+  // (no flashing). Pooled + recycled in animate.
+  const pylons: any[] = [];
+  const PYLON_PER = 8;
+  const pylonSpacing = railLen / PYLON_PER;
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < PYLON_PER; k++) {
+      const py = new THREE.Mesh(
+        new THREE.BoxGeometry(0.45, 1.7, 0.45),
+        new THREE.MeshStandardMaterial({
+          color: 0xff9e7d,
+          roughness: 0.5,
+          metalness: 0.3,
+          emissive: 0x5a2418,
+          emissiveIntensity: 0.7,
+        }),
+      );
+      py.position.set(side * railEdge, 0.85, SPAWN_Z + k * pylonSpacing);
+      scene.add(py);
+      pylons.push({ mesh: py });
+    }
+  }
 
   // Lane glow strips + dividers.
   const laneStrips: any[] = [];
@@ -496,7 +564,7 @@ function init(THREE: any): void {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    const bar = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1), mat);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1, 0.8), mat);
     bar.position.set((i - SPEC_N / 2) * 1.5, 7, -62);
     bar.renderOrder = -4;
     scene.add(bar);
@@ -522,28 +590,28 @@ function init(THREE: any): void {
     rings.push({ mesh: ring, life: 0 });
   }
 
-  // ── EDC main-stage rig ────────────────────────────────────────────────────
-  // Sweeping spotlight beams (cones whose apex sits at a high pivot so they
-  // sweep like searchlights).
+  // ── Distant ambience rig ──────────────────────────────────────────────────
+  // Spotlight beams live FAR back by the horizon now, tall and faint, pointing
+  // up into the sky — distant stage ambience, not searchlights raking the lane.
   const spotlights: any[] = [];
-  const SPOT_N = 6;
+  const SPOT_N = 4;
   for (let i = 0; i < SPOT_N; i++) {
-    const geo = new THREE.ConeGeometry(4.5, 80, 20, 1, true);
-    geo.translate(0, -40, 0); // apex at the origin → rotates from the top
+    const geo = new THREE.ConeGeometry(3.4, 64, 20, 1, true);
+    geo.translate(0, -32, 0); // apex at the origin → rotates from the top
     const mat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.08,
+      opacity: 0.03,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
       fog: false,
     });
     const beam = new THREE.Mesh(geo, mat);
-    beam.position.set((i - (SPOT_N - 1) / 2) * 7, 30, -38);
-    beam.renderOrder = -3;
+    beam.position.set((i - (SPOT_N - 1) / 2) * 11, 34, -66); // far back, high up
+    beam.renderOrder = -6;
     scene.add(beam);
-    spotlights.push({ mesh: beam, phase: i * 1.15, hue: i / SPOT_N, baseX: (i - (SPOT_N - 1) / 2) * 7 });
+    spotlights.push({ mesh: beam, phase: i * 1.15, hue: i / SPOT_N, baseX: (i - (SPOT_N - 1) / 2) * 11 });
   }
 
   // Laser fan from a single rig point.
@@ -729,7 +797,10 @@ function init(THREE: any): void {
     }
   }
   ballGeo.setAttribute("color", new THREE.BufferAttribute(bcol, 3));
-  const discoBall = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  const discoBall = new THREE.Mesh(
+    ballGeo,
+    new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.35, roughness: 0.35 }),
+  );
   discoBall.position.set(0, 22, -26);
   discoBall.renderOrder = -1;
   scene.add(discoBall);
@@ -807,6 +878,8 @@ function init(THREE: any): void {
     godRays,
     glowTex: sunTex, // soft radial used for note light-pools + fake bloom
     padTextures,
+    pylons,
+    pylonSpan: railLen,
     hitGlowMat,
     resizeObs,
     ltLife: 0,
@@ -1076,29 +1149,37 @@ function tick(): void {
   three.punch = Math.max(0, three.punch - 0.06);
 
   // ── EDC rig animation ─────────────────────────────────────────────────────
-  // Spotlight beams sweep TO the music: treble drives sweep speed, mid the
-  // sweep width, bass kicks the tilt + sways the rig side to side.
-  // Calmer, slower sweep — gentle searchlights, not a strobe.
-  const sweepSpeed = 0.28 + bands.treble * 1.5;
-  const sweepWidth = 0.32 + bands.mid * 0.85;
+  // Distant beams: very slow gentle sway around vertical, pointing UP into the
+  // sky far behind the lane. No cross-field drift, low opacity — ambience the
+  // eye can ignore, not searchlights raking your focus.
+  const sweepWidth = 0.18 + bands.mid * 0.18;
   for (let i = 0; i < spotlights.length; i++) {
     const s = spotlights[i];
     const dir = i % 2 === 0 ? 1 : -1;
-    s.mesh.rotation.z = Math.sin(t * sweepSpeed + s.phase) * sweepWidth * dir;
-    s.mesh.rotation.x = -0.22 + Math.cos(t * (0.3 + bands.mid) + s.phase) * 0.16 - bands.bass * 0.18;
-    s.mesh.position.x = s.baseX + Math.sin(t * 0.45 + s.phase) * bands.bass * 4;
+    s.mesh.rotation.z = Math.sin(t * 0.12 + s.phase) * sweepWidth * dir; // slow, narrow
     // Fold the hue into a warm band (pink → red → orange → gold) so beams stay cozy.
-    const raw = (s.hue + t * 0.04 + bands.treble * 0.2) % 1;
+    const raw = (s.hue + t * 0.02) % 1;
     const hue = (0.95 + raw * 0.17) % 1;
-    s.mesh.material.color.setHSL(fever ? 0.1 : hue, 0.95, 0.6);
-    // Dimmer than before so the beams set mood without washing out the highway.
-    s.mesh.material.opacity = 0.03 + bands.mid * 0.12 + bands.treble * 0.08 + bands.bass * 0.04;
+    s.mesh.material.color.setHSL(fever ? 0.1 : hue, 0.9, 0.6);
+    // Faint, gently breathing — capped so it can never wash the highway.
+    s.mesh.material.opacity = 0.015 + bands.mid * 0.03 + bands.bass * 0.02;
   }
-  // Laser fan flicker (treble-driven), hue cycling.
+  // Laser fan — slow, faint, no flicker (a soft warm glow, not a strobe).
   for (let i = 0; i < lasers.length; i++) {
     const m = lasers[i].mesh.material;
-    m.opacity = 0.02 + bands.treble * 0.3;
-    m.color.setHSL((0.05 + ((t * 0.05 + i * 0.03) % 0.12)) % 1, 0.95, 0.6); // warm gold band
+    m.opacity = 0.015 + bands.treble * 0.1;
+    m.color.setHSL((0.05 + ((t * 0.03 + i * 0.03) % 0.12)) % 1, 0.95, 0.6); // warm gold band
+  }
+  // Roadside pylons stream toward the camera (parallax groove) + glow with bass.
+  if (three.pylons) {
+    const pSpeed = (HIT_Z - SPAWN_Z) / TRAVEL;
+    const pStep = player.isPlaying ? pSpeed * frameDt : 0;
+    const emi = 0.5 + bands.bass * 1.2;
+    for (const p of three.pylons) {
+      p.mesh.position.z += pStep;
+      if (p.mesh.position.z > HIT_Z + 5) p.mesh.position.z -= three.pylonSpan;
+      p.mesh.material.emissiveIntensity = emi;
+    }
   }
   // Lightning strikes on hard bass (rate-limited) + its flash.
   three.ltCooldown -= 1 / 60;
