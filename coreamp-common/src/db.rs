@@ -754,7 +754,11 @@ pub fn backfill_duration_for_missing() -> Result<usize, CoreampError> {
         let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
         let mut stmt = connection.prepare("SELECT path FROM files WHERE duration_secs IS NULL")?;
         let rows = stmt.query_map([], |row| row.get(0))?;
-        rows.filter_map(|r| r.ok()).collect()
+        let mut paths = Vec::new();
+        for row in rows {
+            paths.push(row?); // surface a malformed row instead of silently skipping it
+        }
+        paths
     };
 
     // Parse durations off-lock (the expensive part: opening + decoding files).
@@ -771,13 +775,11 @@ pub fn backfill_duration_for_missing() -> Result<usize, CoreampError> {
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
     let mut updated = 0;
     for (path, duration) in durations {
-        connection
-            .execute(
-                "UPDATE files SET duration_secs = ?1 WHERE path = ?2",
-                params![duration, &path],
-            )
-            .ok();
-        updated += 1;
+        // Propagate failures and count only rows actually written.
+        updated += connection.execute(
+            "UPDATE files SET duration_secs = ?1 WHERE path = ?2",
+            params![duration, &path],
+        )?;
     }
 
     Ok(updated)
