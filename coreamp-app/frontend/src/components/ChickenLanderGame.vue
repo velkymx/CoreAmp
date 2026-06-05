@@ -27,7 +27,6 @@ let bgScale = 1.5; // smoothed bg zoom; pulses up ~20% on bass
 let cleanup: (() => void) | null = null;
 
 onMounted(() => {
-  ui.setInteractiveVisualizer(true);
   if (!canvasEl.value) return;
   const canvas = canvasEl.value as HTMLCanvasElement;
   const ctx2d = canvas.getContext("2d");
@@ -35,6 +34,9 @@ onMounted(() => {
     error.value = "Canvas 2D unavailable.";
     return;
   }
+  // Claim the keyboard only once the canvas is ready, so transport shortcuts
+  // aren't suppressed while a failed game shows its error.
+  ui.setInteractiveVisualizer(true);
   const ctx: CanvasRenderingContext2D = ctx2d;
   ctx.imageSmoothingEnabled = false;
 

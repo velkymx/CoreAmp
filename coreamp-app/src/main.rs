@@ -683,12 +683,37 @@ fn set_rating(path: String, rating: i64) -> Result<i64, String> {
 /// Replace a track's embedded cover art with the image at `image_path`.
 #[tauri::command]
 fn set_track_artwork(track_path: String, image_path: String) -> Result<bool, String> {
+    const MAX_ARTWORK_BYTES: u64 = 32 * 1024 * 1024;
     let image = Path::new(&image_path);
     let mime = metadata::supported_image_mime(image)
         .ok_or_else(|| String::from("Unsupported image type"))?;
+    // Must be a regular file within a sane size before we read it.
+    let meta = std::fs::metadata(image).map_err(|err| err.to_string())?;
+    if !meta.is_file() {
+        return Err(String::from("Image path is not a regular file"));
+    }
+    if meta.len() > MAX_ARTWORK_BYTES {
+        return Err(String::from("Image is too large"));
+    }
     let bytes = std::fs::read(image).map_err(|err| err.to_string())?;
+    // The bytes must actually be the image type the extension claims — blocks
+    // pointing the command at an arbitrary non-image file.
+    if !image_bytes_match_mime(&bytes, mime) {
+        return Err(String::from("File contents are not a valid image"));
+    }
     metadata::write_artwork(Path::new(&track_path), &bytes, mime)?;
     Ok(true)
+}
+
+/// True if `bytes` start with the magic signature for the given image MIME.
+fn image_bytes_match_mime(bytes: &[u8], mime: &str) -> bool {
+    match mime {
+        "image/jpeg" => bytes.starts_with(&[0xFF, 0xD8, 0xFF]),
+        "image/png" => bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]),
+        "image/gif" => bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a"),
+        "image/webp" => bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP",
+        _ => false,
+    }
 }
 
 /// Relaunch the app (used after an update is downloaded + installed).
