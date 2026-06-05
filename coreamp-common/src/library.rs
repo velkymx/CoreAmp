@@ -273,8 +273,7 @@ pub fn enrich_missing_metadata(limit: usize, proxy: Option<&str>) -> Result<usiz
 #[cfg(test)]
 mod tests {
     use super::{
-        combine_asset_roots, format_enrichment_failure, is_supported_media_file,
-        scan_media_paths,
+        combine_asset_roots, format_enrichment_failure, is_supported_media_file, scan_media_paths,
     };
 
     #[test]
