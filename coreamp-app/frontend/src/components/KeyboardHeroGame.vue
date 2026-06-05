@@ -107,6 +107,10 @@ let raf = 0;
 let runningAvg = 0;
 let spawnCounter = 0;
 let lastSpawn = 0;
+// Tempo tracking: smoothed seconds between detected beats → drives disco-ball RPM.
+let beatInterval = 0.5; // ~120 BPM until we measure
+let lastBeatT = 0;
+let discoSpin = 0; // smoothed angular velocity (rad/frame)
 let messageTimer: ReturnType<typeof setTimeout> | undefined;
 
 // Per-song chart: a deterministic, repeatable note stream for the whole track.
@@ -422,6 +426,67 @@ function init(THREE: any): void {
   lightning.renderOrder = -2;
   scene.add(lightning);
 
+  // ── Disco ball ────────────────────────────────────────────────────────────
+  // Faceted sphere with random per-facet brightness; a global color multiply
+  // (driven in animate) tints + pulses it like real mirror tiles catching the
+  // beams. The scattered dot field below is the "reflected" light it throws.
+  const ballGeo = new THREE.IcosahedronGeometry(2.4, 1).toNonIndexed();
+  const vcount = ballGeo.attributes.position.count;
+  const bcol = new Float32Array(vcount * 3);
+  for (let f = 0; f < vcount; f += 3) {
+    const shade = 0.4 + Math.random() * 0.6; // each triangular facet a mirror tile
+    for (let k = 0; k < 3; k++) {
+      bcol[(f + k) * 3] = shade;
+      bcol[(f + k) * 3 + 1] = shade;
+      bcol[(f + k) * 3 + 2] = shade * 1.08;
+    }
+  }
+  ballGeo.setAttribute("color", new THREE.BufferAttribute(bcol, 3));
+  const discoBall = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  discoBall.position.set(0, 22, -26);
+  discoBall.renderOrder = -1;
+  scene.add(discoBall);
+  // Hanging rod.
+  const rod = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 32, -26),
+      new THREE.Vector3(0, 24.4, -26),
+    ]),
+    new THREE.LineBasicMaterial({ color: 0x2a3550 }),
+  );
+  rod.renderOrder = -1;
+  scene.add(rod);
+  // Reflected-light fleck field scattered around the ball.
+  const DOT_N = 150;
+  const dGeo = new THREE.BufferGeometry();
+  const dPos = new Float32Array(DOT_N * 3);
+  const dCol = new Float32Array(DOT_N * 3);
+  const dPhase = new Float32Array(DOT_N);
+  const tmp = new THREE.Color();
+  for (let i = 0; i < DOT_N; i++) {
+    dPos[i * 3] = (Math.random() - 0.5) * 72;
+    dPos[i * 3 + 1] = Math.random() * 28;
+    dPos[i * 3 + 2] = -8 - Math.random() * 46;
+    tmp.setHSL(Math.random(), 0.9, 0.6);
+    dCol[i * 3] = tmp.r;
+    dCol[i * 3 + 1] = tmp.g;
+    dCol[i * 3 + 2] = tmp.b;
+    dPhase[i] = Math.random() * Math.PI * 2;
+  }
+  dGeo.setAttribute("position", new THREE.BufferAttribute(dPos, 3));
+  dGeo.setAttribute("color", new THREE.BufferAttribute(dCol, 3));
+  const discoDotMat = new THREE.PointsMaterial({
+    size: 0.5,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.3,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const discoDots = new THREE.Points(dGeo, discoDotMat);
+  discoDots.renderOrder = -4;
+  scene.add(discoDots);
+
   // Keep the WebGL viewport matched to the host as it resizes (fullscreen toggle).
   const resizeObs = new ResizeObserver(() => {
     const cw = container.clientWidth || w;
@@ -446,6 +511,9 @@ function init(THREE: any): void {
     spotlights,
     lasers,
     lightning,
+    discoBall,
+    discoDots,
+    discoDotMat,
     resizeObs,
     ltLife: 0,
     ltCooldown: 0,
@@ -644,6 +712,10 @@ function tick(): void {
     const popColor = LANE_COLORS[spawnCounter % LANE_COLORS.length];
     spawnBurst((Math.random() - 0.5) * 36, 20 + Math.random() * 8, -34, popColor, 24, 9);
     lastSpawn = t;
+    // Estimate tempo from the gap between beats (ignore implausible intervals).
+    const gap = t - lastBeatT;
+    if (gap > 0.25 && gap < 1.5) beatInterval += (gap - beatInterval) * 0.2;
+    lastBeatT = t;
   }
 
   // Reactive spectrum wall.
@@ -705,6 +777,21 @@ function tick(): void {
     three.lightning.material.opacity = Math.max(0, three.ltLife);
     if (three.ltLife <= 0) three.lightning.visible = false;
     flash.value = Math.max(flash.value, three.ltLife * 0.55);
+  }
+
+  // Disco ball: spin to the tempo (BPM), tint + pulse the facets, and twinkle
+  // the reflected-light flecks it throws across the scene.
+  if (three.discoBall) {
+    const bpm = 60 / beatInterval; // rough, from the beat tracker
+    // Club-ball RPM scaled to tempo: ~1 rad/s at 120 BPM, only when playing.
+    const targetSpin = player.isPlaying ? 0.004 + (bpm / 120) * 0.014 : 0.001;
+    discoSpin += (targetSpin - discoSpin) * 0.05;
+    three.discoBall.rotation.y += discoSpin;
+    three.discoBall.rotation.x = 0.18 + Math.sin(t * 0.3) * 0.05;
+    three.discoBall.material.color.setHSL((t * 0.04) % 1, 0.3, 0.72 + bands.bass * 0.28);
+    three.discoDots.rotation.y += discoSpin * 1.6 + bands.mid * 0.01;
+    three.discoDotMat.opacity = 0.22 + bands.treble * 0.55 + bands.bass * 0.12;
+    three.discoDotMat.size = 0.42 + bands.bass * 0.5;
   }
 
   // Advance notes; a missed (un-pressed) note just resets the combo — the game
