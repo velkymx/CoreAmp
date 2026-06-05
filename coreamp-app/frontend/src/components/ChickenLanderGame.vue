@@ -272,9 +272,9 @@ onMounted(() => {
       ctx.globalCompositeOperation = "lighter";
       for (let i = 0; i < bars; i++) {
         const v = data[i * step] / 255;
-        const bh = v * H * 0.6;
+        const bh = v * H * 0.72;
         const hue = (i / bars) * 300 + performance.now() * 0.02;
-        ctx.fillStyle = `hsla(${hue % 360}, 90%, 55%, 0.10)`;
+        ctx.fillStyle = `hsla(${hue % 360}, 95%, 58%, ${0.22 + v * 0.25})`;
         ctx.fillRect(i * bw, H - bh, bw - 1, bh);
       }
       ctx.globalCompositeOperation = "source-over";
@@ -386,7 +386,26 @@ onMounted(() => {
     if (game.platform) draw(bands);
   }
 
+  // Match the backing-store aspect to the host so fullscreen never stretches the
+  // scene. Internal height is fixed (sprite scale stays constant); width tracks
+  // the container's aspect, and the level is re-laid within the new bounds.
+  const BASE_H = 360;
+  function resize(): void {
+    const host = canvas.parentElement;
+    const cw = host?.clientWidth || 640;
+    const ch = host?.clientHeight || 360;
+    const aspect = cw / ch || 16 / 9;
+    canvas.height = BASE_H;
+    canvas.width = Math.round(BASE_H * aspect);
+    ctx.imageSmoothingEnabled = false; // reset: sizing clears canvas state
+    if (game.platform) buildLevel();
+    game.bird.x = Math.max(0, Math.min(canvas.width - game.bird.w, game.bird.x));
+  }
+  const resizeObs = new ResizeObserver(() => resize());
+  resizeObs.observe(canvas.parentElement || canvas);
+
   img.onload = () => {
+    resize();
     buildLevel();
     resetBird();
     raf = requestAnimationFrame(loop);
@@ -396,6 +415,7 @@ onMounted(() => {
   };
 
   cleanup = () => {
+    resizeObs.disconnect();
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     canvas.removeEventListener("click", onClick);
