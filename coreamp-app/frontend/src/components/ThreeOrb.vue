@@ -329,6 +329,13 @@ onBeforeUnmount(() => {
   if (state) {
     try {
       state.ro.disconnect();
+      // Dispose every geometry + material in the scene graph (orb, wireframe,
+      // particle + star point clouds) before the renderer.
+      state.scene.traverse((o: any) => {
+        o.geometry?.dispose?.();
+        const mat = o.material;
+        if (mat) (Array.isArray(mat) ? mat : [mat]).forEach((m: any) => m?.dispose?.());
+      });
       state.renderer.dispose();
       state.renderer.domElement.parentNode?.removeChild(state.renderer.domElement);
     } catch {
