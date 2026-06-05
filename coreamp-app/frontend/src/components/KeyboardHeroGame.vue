@@ -150,6 +150,21 @@ function nowSecs(): number {
   return performance.now() / 1000;
 }
 
+// Free a mesh's GPU resources (geometry + material) and detach it. WebGL
+// objects aren't garbage-collected, so notes must be disposed, not just removed.
+function disposeMesh(m: any): void {
+  if (!m) return;
+  m.parent?.remove(m);
+  m.geometry?.dispose?.();
+  const mat = m.material;
+  if (mat) (Array.isArray(mat) ? mat : [mat]).forEach((x: any) => x?.dispose?.());
+}
+function disposeNote(n: ActiveNote): void {
+  disposeMesh(n.mesh);
+  disposeMesh(n.glow);
+  disposeMesh(n.trail);
+}
+
 function resetState(): void {
   score.value = 0;
   combo.value = 0;
@@ -163,11 +178,7 @@ function resetState(): void {
   runningAvg = 0;
   spawnCounter = 0;
   lastSpawn = 0;
-  for (const n of notes) {
-    n.mesh.parent?.remove(n.mesh);
-    n.glow?.parent?.remove(n.glow);
-    n.trail?.parent?.remove(n.trail);
-  }
+  for (const n of notes) disposeNote(n);
   notes = [];
 }
 
@@ -217,6 +228,7 @@ function init(THREE: any): void {
   // Floor grid (neon, additive).
   const grid = new THREE.GridHelper(120, 60, 0x16306a, 0x0c1c44);
   grid.position.z = -14;
+  grid.renderOrder = -5;
   (grid.material as any).transparent = true;
   (grid.material as any).opacity = 0.5;
   scene.add(grid);
@@ -250,6 +262,7 @@ function init(THREE: any): void {
     });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 5), mat);
     mesh.position.set(laneX(i), 1.4, HIT_Z);
+    mesh.renderOrder = 2;
     scene.add(mesh);
     flashMeshes.push(mesh);
   }
@@ -268,6 +281,7 @@ function init(THREE: any): void {
   );
   hitBar.rotation.x = -Math.PI / 2;
   hitBar.position.set(0, 0.05, HIT_Z);
+  hitBar.renderOrder = 2;
   scene.add(hitBar);
 
   // Particle system.
@@ -288,7 +302,9 @@ function init(THREE: any): void {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  scene.add(new THREE.Points(pGeo, pMat));
+  const pPoints = new THREE.Points(pGeo, pMat);
+  pPoints.renderOrder = 3; // hit-explosion particles ride on top
+  scene.add(pPoints);
 
   // Starfield backdrop.
   const sGeo = new THREE.BufferGeometry();
@@ -299,12 +315,12 @@ function init(THREE: any): void {
     sPos[i * 3 + 2] = -Math.random() * 80 - 10;
   }
   sGeo.setAttribute("position", new THREE.BufferAttribute(sPos, 3));
-  scene.add(
-    new THREE.Points(
-      sGeo,
-      new THREE.PointsMaterial({ color: 0x35508f, size: 0.25, transparent: true, opacity: 0.6 }),
-    ),
+  const stars = new THREE.Points(
+    sGeo,
+    new THREE.PointsMaterial({ color: 0x35508f, size: 0.25, transparent: true, opacity: 0.6 }),
   );
+  stars.renderOrder = -6;
+  scene.add(stars);
 
   // Reactive spectrum wall behind the highway (EQ bars, hue-cycling).
   const specBars: any[] = [];
@@ -319,6 +335,7 @@ function init(THREE: any): void {
     });
     const bar = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1), mat);
     bar.position.set((i - SPEC_N / 2) * 1.5, 6, -52);
+    bar.renderOrder = -4;
     scene.add(bar);
     specBars.push(bar);
   }
@@ -337,6 +354,7 @@ function init(THREE: any): void {
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.0, 32), mat);
     ring.rotation.x = -Math.PI / 2;
     ring.visible = false;
+    ring.renderOrder = 3;
     scene.add(ring);
     rings.push({ mesh: ring, life: 0 });
   }
@@ -359,9 +377,10 @@ function init(THREE: any): void {
       fog: false,
     });
     const beam = new THREE.Mesh(geo, mat);
-    beam.position.set((i - (SPOT_N - 1) / 2) * 7, 30, -34);
+    beam.position.set((i - (SPOT_N - 1) / 2) * 7, 30, -38);
+    beam.renderOrder = -3;
     scene.add(beam);
-    spotlights.push({ mesh: beam, phase: i * 1.15, hue: i / SPOT_N });
+    spotlights.push({ mesh: beam, phase: i * 1.15, hue: i / SPOT_N, baseX: (i - (SPOT_N - 1) / 2) * 7 });
   }
 
   // Laser fan from a single rig point.
@@ -378,6 +397,7 @@ function init(THREE: any): void {
       new THREE.Vector3((i - 3) * 9, 0, -8),
     ]);
     const line = new THREE.Line(g, mat);
+    line.renderOrder = -3;
     scene.add(line);
     lasers.push({ mesh: line });
   }
@@ -395,7 +415,18 @@ function init(THREE: any): void {
   ]);
   const lightning = new THREE.Line(ltGeo, ltMat);
   lightning.visible = false;
+  lightning.renderOrder = -2;
   scene.add(lightning);
+
+  // Keep the WebGL viewport matched to the host as it resizes (fullscreen toggle).
+  const resizeObs = new ResizeObserver(() => {
+    const cw = container.clientWidth || w;
+    const ch = container.clientHeight || h;
+    renderer.setSize(cw, ch);
+    camera.aspect = cw / ch;
+    camera.updateProjectionMatrix();
+  });
+  resizeObs.observe(container);
 
   three = {
     THREE,
@@ -411,6 +442,7 @@ function init(THREE: any): void {
     spotlights,
     lasers,
     lightning,
+    resizeObs,
     ltLife: 0,
     ltCooldown: 0,
     ringCursor: 0,
@@ -446,7 +478,10 @@ function spawnRing(x: number, z: number, color: number): void {
   r.life = 1;
 }
 
-function spawnNote(lane: number): void {
+// `arrival` is the SONG time (player.positionSecs) at which the note should
+// reach the hit line — the same clock used to judge a hit, so visuals and
+// judgement never drift apart.
+function spawnNote(lane: number, arrival: number): void {
   if (!three) return;
   const { THREE, scene } = three;
   const color = LANE_COLORS[lane];
@@ -457,6 +492,7 @@ function spawnNote(lane: number): void {
   });
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 1.1), mat);
   mesh.position.set(laneX(lane), 0.35, SPAWN_Z);
+  mesh.renderOrder = 5;
   scene.add(mesh);
   // Trailing glow.
   const glowMat = new THREE.MeshBasicMaterial({
@@ -469,6 +505,7 @@ function spawnNote(lane: number): void {
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), glowMat);
   glow.position.copy(mesh.position);
   glow.rotation.x = -Math.PI / 2;
+  glow.renderOrder = 4;
   scene.add(glow);
   // Vertical comet trail behind the note.
   const trailMat = new THREE.MeshBasicMaterial({
@@ -480,8 +517,9 @@ function spawnNote(lane: number): void {
   });
   const trail = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 6), trailMat);
   trail.position.set(laneX(lane), 0.3, SPAWN_Z - 3);
+  trail.renderOrder = 4;
   scene.add(trail);
-  notes.push({ lane, arrival: nowSecs() + TRAVEL, mesh, glow, trail, judged: false });
+  notes.push({ lane, arrival, mesh, glow, trail, judged: false });
 }
 
 function registerJudgement(j: Judgement, lane: number): void {
@@ -528,7 +566,7 @@ function onKey(e: KeyboardEvent): void {
   laneFlash[lane] = Math.max(laneFlash[lane], 0.6);
   let best: ActiveNote | null = null;
   let bestDelta = Infinity;
-  const t = nowSecs();
+  const t = player.positionSecs; // judge on the song clock, same as the highway
   for (const n of notes) {
     if (n.judged || n.lane !== lane) continue;
     const delta = Math.abs(n.arrival - t);
@@ -540,9 +578,7 @@ function onKey(e: KeyboardEvent): void {
   if (best && bestDelta <= HIT_WINDOW) {
     best.judged = true;
     registerJudgement(judge(best.arrival - t), lane);
-    best.mesh.parent?.remove(best.mesh);
-    best.glow?.parent?.remove(best.glow);
-    best.trail?.parent?.remove(best.trail);
+    disposeNote(best);
     notes = notes.filter((n) => n !== best);
   }
 }
@@ -588,7 +624,8 @@ function tick(): void {
   // never interrupts the flow.
   const songT = player.positionSecs;
   while (chartIndex < chart.length && songT >= chart[chartIndex].time - TRAVEL) {
-    if (chart[chartIndex].time - songT > -0.3) spawnNote(chart[chartIndex].lane);
+    const cn = chart[chartIndex];
+    if (cn.time - songT > -0.3) spawnNote(cn.lane, cn.time);
     chartIndex++;
   }
 
@@ -628,14 +665,19 @@ function tick(): void {
   three.punch = Math.max(0, three.punch - 0.06);
 
   // ── EDC rig animation ─────────────────────────────────────────────────────
-  // Sweeping, color-cycling spotlight beams.
+  // Spotlight beams sweep TO the music: treble drives sweep speed, mid the
+  // sweep width, bass kicks the tilt + sways the rig side to side.
+  const sweepSpeed = 0.5 + bands.treble * 3.5;
+  const sweepWidth = 0.35 + bands.mid * 1.1;
   for (let i = 0; i < spotlights.length; i++) {
     const s = spotlights[i];
-    s.mesh.rotation.z = Math.sin(t * 0.7 + s.phase) * 0.85;
-    s.mesh.rotation.x = -0.22 + Math.cos(t * 0.43 + s.phase) * 0.2;
-    const hue = (s.hue + t * 0.05) % 1;
+    const dir = i % 2 === 0 ? 1 : -1;
+    s.mesh.rotation.z = Math.sin(t * sweepSpeed + s.phase) * sweepWidth * dir;
+    s.mesh.rotation.x = -0.22 + Math.cos(t * (0.4 + bands.mid) + s.phase) * 0.2 - bands.bass * 0.25;
+    s.mesh.position.x = s.baseX + Math.sin(t * 0.6 + s.phase) * bands.bass * 5;
+    const hue = (s.hue + t * 0.05 + bands.treble * 0.3) % 1;
     s.mesh.material.color.setHSL(fever ? 0.12 : hue, 1, 0.55);
-    s.mesh.material.opacity = 0.05 + bands.mid * 0.2 + bands.treble * 0.12;
+    s.mesh.material.opacity = 0.05 + bands.mid * 0.22 + bands.treble * 0.16 + bands.bass * 0.06;
   }
   // Laser fan flicker (treble-driven), hue cycling.
   for (let i = 0; i < lasers.length; i++) {
@@ -659,23 +701,22 @@ function tick(): void {
   // Advance notes; a missed (un-pressed) note just resets the combo — the game
   // keeps going until the song ends.
   for (const n of notes) {
-    const progress = 1 - (n.arrival - t) / TRAVEL;
+    // Position driven by the SONG clock (same as judging) → no visual/hit drift.
+    const progress = 1 - (n.arrival - songT) / TRAVEL;
     const z = SPAWN_Z + progress * (HIT_Z - SPAWN_Z);
     n.mesh.position.z = z;
     n.mesh.rotation.x += fever ? 0.12 : 0.06;
     n.mesh.scale.setScalar(1 + bands.bass * 0.25);
     if (n.glow) n.glow.position.z = z;
     if (n.trail) n.trail.position.z = z - 3;
-    if (!n.judged && t - n.arrival > HIT_WINDOW) {
+    if (!n.judged && songT - n.arrival > HIT_WINDOW) {
       n.judged = true;
       registerJudgement("miss", n.lane);
     }
   }
   notes = notes.filter((n) => {
-    if (n.judged && t - n.arrival > 0.2) {
-      n.mesh.parent?.remove(n.mesh);
-      n.glow?.parent?.remove(n.glow);
-      n.trail?.parent?.remove(n.trail);
+    if (n.judged && songT - n.arrival > 0.2) {
+      disposeNote(n);
       return false;
     }
     return true;
@@ -742,11 +783,13 @@ function restart(): void {
 }
 
 onMounted(async () => {
-  ui.setInteractiveVisualizer(true);
   try {
     const THREE = await loadThree();
     if (!THREE) throw new Error("three.js global not found");
     init(THREE);
+    // Only claim the keyboard once init succeeds, so transport shortcuts aren't
+    // suppressed while a failed game shows its error.
+    ui.setInteractiveVisualizer(true);
     window.addEventListener("keydown", onKey);
     raf = requestAnimationFrame(tick);
   } catch (err) {
@@ -761,6 +804,16 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey);
   if (three) {
     try {
+      three.resizeObs?.disconnect();
+      // Dispose every live note, then every geometry/material in the scene graph
+      // (spotlights, lasers, spectrum bars, particle/star/grid buffers, rings).
+      for (const n of notes) disposeNote(n);
+      notes = [];
+      three.scene.traverse((o: any) => {
+        o.geometry?.dispose?.();
+        const mat = o.material;
+        if (mat) (Array.isArray(mat) ? mat : [mat]).forEach((m: any) => m?.dispose?.());
+      });
       three.renderer.dispose();
       three.renderer.domElement.parentNode?.removeChild(three.renderer.domElement);
     } catch {
