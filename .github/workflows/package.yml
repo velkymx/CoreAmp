@@ -75,6 +75,14 @@ jobs:
         with:
           workspaces: "./ -> target"
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install frontend dependencies
+        run: npm --prefix coreamp-app/frontend ci
+
       - name: Build Linux bundles
         run: |
           bash packaging/linux/build-deb.sh
@@ -121,6 +129,14 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./ -> target"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install frontend dependencies
+        run: npm --prefix coreamp-app/frontend ci
 
       - name: Build macOS bundles
         run: bash packaging/macos/build-app.sh
