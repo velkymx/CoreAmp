@@ -66,7 +66,13 @@ fn run_single_scan() {
 
     println!("scan: indexing {} root(s)", roots.len());
     for root in &roots {
-        println!("scan: root {}", root.display());
+        // Print only the basename; the full path is also encoded into
+        // the scan-started event payload for the GUI to use.
+        let basename = root
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| String::from("<root>"));
+        println!("scan: root {basename}");
     }
 
     match library::index_library_dirs(&roots) {
@@ -142,9 +148,20 @@ fn main() {
         .unwrap_or_else(|_| daemon_default_interval_secs());
     let interval_secs = options.interval_secs_override.unwrap_or(settings_interval);
 
+    // Print only the directory basename + db filename to avoid leaking
+    // the user's home path to /tmp logs on macOS (the daemon runs under
+    // launchd with a world-readable StandardErrorPath).
+    let config_basename = config_dir()
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| String::from("<config>"));
+    let db_basename = metadata_db_path()
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| String::from("<db>"));
     println!("CoreAmp daemon bootstrap");
-    println!("Config directory: {}", config_dir().display());
-    println!("Metadata database path: {}", metadata_db_path().display());
+    println!("Config directory: <CONFIG_DIR>/{config_basename}");
+    println!("Metadata database: <CONFIG_DIR>/{config_basename}/{db_basename}");
     println!("Scan interval (seconds): {interval_secs}");
     let mut started = ipc::DaemonEvent::new("daemon-started", "CoreAmp daemon started");
     started.interval_secs = Some(interval_secs);
