@@ -1,0 +1,59 @@
+# Normalize line endings and mark binary files. LF on checkin; CRLF
+# is converted to LF on commit for the listed text types. Shell and
+# Rust sources stay LF unconditionally.
+
+* text=auto eol=lf
+
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.zsh       text eol=lf
+
+*.rs        text eol=lf
+*.toml      text eol=lf
+
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.vue       text eol=lf
+*.css       text eol=lf
+*.scss      text eol=lf
+*.html      text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.icns      binary
+*.ico       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.eot       binary
+*.mp3       binary
+*.flac      binary
+*.m4a       binary
+*.ogg       binary
+*.wav       binary
+*.mp4       binary
+*.mov       binary
+*.webm      binary
+*.pdf       binary
+*.zip       binary
+*.gz        binary
+*.tar       binary
+*.dmg       binary
+*.app       binary
+*.so        binary
+*.dylib     binary
+*.dll       binary
+*.rlib      binary
+*.exe       binary
+*.pdb       binary
