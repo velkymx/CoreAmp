@@ -69,14 +69,19 @@ fn open_and_init() -> Result<Connection, String> {
 }
 
 fn get_db() -> Result<&'static Mutex<Connection>, CoreampError> {
+    // The closure runs at most once per process. If it returns Err,
+    // the error is cached in `DB_CONN` for the rest of the process —
+    // the user must restart the app to retry. We accept this trade-off
+    // because (a) the inner `open_and_init` already tries a one-shot
+    // recovery (quarantine + reopen) so the only failures that reach
+    // here are persistent (permissions, disk), and (b) the
+    // `OnceLock<Mutex<...>>` alternative would require a stable
+    // `&'static Mutex<Connection>` reference inside an `Option`,
+    // which the borrow checker rejects without `unsafe`.
     DB_CONN
         .get_or_init(|| match open_and_init() {
             Ok(conn) => Ok(Mutex::new(conn)),
             Err(first_err) => {
-                // First open failed. The DB file may be corrupt
-                // (torn write, hard kill mid-transaction). Move
-                // it aside and try once more with a fresh file;
-                // apply_schema will rebuild from MIGRATIONS.
                 quarantine_db_file();
                 open_and_init().map(Mutex::new).map_err(|second_err| {
                     format!(
