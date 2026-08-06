@@ -4,9 +4,10 @@ use crate::metadata::{self, TrackMetadata};
 use crate::metadata_db_path;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 static DB_CONN: OnceLock<Result<Mutex<Connection>, String>> = OnceLock::new();
 
@@ -19,16 +20,70 @@ fn configure_connection(connection: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// Run a structural integrity check on the database. Returns Ok
+/// when every page is sane. A torn write, disk-full, or hard kill
+/// mid-transaction can leave the file in a state that SQLite
+/// itself cannot read; quick_check catches that and gives us a
+/// chance to move the bad file aside and rebuild from scratch.
+fn run_quick_check(connection: &Connection) -> rusqlite::Result<()> {
+    let result: String = connection.query_row("PRAGMA quick_check", [], |row| row.get(0))?;
+    if result == "ok" {
+        Ok(())
+    } else {
+        Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
+            Some(format!("quick_check: {result}")),
+        ))
+    }
+}
+
+/// Move the on-disk DB file aside to `<name>.corrupt-<unix-ts>` so
+/// the next open starts fresh. Best-effort: if the rename fails,
+/// the caller will surface a clear open error and the user can
+/// intervene manually.
+fn quarantine_db_file() {
+    let src = metadata_db_path();
+    if !src.exists() {
+        return;
+    }
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let dest = src.with_extension(format!("db.corrupt-{stamp}"));
+    eprintln!(
+        "db: integrity check failed; moving {} to {}",
+        src.display(),
+        dest.display()
+    );
+    let _ = fs::rename(&src, &dest);
+}
+
+fn open_and_init() -> Result<Connection, String> {
+    let path = metadata_db_path();
+    let conn = Connection::open(&path).map_err(|e| e.to_string())?;
+    configure_connection(&conn).map_err(|e| e.to_string())?;
+    apply_schema(&conn).map_err(|e| e.to_string())?;
+    run_quick_check(&conn).map_err(|e| e.to_string())?;
+    Ok(conn)
+}
+
 fn get_db() -> Result<&'static Mutex<Connection>, CoreampError> {
     DB_CONN
-        .get_or_init(|| {
-            Connection::open(metadata_db_path())
-                .map_err(|e| e.to_string())
-                .and_then(|conn| {
-                    configure_connection(&conn).map_err(|e| e.to_string())?;
-                    apply_schema(&conn).map_err(|e| e.to_string())?;
-                    Ok(Mutex::new(conn))
+        .get_or_init(|| match open_and_init() {
+            Ok(conn) => Ok(Mutex::new(conn)),
+            Err(first_err) => {
+                // First open failed. The DB file may be corrupt
+                // (torn write, hard kill mid-transaction). Move
+                // it aside and try once more with a fresh file;
+                // apply_schema will rebuild from MIGRATIONS.
+                quarantine_db_file();
+                open_and_init().map(Mutex::new).map_err(|second_err| {
+                    format!(
+                        "db: open failed twice; first={first_err}; second={second_err}"
+                    )
                 })
+            }
         })
         .as_ref()
         .map_err(Clone::clone)
@@ -920,6 +975,8 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
 
 #[cfg(test)]
 mod tests {
+    use crate::metadata_db_path;
+    use std::time::{SystemTime, UNIX_EPOCH};
     use crate::library::ScannedFile;
     use rusqlite::Connection;
     use std::path::PathBuf;
@@ -1401,5 +1458,47 @@ mod tests {
             .expect("bump user_version");
         let err = super::apply_schema(&conn).expect_err("must refuse downgrade");
         assert!(matches!(err, rusqlite::Error::InvalidQuery));
+    }
+
+    #[test]
+    fn quarantine_db_file_moves_existing_db_aside() {
+        // Repoint COREAMP_CONFIG_DIR at a temp dir via the shared
+        // mutex so this test does not race with any other env-mutating
+        // test in the suite.
+        let _guard = crate::test_lock::ENV_MUTEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let tmp_dir = std::env::temp_dir().join(format!("coreamp-db-{stamp}"));
+        std::fs::create_dir_all(&tmp_dir).expect("temp dir");
+        let prev_dir = std::env::var("COREAMP_CONFIG_DIR").ok();
+        unsafe {
+            std::env::set_var("COREAMP_CONFIG_DIR", &tmp_dir);
+        }
+        // Seed a "DB" file with garbage so quarantine_db_file has
+        // something to rename.
+        let db_path = metadata_db_path();
+        std::fs::write(&db_path, b"not a real sqlite db").expect("seed");
+        super::quarantine_db_file();
+        assert!(!db_path.exists(), "original should have been moved");
+        let mut found = false;
+        for entry in std::fs::read_dir(&tmp_dir).expect("read dir") {
+            let name = entry.expect("entry").file_name();
+            let s = name.to_string_lossy();
+            if s.starts_with("local.db.corrupt-") {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "expected a local.db.corrupt-* backup");
+        // Restore.
+        match prev_dir {
+            Some(value) => unsafe { std::env::set_var("COREAMP_CONFIG_DIR", value) },
+            None => unsafe { std::env::remove_var("COREAMP_CONFIG_DIR") },
+        }
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }
