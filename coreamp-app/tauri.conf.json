@@ -23,6 +23,8 @@
         "title": "CoreAmp",
         "width": 1024,
         "height": 900,
+        "minWidth": 800,
+        "minHeight": 700,
         "resizable": true
       }
     ]
