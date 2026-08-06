@@ -8,7 +8,6 @@ license = "Polyform-Noncommercial-1.0.0"
 version = "0.5.0"
 
 [workspace.dependencies]
-objc2 = "0.6"
 # Pin the Tauri CLI to the same version family as the `tauri` crate
 # (2.11.x). Local dev / CI should install via:
 #   cargo install --locked tauri-cli --version 2.11.5

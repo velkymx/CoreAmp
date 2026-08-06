@@ -478,7 +478,6 @@ dependencies = [
  "base64 0.22.1",
  "coreamp-common",
  "image",
- "objc2",
  "rodio",
  "serde",
  "serde_json",
@@ -491,7 +490,6 @@ dependencies = [
 name = "coreamp-common"
 version = "0.5.0"
 dependencies = [
- "image",
  "lofty",
  "reqwest",
  "rusqlite",

@@ -19,7 +19,6 @@
     "@velkymx/vibeui": "1.1.2",
     "bootstrap": "^5.3.0",
     "bootstrap-icons": "^1.11.0",
-    "dompurify": "^3.4.0",
     "pinia": "^4.0.0",
     "quill": "^2.0.0",
     "vue": "^3.5.0"
