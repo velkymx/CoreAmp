@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn rejects_nonexistent_path() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = tempfile::tempdir().unwrap();
         let outside = temp.path().join("does-not-exist.mp3");
         let err = validate_library_path(&outside).unwrap_err();
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn accepts_path_inside_approved_root() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = tempfile::tempdir().unwrap();
         let lib = make_root(&temp.path(), "library");
         configure_library_roots(&[lib.clone()]);
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn rejects_path_outside_approved_root() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = tempfile::tempdir().unwrap();
         let lib = make_root(&temp.path(), "library");
         let other = make_root(&temp.path(), "other");
@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn rejects_symlink_escape() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let temp = tempfile::tempdir().unwrap();
         let lib = make_root(&temp.path(), "library");
         let outside = temp.path().join("secret.txt");
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn rejects_parent_traversal_segments() {
-        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         // Construct a path that contains `..` but doesn't exist; the
         // early "does not exist" branch is what we exercise here, since
         // canonicalize would also fail. The point is to confirm we

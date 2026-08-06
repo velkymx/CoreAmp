@@ -62,11 +62,21 @@ pub fn ensure_app_data() -> Result<(), String> {
 }
 
 #[cfg(test)]
+pub(crate) mod test_lock {
+    //! Process-wide mutex for tests that mutate `COREAMP_CONFIG_DIR`
+    //! or `COREAMP_LIBRARY_DIRS`. `cargo test` runs tests in parallel
+    //! by default; env-var mutation is process-wide and not thread-safe.
+    pub static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+}
+
+#[cfg(test)]
 mod tests {
     use super::config_dir;
+    use super::test_lock::ENV_MUTEX;
 
     #[test]
     fn config_dir_ends_with_app_name() {
+        let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         assert!(config_dir().ends_with("CoreAmp"));
     }
 }

@@ -4,7 +4,6 @@ use crate::metadata::{self, TrackMetadata};
 use crate::metadata_db_path;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
