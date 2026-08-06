@@ -10,7 +10,10 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vitest/globals"],
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] },
+    "paths": {
+      "@/*": ["src/*"],
+      "@velkymx/vibeui": ["node_modules/@velkymx/vibeui/dist/index.d.ts"]
+    },
     "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "src/**/*.vue", "tests/**/*.ts"]
