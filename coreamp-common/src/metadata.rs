@@ -270,14 +270,25 @@ pub fn read_track_artwork(path: &Path) -> Option<EmbeddedArtwork> {
     read_directory_artwork(path)
 }
 
+/// Maximum absolute ReplayGain value we will accept from a tag, in dB.
+/// Anything beyond this is treated as malformed / hostile and is
+/// dropped. A `+999 dB` tag would otherwise translate to a 10^50
+/// linear gain and clip the audio (and the user's ears).
+const REPLAY_GAIN_DB_CLAMP: f32 = 24.0;
+
 /// Parse a ReplayGain gain value like "-6.48 dB" / "3.21 DB" / "-6.48" into a
-/// dB float. Returns None for blank/garbage values.
+/// dB float, then clamp to +/- REPLAY_GAIN_DB_CLAMP. Returns None for
+/// blank/garbage values or out-of-range tags.
 pub fn parse_replay_gain_db(value: &str) -> Option<f32> {
     let mut s = value.trim();
     if s.len() >= 2 && s[s.len() - 2..].eq_ignore_ascii_case("db") {
         s = s[..s.len() - 2].trim();
     }
-    s.parse::<f32>().ok()
+    let parsed = s.parse::<f32>().ok()?;
+    if !parsed.is_finite() {
+        return None;
+    }
+    Some(parsed.clamp(-REPLAY_GAIN_DB_CLAMP, REPLAY_GAIN_DB_CLAMP))
 }
 
 fn read_replay_gain_key(path: &Path, key: ItemKey) -> Option<f32> {
@@ -469,6 +480,21 @@ mod tests {
         assert_eq!(parse_replay_gain_db(""), None);
         assert_eq!(parse_replay_gain_db("loud"), None);
         assert_eq!(parse_replay_gain_db("dB"), None);
+    }
+
+    #[test]
+    fn parse_replay_gain_db_clamps_extreme_values() {
+        // Anything beyond +/-24 dB is treated as malformed; a malicious
+        // or corrupted tag like "+999 dB" must not translate to a 10^50
+        // linear gain and clip the audio.
+        assert_eq!(parse_replay_gain_db("999 dB"), Some(24.0));
+        assert_eq!(parse_replay_gain_db("-999 dB"), Some(-24.0));
+        assert_eq!(parse_replay_gain_db("100"), Some(24.0));
+        assert_eq!(parse_replay_gain_db("-100"), Some(-24.0));
+        assert_eq!(parse_replay_gain_db("24 dB"), Some(24.0));
+        assert_eq!(parse_replay_gain_db("-24 dB"), Some(-24.0));
+        assert_eq!(parse_replay_gain_db("inf"), None);
+        assert_eq!(parse_replay_gain_db("nan"), None);
     }
 
     fn temp_dir() -> std::path::PathBuf {
