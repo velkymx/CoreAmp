@@ -1,10 +1,9 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability for the CoreAmp main window",
+  "description": "Default capability for the CoreAmp main window. The frontend uses only the @tauri-apps/api/core `invoke` function for user-defined Rust commands; no core:app, core:window, core:event, or core:webview JS APIs are called from src/. Add granular perms here only when a specific API is adopted.",
   "windows": ["main"],
   "permissions": [
-    "core:default",
     "updater:default"
   ]
 }
