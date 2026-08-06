@@ -1907,9 +1907,26 @@ fn main() {
 
             // Restrict the asset: protocol to the user's library and playlist
             // directories rather than the whole filesystem (code-review C6).
+            // Propagate allow_directory errors and verify the resulting scope is
+            // non-empty; an empty scope would silently let `convertFileSrc`
+            // return 404s on every track.
             let asset_scope = app.asset_protocol_scope();
+            let mut allowed_count = 0usize;
             for dir in library::asset_scope_roots() {
-                let _ = asset_scope.allow_directory(&dir, true);
+                if let Err(err) = asset_scope.allow_directory(&dir, true) {
+                    eprintln!(
+                        "asset scope: failed to allow {}: {err}",
+                        dir.display()
+                    );
+                } else {
+                    allowed_count += 1;
+                }
+            }
+            if allowed_count == 0 {
+                eprintln!(
+                    "asset scope: no library roots were registered; the webview \
+                     will not be able to load any audio file"
+                );
             }
             #[cfg(feature = "devtools")]
             if let Some(window) = app.get_webview_window("main") {
