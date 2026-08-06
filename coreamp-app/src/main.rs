@@ -726,6 +726,18 @@ fn restart_app(app: tauri::AppHandle) {
 /// Update the tray's now-playing label + tooltip. `None` resets to "Not playing".
 #[tauri::command]
 fn set_tray_now_playing(app: tauri::AppHandle, label: Option<String>) -> Result<(), String> {
+    // Reject oversized labels to keep the tray text + tooltip bounded.
+    // The OS truncates anyway, but a 1GB string blocks the tray
+    // update thread (and can be used as a tiny DoS vector).
+    if let Some(text) = label.as_ref() {
+        const MAX_LABEL_BYTES: usize = 256;
+        if text.len() > MAX_LABEL_BYTES {
+            return Err(format!(
+                "tray label too long ({} bytes; max {MAX_LABEL_BYTES})",
+                text.len()
+            ));
+        }
+    }
     if let Some(handles) = app.try_state::<TrayHandles>() {
         let text = label.clone().unwrap_or_else(|| String::from("Not playing"));
         handles
