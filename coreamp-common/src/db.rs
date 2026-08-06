@@ -247,47 +247,63 @@ pub fn list_library_files(
 ) -> Result<Vec<LibraryRow>, CoreampError> {
     let mutex = get_db()?;
     let connection = mutex.lock().map_err(|_| CoreampError::Lock)?;
+    list_library_files_with_connection(
+        &connection,
+        limit,
+        offset,
+        genre_filter,
+        liked_only,
+        search_term,
+    )
+}
 
-    let mut query = String::from(
+/// The actual implementation, factored out so tests can drive it
+/// against an in-memory `Connection` without touching the global
+/// `OnceLock` DB. The query is built once with a static SQL string.
+/// Each filter is expressed as `(<param> IS NULL OR <col> = <param>)`
+/// so the same set of 5 bound parameters is used regardless of which
+/// filters are active. This avoids the index-juggling trap of a
+/// dynamic `?N` builder and removes any temptation to splice user
+/// values into the SQL text.
+pub(crate) fn list_library_files_with_connection(
+    connection: &Connection,
+    limit: usize,
+    offset: usize,
+    genre_filter: Option<String>,
+    liked_only: bool,
+    search_term: Option<String>,
+) -> Result<Vec<LibraryRow>, CoreampError> {
+    let mut stmt = connection.prepare(
         r#"
-        SELECT path, filename, artist, album, title, year, genre, liked, duration_secs, album_artist, track_number, rating
+        SELECT path, filename, artist, album, title, year, genre, liked,
+               duration_secs, album_artist, track_number, rating
         FROM files
-        WHERE 1=1
-        "#,
-    );
-
-    if genre_filter.is_some() {
-        query.push_str(" AND genre = ?2");
-    }
-    if liked_only {
-        query.push_str(" AND liked = 1");
-    }
-    if search_term.is_some() {
-        query.push_str(
-            " AND (artist LIKE ?3 OR album LIKE ?3 OR title LIKE ?3 OR filename LIKE ?3)",
-        );
-    }
-
-    query.push_str(
-        r#"
+        WHERE (?2 IS NULL OR genre = ?2)
+          AND (?5 = 0 OR liked = 1)
+          AND (?3 = '' OR artist LIKE ?3
+                       OR album LIKE ?3
+                       OR title LIKE ?3
+                       OR filename LIKE ?3)
         ORDER BY
             COALESCE(artist, ''),
             COALESCE(album, ''),
             filename
         LIMIT ?1 OFFSET ?4
         "#,
-    );
+    )?;
 
-    let mut stmt = connection.prepare(&query)?;
-
-    let search_pattern = search_term.map(|s| format!("%{s}%")).unwrap_or_default();
+    let search_pattern = search_term
+        .as_deref()
+        .map(|s| format!("%{s}%"))
+        .unwrap_or_default();
 
     let rows = stmt.query_map(
         params![
             limit as i64,
-            genre_filter.unwrap_or_default(),
+            genre_filter,
             search_pattern,
             offset as i64,
+            liked_only as i64,
         ],
         |row| {
             Ok(LibraryRow {
@@ -1287,5 +1303,70 @@ mod tests {
         super::apply_schema(&conn).expect("apply schema");
         let got = super::select_metadata_hashes(&conn, &[]).expect("select");
         assert!(got.is_empty());
+    }
+
+    #[test]
+    fn list_library_files_binding_indices_match() {
+        // Pins the parameter order: ?1 limit, ?2 genre_filter,
+        // ?3 search_pattern, ?4 offset, ?5 liked_only. Reorder the
+        // SQL parameters or the params![] and this test fails. Also
+        // exercises every filter combination in one call so the
+        // `(?2 IS NULL OR ...)` / `(?3 = '' OR ...)` / `(?5 = 0 OR ...)`
+        // guards are all hit.
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("apply schema");
+        for (i, (artist, album, title, genre, liked, fname)) in [
+            ("Rock", "A", "X", "Rock", true, "x.mp3"),
+            ("Pop", "B", "Y", "Pop", false, "y.mp3"),
+            ("Rock", "C", "Z", "Rock", false, "z.mp3"),
+        ]
+        .iter()
+        .enumerate()
+        {
+            conn.execute(
+                "INSERT INTO files(path, filename, artist, album, title, genre, liked)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![
+                    format!("/m/{i}.mp3"),
+                    *fname,
+                    *artist,
+                    *album,
+                    *title,
+                    *genre,
+                    *liked,
+                ],
+            )
+            .expect("insert");
+        }
+
+        // No filters: 3 rows.
+        let all = super::list_library_files_with_connection(
+            &conn, 100, 0, None, false, None,
+        )
+        .expect("list");
+        assert_eq!(all.len(), 3);
+
+        // genre=Rock + liked_only=true: 1 row (X).
+        let rock_liked = super::list_library_files_with_connection(
+            &conn, 100, 0, Some("Rock".to_string()), true, None,
+        )
+        .expect("list");
+        assert_eq!(rock_liked.len(), 1);
+        assert_eq!(rock_liked[0].title.as_deref(), Some("X"));
+
+        // search=Pop: 1 row (Y).
+        let pop = super::list_library_files_with_connection(
+            &conn, 100, 0, None, false, Some("Pop".to_string()),
+        )
+        .expect("list");
+        assert_eq!(pop.len(), 1);
+        assert_eq!(pop[0].title.as_deref(), Some("Y"));
+
+        // offset: skip first row, get 2.
+        let offset = super::list_library_files_with_connection(
+            &conn, 100, 1, None, false, None,
+        )
+        .expect("list");
+        assert_eq!(offset.len(), 2);
     }
 }
