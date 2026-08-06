@@ -9,12 +9,27 @@
 /coreamp-app/dist/
 /coreamp-app/frontend/dist/
 
+# Vite / Vitest / npm caches
+coreamp-app/frontend/.vite/
+coreamp-app/frontend/coverage/
+coreamp-app/frontend/node_modules/.cache/
+*.lcov
+
+# Source maps for vendored JS (kept on disk for debugging, not committed)
+*.min.js.map
+
 # OS Junk
 .DS_Store
 Thumbs.db
 *.DS_Store
 *.swp
+*.swo
 *~
+
+# Editor / IDE
+.idea/
+.vscode/
+*.iml
 
 # Logs
 *.log
@@ -30,3 +45,4 @@ node_modules/
 # Scratch / reference assets (downloaded source textures, mockups — not shipped)
 /images/
 *.dep
+
