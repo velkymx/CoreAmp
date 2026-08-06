@@ -9,6 +9,7 @@ pub mod ipc;
 pub mod library;
 pub mod metadata;
 pub mod musicbrainz;
+pub mod path;
 pub mod playlist;
 pub mod settings;
 

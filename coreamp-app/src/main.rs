@@ -684,24 +684,25 @@ fn set_rating(path: String, rating: i64) -> Result<i64, String> {
 #[tauri::command]
 fn set_track_artwork(track_path: String, image_path: String) -> Result<bool, String> {
     const MAX_ARTWORK_BYTES: u64 = 32 * 1024 * 1024;
-    let image = Path::new(&image_path);
-    let mime = metadata::supported_image_mime(image)
+    // Both paths are validated against the approved library roots before
+    // any I/O. The validator canonicalizes, rejects symlink escapes, and
+    // refuses paths with `..` segments. Returns the canonical PathBuf.
+    let image = coreamp_common::path::validate_library_path(Path::new(&image_path))?;
+    let track = coreamp_common::path::validate_library_path(Path::new(&track_path))?;
+    let mime = metadata::supported_image_mime(&image)
         .ok_or_else(|| String::from("Unsupported image type"))?;
-    // Must be a regular file within a sane size before we read it.
-    let meta = std::fs::metadata(image).map_err(|err| err.to_string())?;
+    let meta = std::fs::metadata(&image).map_err(|err| err.to_string())?;
     if !meta.is_file() {
         return Err(String::from("Image path is not a regular file"));
     }
     if meta.len() > MAX_ARTWORK_BYTES {
         return Err(String::from("Image is too large"));
     }
-    let bytes = std::fs::read(image).map_err(|err| err.to_string())?;
-    // The bytes must actually be the image type the extension claims — blocks
-    // pointing the command at an arbitrary non-image file.
+    let bytes = std::fs::read(&image).map_err(|err| err.to_string())?;
     if !image_bytes_match_mime(&bytes, mime) {
         return Err(String::from("File contents are not a valid image"));
     }
-    metadata::write_artwork(Path::new(&track_path), &bytes, mime)?;
+    metadata::write_artwork(&track, &bytes, mime)?;
     Ok(true)
 }
 
@@ -1038,8 +1039,9 @@ return POSIX path of pickedItem"#
 use std::io::Cursor;
 
 #[tauri::command]
-fn read_track_artwork(path: String, max_size: Option<u32>) -> Option<TrackArtwork> {
-    metadata::read_track_artwork(Path::new(&path)).map(|artwork| {
+fn read_track_artwork(path: String, max_size: Option<u32>) -> Result<Option<TrackArtwork>, String> {
+    let safe = coreamp_common::path::validate_library_path(Path::new(&path))?;
+    Ok(metadata::read_track_artwork(&safe).map(|artwork| {
         let mut data = artwork.data;
         let mut mime_type = artwork.mime_type;
 
@@ -1063,7 +1065,7 @@ fn read_track_artwork(path: String, max_size: Option<u32>) -> Option<TrackArtwor
             mime_type,
             data_base64: base64::engine::general_purpose::STANDARD.encode(data),
         }
-    })
+    }))
 }
 
 fn playlist_summary_from_path(path: &Path) -> Result<PlaylistSummary, String> {
@@ -1099,11 +1101,14 @@ fn append_to_playlist(
     playlist_path: String,
     paths: Vec<String>,
 ) -> Result<PlaylistSummary, String> {
-    let target = PathBuf::from(&playlist_path);
+    // Validate the existing playlist is in the approved roots; read it.
+    let target = coreamp_common::path::validate_library_path(Path::new(&playlist_path))?;
     let mut entries = playlist::read_playlist(&target).map_err(|err| err.to_string())?;
     let mut existing: HashSet<_> = entries.iter().cloned().collect();
+    // Each appended path is also validated. The webview cannot use this
+    // command to inject paths that point outside the library.
     for path in paths {
-        let pb = PathBuf::from(path);
+        let pb = coreamp_common::path::validate_library_path(Path::new(&path))?;
         if existing.insert(pb.clone()) {
             entries.push(pb);
         }
@@ -1119,8 +1124,8 @@ fn append_to_playlist(
 
 #[tauri::command]
 fn load_playlist(playlist_path: String) -> Result<Vec<LibraryTrack>, String> {
-    let entries =
-        playlist::read_playlist(Path::new(&playlist_path)).map_err(|err| err.to_string())?;
+    let safe = coreamp_common::path::validate_library_path(Path::new(&playlist_path))?;
+    let entries = playlist::read_playlist(&safe).map_err(|err| err.to_string())?;
     Ok(entries
         .iter()
         .map(|path| track_from_path(path))
@@ -1129,7 +1134,10 @@ fn load_playlist(playlist_path: String) -> Result<Vec<LibraryTrack>, String> {
 
 #[tauri::command]
 fn import_playlist_file(source_path: String) -> Result<PlaylistSummary, String> {
-    let source = PathBuf::from(&source_path);
+    // The import source must live under an approved root. We only copy
+    // tracks from inside the library; refusing outside-root sources
+    // also blocks the "import a file from /etc" attack.
+    let source = coreamp_common::path::validate_library_path(Path::new(&source_path))?;
     let entries = playlist::read_playlist(&source).map_err(|err| err.to_string())?;
     let target_name = source
         .file_stem()
@@ -1174,7 +1182,8 @@ fn playlist_contains(playlist_path: String, track_path: String) -> Result<bool, 
 
 #[tauri::command]
 fn write_missing_tags_for_path(path: String) -> Result<bool, String> {
-    let row = db::get_library_file(&path)?
+    let safe = coreamp_common::path::validate_library_path(Path::new(&path))?;
+    let row = db::get_library_file(safe.to_str().unwrap_or(&path))?
         .ok_or_else(|| format!("Track not found in library: {path}"))?;
     let metadata = metadata::TrackMetadata {
         artist: row.artist,
@@ -1186,7 +1195,7 @@ fn write_missing_tags_for_path(path: String) -> Result<bool, String> {
         track_number: row.track_number.and_then(|n| u32::try_from(n).ok()),
         duration_secs: row.duration_secs,
     };
-    metadata::write_missing_tags(Path::new(&path), &metadata)
+    metadata::write_missing_tags(&safe, &metadata)
 }
 
 fn normalize_metadata_input(input: TrackMetadataInput) -> metadata::TrackMetadata {
@@ -1218,10 +1227,12 @@ fn update_track_metadata_for_path(
     path: String,
     metadata_input: TrackMetadataInput,
 ) -> Result<LibraryTrack, String> {
+    let safe = coreamp_common::path::validate_library_path(Path::new(&path))?;
     let metadata = normalize_metadata_input(metadata_input);
-    metadata::write_tags(Path::new(&path), &metadata)?;
-    db::update_track_metadata(&path, &metadata)?;
-    Ok(track_from_path(Path::new(&path)))
+    metadata::write_tags(&safe, &metadata)?;
+    let safe_str = safe.to_string_lossy().to_string();
+    db::update_track_metadata(&safe_str, &metadata)?;
+    Ok(track_from_path(&safe))
 }
 
 #[tauri::command]
@@ -1306,7 +1317,7 @@ fn infer_bit_depth(path: &Path) -> Option<u16> {
 
 #[tauri::command]
 fn read_track_signal_details(path: String) -> Result<TrackSignalDetails, String> {
-    let file_path = PathBuf::from(&path);
+    let file_path = coreamp_common::path::validate_library_path(Path::new(&path))?;
     // Read the header via lofty (no full decode). Fall back to a file-size /
     // duration estimate only when the container exposes no bitrate.
     let props = metadata::read_audio_signal_properties(&file_path);
@@ -1712,7 +1723,16 @@ fn dispatch_native_audio_command(
 
 #[tauri::command]
 fn native_audio_play(path: String) -> Result<(), String> {
-    dispatch_native_audio_command(|response| NativeAudioCommand::Play { path, response })
+    // Native playback must not be steered at files outside the library.
+    // The native audio thread reads with lofty/rodio and feeds the audio
+    // device directly, so an attacker-controlled path would let the
+    // webview exfiltrate arbitrary file contents via the audio buffer.
+    let safe = coreamp_common::path::validate_library_path(Path::new(&path))?;
+    let path_str = safe.to_string_lossy().to_string();
+    dispatch_native_audio_command(|response| NativeAudioCommand::Play {
+        path: path_str,
+        response,
+    })
 }
 
 #[tauri::command]
