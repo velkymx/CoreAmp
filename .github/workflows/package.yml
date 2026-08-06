@@ -9,12 +9,15 @@ on:
 permissions:
   contents: write
 
+# All third-party Actions pinned to a commit SHA. Dependabot rotates
+# (`.github/dependabot.yml`, ecosystem `github-actions`).
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install system dependencies
         if: runner.os == 'Linux'
@@ -29,11 +32,14 @@ jobs:
             librsvg2-dev \
             libgtk-3-dev
 
+      - name: Ensure packaging scripts are executable
+        run: chmod +x packaging/linux/*.sh packaging/macos/*.sh
+
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (stable)
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@72d126e709cad40056a62344eee609d696d62d33 # v2
         with:
           workspaces: "./ -> target"
 
@@ -52,7 +58,7 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Linux system dependencies
         run: |
@@ -68,15 +74,15 @@ jobs:
             patchelf
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (stable)
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@72d126e709cad40056a62344eee609d696d62d33 # v2
         with:
           workspaces: "./ -> target"
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
 
@@ -97,17 +103,10 @@ jobs:
           find "${BUNDLE_DIR}/appimage" -name '*.AppImage.tar.gz.sig' -exec cp {} target/packages/linux/ \; 2>/dev/null || true
 
       - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: coreamp-linux-bundles
           path: target/packages/linux/
-
-      - name: Publish Linux release assets
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: target/packages/linux/*
-          draft: true
 
   macos:
     needs: verify
@@ -115,23 +114,23 @@ jobs:
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-      MACOSX_DEPLOYMENT_TARGET: "10.13"
+      MACOSX_DEPLOYMENT_TARGET: "26.0"
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (stable)
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@72d126e709cad40056a62344eee609d696d62d33 # v2
         with:
           workspaces: "./ -> target"
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
 
@@ -150,25 +149,25 @@ jobs:
           find target/aarch64-apple-darwin/release/bundle/macos -name '*.app.tar.gz.sig' -exec cp {} target/packages/macos/ \; 2>/dev/null || true
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: coreamp-macos-bundles
           path: target/packages/macos/
 
-      - name: Publish macOS release assets
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: target/packages/macos/*
-          draft: true
-
-  updater-json:
+  release:
+    # Single release job: download both platform artifacts, build
+    # latest.json, then publish everything in one softprops call. Avoids
+    # the previous race where linux + macos created separate draft
+    # releases and updater-json uploaded to whichever finished last.
     needs: [linux, macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v5
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           path: artifacts
 
@@ -194,33 +193,39 @@ jobs:
           MACOS_FILE=$(ls artifacts/coreamp-macos-bundles/*.app.tar.gz 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
           LINUX_FILE=$(ls artifacts/coreamp-linux-bundles/*.AppImage.tar.gz 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
 
-          # Build latest.json
+          # Build latest.json. Only emit a platform entry if the
+          # signature + filename are present. darwin-x86_64 is dropped
+          # because the macos job does not currently produce an x86_64
+          # updater bundle.
+          PLATFORMS=""
+          if [ -n "${MACOS_SIG}" ] && [ -n "${MACOS_FILE}" ]; then
+            PLATFORMS="${PLATFORMS}\"darwin-aarch64\": {\"signature\": \"${MACOS_SIG}\", \"url\": \"${BASE_URL}/${MACOS_FILE}\"},
+          fi
+          if [ -n "${LINUX_SIG}" ] && [ -n "${LINUX_FILE}" ]; then
+            PLATFORMS="${PLATFORMS}\"linux-x86_64\": {\"signature\": \"${LINUX_SIG}\", \"url\": \"${BASE_URL}/${LINUX_FILE}\"},
+          fi
+          # Trim trailing comma
+          PLATFORMS="${PLATFORMS%,}"
+
           cat > latest.json << ENDJSON
           {
             "version": "${VERSION}",
             "notes": "CoreAmp ${VERSION} is available. See release notes on GitHub.",
             "pub_date": "${DATE}",
             "platforms": {
-              "darwin-aarch64": {
-                "signature": "${MACOS_SIG}",
-                "url": "${BASE_URL}/${MACOS_FILE}"
-              },
-              "darwin-x86_64": {
-                "signature": "${MACOS_SIG}",
-                "url": "${BASE_URL}/${MACOS_FILE}"
-              },
-              "linux-x86_64": {
-                "signature": "${LINUX_SIG}",
-                "url": "${BASE_URL}/${LINUX_FILE}"
-              }
+              ${PLATFORMS}
             }
           }
           ENDJSON
 
           cat latest.json
 
-      - name: Upload latest.json to release
-        uses: softprops/action-gh-release@v2
+      - name: Publish release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: latest.json
+          files: |
+            artifacts/coreamp-macos-bundles/*
+            artifacts/coreamp-linux-bundles/*
+            latest.json
           draft: true
+
