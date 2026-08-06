@@ -80,83 +80,83 @@ pub struct EnrichmentCandidate {
     pub query: String,
 }
 
-const SCHEMA: &str = r#"
-CREATE TABLE IF NOT EXISTS files (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    path TEXT NOT NULL UNIQUE,
-    filename TEXT NOT NULL,
-    artist TEXT,
-    album TEXT,
-    album_artist TEXT,
-    title TEXT,
-    track_number INTEGER,
-    year TEXT,
-    genre TEXT,
-    liked INTEGER NOT NULL DEFAULT 0,
-    rating INTEGER NOT NULL DEFAULT 0,
-    play_count INTEGER NOT NULL DEFAULT 0,
-    last_played_at INTEGER,
-    cover_url TEXT,
-    metadata_hash TEXT,
-    duration_secs INTEGER,
-    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
-);
+/// Ordered list of schema migrations. Append a new entry when adding
+/// a column or table; never edit an existing entry once it has
+/// shipped (old DBs still need the original SQL to upgrade).
+///
+/// Each entry is `(&'static str version, &'static str sql)`. The
+/// `sql` is run with `execute_batch` inside a transaction. Use
+/// `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` for
+/// idempotency, but otherwise treat each entry as a snapshot of the
+/// schema at that version.
+const MIGRATIONS: &[(u32, &str)] = &[
+    (
+        1,
+        r#"
+        CREATE TABLE IF NOT EXISTS files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL UNIQUE,
+            filename TEXT NOT NULL,
+            artist TEXT,
+            album TEXT,
+            album_artist TEXT,
+            title TEXT,
+            track_number INTEGER,
+            year TEXT,
+            genre TEXT,
+            liked INTEGER NOT NULL DEFAULT 0,
+            rating INTEGER NOT NULL DEFAULT 0,
+            play_count INTEGER NOT NULL DEFAULT 0,
+            last_played_at INTEGER,
+            cover_url TEXT,
+            metadata_hash TEXT,
+            duration_secs INTEGER,
+            updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
 
-CREATE TABLE IF NOT EXISTS history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    path TEXT NOT NULL,
-    played_at INTEGER NOT NULL DEFAULT (unixepoch())
-);
+        CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL,
+            played_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
 
-CREATE INDEX IF NOT EXISTS idx_files_path ON files(path);
-CREATE INDEX IF NOT EXISTS idx_files_artist ON files(artist);
-CREATE INDEX IF NOT EXISTS idx_files_album ON files(album);
-CREATE INDEX IF NOT EXISTS idx_files_liked ON files(liked);
-CREATE INDEX IF NOT EXISTS idx_history_path ON history(path);
-CREATE INDEX IF NOT EXISTS idx_history_played_at ON history(played_at);
-"#;
+        CREATE INDEX IF NOT EXISTS idx_files_path ON files(path);
+        CREATE INDEX IF NOT EXISTS idx_files_artist ON files(artist);
+        CREATE INDEX IF NOT EXISTS idx_files_album ON files(album);
+        CREATE INDEX IF NOT EXISTS idx_files_liked ON files(liked);
+        CREATE INDEX IF NOT EXISTS idx_history_path ON history(path);
+        CREATE INDEX IF NOT EXISTS idx_history_played_at ON history(played_at);
+        "#,
+    ),
+];
+
+const LATEST_SCHEMA_VERSION: u32 = 1;
 
 fn apply_schema(connection: &Connection) -> rusqlite::Result<()> {
-    connection.execute_batch(SCHEMA)?;
+    // Read the recorded version. PRAGMA user_version is part of the
+    // SQLite file header and survives across opens; new DBs default
+    // to 0. Each migration runs in a transaction so a partial apply
+    // (crash, panic) leaves user_version unchanged and the migration
+    // retries on next open.
+    let current_version: u32 = connection
+        .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))?
+        .try_into()
+        .unwrap_or(0);
 
-    // Migration for genre, liked, play_count, and last_played_at columns
-    let columns = connection
-        .prepare("PRAGMA table_info(files)")?
-        .query_map([], |row| row.get::<_, String>(1))?
-        .collect::<Result<HashSet<String>, _>>()?;
+    if current_version > LATEST_SCHEMA_VERSION {
+        // The DB was written by a newer build. Refuse to silently
+        // downgrade; let the caller surface a clear error.
+        return Err(rusqlite::Error::InvalidQuery);
+    }
 
-    if !columns.contains("genre") {
-        connection.execute("ALTER TABLE files ADD COLUMN genre TEXT", [])?;
-    }
-    if !columns.contains("liked") {
-        connection.execute(
-            "ALTER TABLE files ADD COLUMN liked INTEGER NOT NULL DEFAULT 0",
-            [],
-        )?;
-    }
-    if !columns.contains("play_count") {
-        connection.execute(
-            "ALTER TABLE files ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0",
-            [],
-        )?;
-    }
-    if !columns.contains("last_played_at") {
-        connection.execute("ALTER TABLE files ADD COLUMN last_played_at INTEGER", [])?;
-    }
-    if !columns.contains("duration_secs") {
-        connection.execute("ALTER TABLE files ADD COLUMN duration_secs INTEGER", [])?;
-    }
-    if !columns.contains("album_artist") {
-        connection.execute("ALTER TABLE files ADD COLUMN album_artist TEXT", [])?;
-    }
-    if !columns.contains("track_number") {
-        connection.execute("ALTER TABLE files ADD COLUMN track_number INTEGER", [])?;
-    }
-    if !columns.contains("rating") {
-        connection.execute(
-            "ALTER TABLE files ADD COLUMN rating INTEGER NOT NULL DEFAULT 0",
-            [],
-        )?;
+    for &(version, sql) in MIGRATIONS.iter() {
+        if version <= current_version {
+            continue;
+        }
+        let tx = connection.unchecked_transaction()?;
+        tx.execute_batch(sql)?;
+        tx.pragma_update(None, "user_version", version as i64)?;
+        tx.commit()?;
     }
 
     Ok(())
@@ -1368,5 +1368,39 @@ mod tests {
         )
         .expect("list");
         assert_eq!(offset.len(), 2);
+    }
+
+    #[test]
+    fn apply_schema_records_user_version() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("apply schema");
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .expect("user_version");
+        assert_eq!(version, super::LATEST_SCHEMA_VERSION as i64);
+    }
+
+    #[test]
+    fn apply_schema_idempotent_on_repeat() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        super::apply_schema(&conn).expect("first apply");
+        super::apply_schema(&conn).expect("second apply must be a no-op");
+        // Still at latest version.
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .expect("user_version");
+        assert_eq!(version, super::LATEST_SCHEMA_VERSION as i64);
+    }
+
+    #[test]
+    fn apply_schema_rejects_newer_db() {
+        // Simulate a DB that was opened and written by a future build
+        // (user_version is beyond our latest). apply_schema must refuse
+        // to silently downgrade.
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        conn.pragma_update(None, "user_version", (super::LATEST_SCHEMA_VERSION + 1) as i64)
+            .expect("bump user_version");
+        let err = super::apply_schema(&conn).expect_err("must refuse downgrade");
+        assert!(matches!(err, rusqlite::Error::InvalidQuery));
     }
 }
