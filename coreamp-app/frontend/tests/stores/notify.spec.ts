@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
 import { useNotifyStore, errorMessage } from "@/stores/notify";
 
@@ -48,6 +48,58 @@ describe("notify store", () => {
     n.endPending();
     expect(n.pending).toBe(0);
     expect(n.busy).toBe(false);
+  });
+
+  describe("dedupe", () => {
+    it("drops an identical note fired within the 2s window", () => {
+      vi.useFakeTimers();
+      try {
+        const n = useNotifyStore();
+        const a = n.error("scan failed");
+        const b = n.error("scan failed");
+        expect(b).toBe(a);
+        expect(n.notes).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("accepts the same note again after the window expires", () => {
+      vi.useFakeTimers();
+      try {
+        const n = useNotifyStore();
+        n.error("scan failed");
+        vi.advanceTimersByTime(2_500);
+        n.error("scan failed");
+        expect(n.notes).toHaveLength(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not dedupe across different kinds", () => {
+      vi.useFakeTimers();
+      try {
+        const n = useNotifyStore();
+        n.error("oops");
+        n.info("oops");
+        expect(n.notes).toHaveLength(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not dedupe across different texts", () => {
+      vi.useFakeTimers();
+      try {
+        const n = useNotifyStore();
+        n.error("oops A");
+        n.error("oops B");
+        expect(n.notes).toHaveLength(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
 
