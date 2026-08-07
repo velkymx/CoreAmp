@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
-import { useNotifyStore, errorMessage } from "@/stores/notify";
+import {
+  useNotifyStore,
+  errorMessage,
+  redactUserInfo,
+} from "@/stores/notify";
 
 describe("notify store", () => {
   beforeEach(() => setActivePinia(createPinia()));
@@ -108,5 +112,68 @@ describe("errorMessage", () => {
     expect(errorMessage(new Error("nope"))).toBe("nope");
     expect(errorMessage("raw")).toBe("raw");
     expect(errorMessage(42)).toBe("42");
+  });
+
+  it("redacts user paths from Error messages", () => {
+    const err = new Error("read /Users/alice/Music/track.mp3: not found");
+    expect(errorMessage(err)).not.toContain("alice");
+    expect(errorMessage(err)).toContain("<HOME>");
+    expect(errorMessage(err)).toContain("Music/track.mp3");
+  });
+
+  it("strips top-level database / io error prefixes; keeps the rest", () => {
+    expect(errorMessage("database error: no such column: artist")).toBe(
+      "no such column: artist",
+    );
+    expect(errorMessage("io error: permission denied")).toBe(
+      "permission denied",
+    );
+  });
+});
+
+describe("redactUserInfo", () => {
+  it("redacts /Users/<name> paths but keeps the rest", () => {
+    expect(redactUserInfo("open /Users/alice/Music/track.mp3")).toBe(
+      "open <HOME>/Music/track.mp3",
+    );
+  });
+
+  it("redacts /home/<name> paths", () => {
+    expect(redactUserInfo("read /home/bob/Music/x.flac")).toBe(
+      "read <HOME>/Music/x.flac",
+    );
+  });
+
+  it("redacts /root paths but keeps the rest", () => {
+    expect(redactUserInfo("/root/.config/CoreAmp/local.db")).toBe(
+      "<HOME>/.config/CoreAmp/local.db",
+    );
+  });
+
+  it("redacts ~/tilde paths", () => {
+    expect(redactUserInfo("open ~/Music/foo.mp3")).toBe(
+      "open <HOME>/Music/foo.mp3",
+    );
+  });
+
+  it("strips database error: / io error: prefixes", () => {
+    expect(redactUserInfo("database error: disk full")).toBe("disk full");
+    expect(redactUserInfo("io error: permission denied")).toBe(
+      "permission denied",
+    );
+  });
+
+  it("leaves the sub-error context intact", () => {
+    // Sub-errors ("no such column: artist", "UNIQUE constraint failed:")
+    // are useful for the user; we do not strip them.
+    expect(redactUserInfo("no such column: artist")).toBe("no such column: artist");
+    expect(redactUserInfo("UNIQUE constraint failed: files.path")).toBe(
+      "UNIQUE constraint failed: files.path",
+    );
+  });
+
+  it("leaves ordinary messages alone", () => {
+    expect(redactUserInfo("network timeout")).toBe("network timeout");
+    expect(redactUserInfo("permission denied")).toBe("permission denied");
   });
 });

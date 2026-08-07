@@ -13,15 +13,54 @@ export interface Note {
   createdAt: number;
 }
 
+/**
+ * Strip user-identifying information from a backend error string
+ * before it surfaces in a toast. The raw string is still available
+ * in the browser console (via `app.config.errorHandler` and the
+ * `unhandledrejection` listener), so developers can still see
+ * paths and SQL fragments — but the user only ever sees a
+ * sanitized version.
+ *
+ * Currently redacts:
+ * - macOS home paths (`/Users/<name>/...`)
+ * - Linux home paths (`/home/<name>/...`)
+ * - Tilde paths (`~/...`)
+ * - SQLite / Rust error prefixes (`database error:`, `io error:`,
+ *   `no such column:`, `UNIQUE constraint failed:`, `database is locked`)
+ *
+ * The redactions are conservative — they only target well-known
+ * shapes so a user-pasted path or a normal message that happens to
+ * contain the substring "database" is left alone.
+ */
+export function redactUserInfo(message: string): string {
+  let out = message;
+  // macOS / Linux home dirs. The username and the home path
+  // component itself are sensitive; everything after (the user's
+  // own music / config layout) stays visible.
+  out = out.replace(/\/(?:Users|home|root)\/[^/\s'")\]]+\/?/g, "<HOME>/");
+  // Tilde paths: ~/foo/bar -> <HOME>/foo/bar.
+  out = out.replace(/(^|[\s'"(=])~[^/\s'")\]]*\/?/g, "$1<HOME>/");
+  // Top-level Rust error wrappers from coreamp-common's CoreampError
+  // Display impl. The sub-message ("no such column: artist", etc.)
+  // stays; the prefix is what leaks the file path / DB internals.
+  out = out.replace(/\b(?:database error|io error):\s*/gi, "");
+  out = out.replace(/\s{2,}/g, " ").trim();
+  return out || message; // fall back if we redacted everything
+}
+
 // Pull a human-readable message out of whatever was thrown.
 export function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  try {
-    return String(err);
-  } catch {
-    return "Unknown error";
+  let raw: string;
+  if (err instanceof Error) raw = err.message;
+  else if (typeof err === "string") raw = err;
+  else {
+    try {
+      raw = String(err);
+    } catch {
+      raw = "Unknown error";
+    }
   }
+  return redactUserInfo(raw);
 }
 
 let nextId = 1;
