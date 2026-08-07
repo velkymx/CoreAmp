@@ -36,10 +36,12 @@ export function redactUserInfo(message: string): string {
   let out = message;
   // macOS / Linux home dirs. The username and the home path
   // component itself are sensitive; everything after (the user's
-  // own music / config layout) stays visible.
-  out = out.replace(/\/(?:Users|home|root)\/[^/\s'")\]]+\/?/g, "<HOME>/");
+  // own music / config layout) stays visible. Usernames are not
+  // allowed to contain `/` or `.`, so the negated character class
+  // is fine.
+  out = out.replace(/\/(?:Users|home|root)\/[^/.\s'")\]]+\/?/g, "<HOME>/");
   // Tilde paths: ~/foo/bar -> <HOME>/foo/bar.
-  out = out.replace(/(^|[\s'"(=])~[^/\s'")\]]*\/?/g, "$1<HOME>/");
+  out = out.replace(/(^|[\s'"(=])~[^/.\s'")\]]*\/?/g, "$1<HOME>/");
   // Top-level Rust error wrappers from coreamp-common's CoreampError
   // Display impl. The sub-message ("no such column: artist", etc.)
   // stays; the prefix is what leaks the file path / DB internals.
