@@ -34,14 +34,14 @@ export interface Note {
  */
 export function redactUserInfo(message: string): string {
   let out = message;
-  // macOS / Linux home dirs. The username and the home path
-  // component itself are sensitive; everything after (the user's
-  // own music / config layout) stays visible. Usernames are not
-  // allowed to contain `/` or `.`, so the negated character class
-  // is fine.
-  out = out.replace(/\/(?:Users|home|root)\/[^/.\s'")\]]+\/?/g, "<HOME>/");
+  // macOS / Linux home dirs. POSIX requires a username component
+  // under /Users and /home; we capture only the parent (no trailing
+  // slash) so the separator survives. /root is handled separately
+  // because it has no username component.
+  out = out.replace(/\/(?:Users|home)\/[^/\s'")\]]+/g, "<HOME>");
+  out = out.replace(/\/root(?=\/|$|\s|'|"|\)|])/g, "<HOME>");
   // Tilde paths: ~/foo/bar -> <HOME>/foo/bar.
-  out = out.replace(/(^|[\s'"(=])~[^/.\s'")\]]*\/?/g, "$1<HOME>/");
+  out = out.replace(/(^|[\s'"(=])~[^/\s'")\.]*/g, "$1<HOME>");
   // Top-level Rust error wrappers from coreamp-common's CoreampError
   // Display impl. The sub-message ("no such column: artist", etc.)
   // stays; the prefix is what leaks the file path / DB internals.
