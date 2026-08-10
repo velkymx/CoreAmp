@@ -1926,10 +1926,7 @@ fn main() {
             let mut allowed_count = 0usize;
             for dir in library::asset_scope_roots() {
                 if let Err(err) = asset_scope.allow_directory(&dir, true) {
-                    eprintln!(
-                        "asset scope: failed to allow {}: {err}",
-                        dir.display()
-                    );
+                    eprintln!("asset scope: failed to allow {}: {err}", dir.display());
                 } else {
                     allowed_count += 1;
                 }

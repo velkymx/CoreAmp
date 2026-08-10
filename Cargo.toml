@@ -5,7 +5,7 @@ resolver = "3"
 [workspace.package]
 edition = "2024"
 license = "Polyform-Noncommercial-1.0.0"
-version = "0.5.0"
+version = "0.6.0"
 
 [workspace.dependencies]
 # Pin the Tauri CLI to the same version family as the `tauri` crate

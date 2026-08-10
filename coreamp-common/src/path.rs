@@ -66,7 +66,10 @@ pub fn validate_library_path(path: &Path) -> Result<PathBuf, CoreampError> {
         ));
     }
 
-    if !approved_roots.iter().any(|root| canonical.starts_with(root)) {
+    if !approved_roots
+        .iter()
+        .any(|root| canonical.starts_with(root))
+    {
         return Err(CoreampError::Message(format!(
             "path is outside approved roots: {}",
             canonical.display()
@@ -106,11 +109,11 @@ mod tests {
         }
     }
 
-    static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
     #[test]
     fn rejects_nonexistent_path() {
-        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let temp = tempfile::tempdir().unwrap();
         let outside = temp.path().join("does-not-exist.mp3");
         let err = validate_library_path(&outside).unwrap_err();
@@ -121,10 +124,12 @@ mod tests {
 
     #[test]
     fn accepts_path_inside_approved_root() {
-        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let temp = tempfile::tempdir().unwrap();
-        let lib = make_root(&temp.path(), "library");
-        configure_library_roots(&[lib.clone()]);
+        let lib = make_root(temp.path(), "library");
+        configure_library_roots(std::slice::from_ref(&lib));
         let track = lib.join("track.mp3");
         std::fs::write(&track, b"fake").unwrap();
         let ok = validate_library_path(&track).unwrap();
@@ -134,11 +139,13 @@ mod tests {
 
     #[test]
     fn rejects_path_outside_approved_root() {
-        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let temp = tempfile::tempdir().unwrap();
-        let lib = make_root(&temp.path(), "library");
-        let other = make_root(&temp.path(), "other");
-        configure_library_roots(&[other.clone()]);
+        let lib = make_root(temp.path(), "library");
+        let other = make_root(temp.path(), "other");
+        configure_library_roots(std::slice::from_ref(&other));
         let track = lib.join("track.mp3");
         std::fs::write(&track, b"fake").unwrap();
         let err = validate_library_path(&track).unwrap_err();
@@ -149,12 +156,14 @@ mod tests {
 
     #[test]
     fn rejects_symlink_escape() {
-        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let temp = tempfile::tempdir().unwrap();
-        let lib = make_root(&temp.path(), "library");
+        let lib = make_root(temp.path(), "library");
         let outside = temp.path().join("secret.txt");
         std::fs::write(&outside, b"top secret").unwrap();
-        configure_library_roots(&[lib.clone()]);
+        configure_library_roots(std::slice::from_ref(&lib));
         let symlink = lib.join("leak.txt");
         std::os::unix::fs::symlink(&outside, &symlink).unwrap();
         let err = validate_library_path(&symlink).unwrap_err();
@@ -165,14 +174,16 @@ mod tests {
 
     #[test]
     fn rejects_parent_traversal_segments() {
-        let _guard = crate::test_lock::ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::test_lock::ENV_MUTEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         // Construct a path that contains `..` but doesn't exist; the
         // early "does not exist" branch is what we exercise here, since
         // canonicalize would also fail. The point is to confirm we
         // never let the raw path through.
         let temp = tempfile::tempdir().unwrap();
-        let lib = make_root(&temp.path(), "library");
-        configure_library_roots(&[lib.clone()]);
+        let lib = make_root(temp.path(), "library");
+        configure_library_roots(std::slice::from_ref(&lib));
         let bad = lib.join("..").join("etc").join("passwd");
         let err = validate_library_path(&bad).unwrap_err();
         let msg = err.to_string();

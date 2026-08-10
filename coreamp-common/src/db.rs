@@ -84,9 +84,7 @@ fn get_db() -> Result<&'static Mutex<Connection>, CoreampError> {
             Err(first_err) => {
                 quarantine_db_file();
                 open_and_init().map(Mutex::new).map_err(|second_err| {
-                    format!(
-                        "db: open failed twice; first={first_err}; second={second_err}"
-                    )
+                    format!("db: open failed twice; first={first_err}; second={second_err}")
                 })
             }
         })
@@ -148,10 +146,9 @@ pub struct EnrichmentCandidate {
 /// `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` for
 /// idempotency, but otherwise treat each entry as a snapshot of the
 /// schema at that version.
-const MIGRATIONS: &[(u32, &str)] = &[
-    (
-        1,
-        r#"
+const MIGRATIONS: &[(u32, &str)] = &[(
+    1,
+    r#"
         CREATE TABLE IF NOT EXISTS files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             path TEXT NOT NULL UNIQUE,
@@ -186,8 +183,7 @@ const MIGRATIONS: &[(u32, &str)] = &[
         CREATE INDEX IF NOT EXISTS idx_history_path ON history(path);
         CREATE INDEX IF NOT EXISTS idx_history_played_at ON history(played_at);
         "#,
-    ),
-];
+)];
 
 const LATEST_SCHEMA_VERSION: u32 = 1;
 
@@ -980,11 +976,11 @@ pub fn update_track_metadata(path: &str, metadata: &TrackMetadata) -> Result<boo
 
 #[cfg(test)]
 mod tests {
-    use crate::metadata_db_path;
-    use std::time::{SystemTime, UNIX_EPOCH};
     use crate::library::ScannedFile;
+    use crate::metadata_db_path;
     use rusqlite::Connection;
     use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn configure_connection_enables_wal() {
@@ -1401,15 +1397,18 @@ mod tests {
         }
 
         // No filters: 3 rows.
-        let all = super::list_library_files_with_connection(
-            &conn, 100, 0, None, false, None,
-        )
-        .expect("list");
+        let all = super::list_library_files_with_connection(&conn, 100, 0, None, false, None)
+            .expect("list");
         assert_eq!(all.len(), 3);
 
         // genre=Rock + liked_only=true: 1 row (X).
         let rock_liked = super::list_library_files_with_connection(
-            &conn, 100, 0, Some("Rock".to_string()), true, None,
+            &conn,
+            100,
+            0,
+            Some("Rock".to_string()),
+            true,
+            None,
         )
         .expect("list");
         assert_eq!(rock_liked.len(), 1);
@@ -1417,17 +1416,20 @@ mod tests {
 
         // search=Pop: 1 row (Y).
         let pop = super::list_library_files_with_connection(
-            &conn, 100, 0, None, false, Some("Pop".to_string()),
+            &conn,
+            100,
+            0,
+            None,
+            false,
+            Some("Pop".to_string()),
         )
         .expect("list");
         assert_eq!(pop.len(), 1);
         assert_eq!(pop[0].title.as_deref(), Some("Y"));
 
         // offset: skip first row, get 2.
-        let offset = super::list_library_files_with_connection(
-            &conn, 100, 1, None, false, None,
-        )
-        .expect("list");
+        let offset = super::list_library_files_with_connection(&conn, 100, 1, None, false, None)
+            .expect("list");
         assert_eq!(offset.len(), 2);
     }
 
@@ -1459,8 +1461,12 @@ mod tests {
         // (user_version is beyond our latest). apply_schema must refuse
         // to silently downgrade.
         let conn = Connection::open_in_memory().expect("in-memory db");
-        conn.pragma_update(None, "user_version", (super::LATEST_SCHEMA_VERSION + 1) as i64)
-            .expect("bump user_version");
+        conn.pragma_update(
+            None,
+            "user_version",
+            (super::LATEST_SCHEMA_VERSION + 1) as i64,
+        )
+        .expect("bump user_version");
         let err = super::apply_schema(&conn).expect_err("must refuse downgrade");
         assert!(matches!(err, rusqlite::Error::InvalidQuery));
     }
