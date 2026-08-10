@@ -13,7 +13,7 @@ devtools = ["tauri/devtools"]
 tauri-build = { version = "2.6", features = [] }
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 coreamp-common = { path = "../coreamp-common" }
 rodio = "0.22"
 serde = { version = "1", features = ["derive"] }
